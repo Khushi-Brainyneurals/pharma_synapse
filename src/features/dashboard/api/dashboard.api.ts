@@ -39,8 +39,15 @@ export interface DashboardItem {
   updated_at: string | null;
 }
 
+export interface DashboardCard {
+  key: string;
+  label: string;
+  count: number;
+}
+
 export interface DashboardResponse {
   role: string;
+  cards: DashboardCard[];
   buckets: { key: string; label: string; sub: string; count: number }[];
   overdue_count: number;
   retained_count: number;
@@ -108,16 +115,52 @@ export async function getDashboard(): Promise<DashboardResponse> {
   const data = response.data ?? {};
   const rawList = Array.isArray(data.items) ? data.items : Array.isArray(data.documents) ? data.documents : [];
   const items = rawList.map(normalizeDashboardItem);
+  const rawCards = Array.isArray(data.cards)
+    ? data.cards.map((c: any) => ({
+        key: String(c.key),
+        label: String(c.label),
+        count: Number(c.count ?? 0),
+      }))
+    : [];
+
+  const cards: DashboardCard[] =
+    rawCards.length > 0
+      ? rawCards
+      : [
+          { key: "draft", label: "Draft", count: items.filter((i: DashboardItem) => i.status === "draft").length },
+          {
+            key: "in_review",
+            label: "In review",
+            count: items.filter((i: DashboardItem) => ["in_review", "under_review", "submitted"].includes(i.status)).length,
+          },
+          {
+            key: "in_approval",
+            label: "In approval",
+            count: items.filter((i: DashboardItem) => ["in_approval", "pending_approval"].includes(i.status)).length,
+          },
+          {
+            key: "approved_for_print",
+            label: "Approved / Ready for print",
+            count: items.filter((i: DashboardItem) => ["approved", "approved_for_print"].includes(i.status)).length,
+          },
+          {
+            key: "returned_for_correction",
+            label: "Returned for correction",
+            count: items.filter((i: DashboardItem) => ["returned", "returned_for_correction"].includes(i.status)).length,
+          },
+          { key: "rejected", label: "Rejected", count: items.filter((i: DashboardItem) => i.status === "rejected").length },
+          { key: "overdue", label: "Overdue", count: items.filter((i: DashboardItem) => i.is_overdue).length },
+        ];
+
   const buckets = Array.isArray(data.buckets)
     ? data.buckets
-    : Array.isArray(data.cards)
-      ? data.cards.map((c: any) => ({ key: c.key, label: c.label, sub: "", count: Number(c.count ?? 0) }))
-      : [];
-  const overdueCard = Array.isArray(data.cards) ? data.cards.find((c: any) => c.key === "overdue") : null;
+    : cards.map((c) => ({ key: c.key, label: c.label, sub: "", count: c.count }));
+  const overdueCard = cards.find((c) => c.key === "overdue");
 
   return {
     ...data,
     role: data.role ?? "",
+    cards,
     buckets,
     items,
     sla_days: {
