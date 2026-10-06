@@ -1,0 +1,160 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --accent: #0e8c8c;
+  --accent-strong: #0a6d6e;
+  --accent-soft: #e4f3f3;
+  --page: #f5f7f9;
+  --surface: #ffffff;
+  --sunken: #eef2f5;
+  --line: #e1e7ec;
+  --line-strong: #c7d0d8;
+  --ink: #15212e;
+  --ink-2: #54616e;
+  --ink-3: #8493a0;
+  --draft-fg: #b57614;
+  --draft-bg: #fbeeda;
+  --inreview-fg: #2563eb;
+  --inreview-bg: #e6edfd;
+  --approved-fg: #15803d;
+  --approved-bg: #e2f4e9;
+  --superseded-fg: #5b6b7b;
+  --superseded-bg: #ecf0f3;
+  --rejected-fg: #dc2626;
+  --rejected-bg: #fceaea;
+  --danger: #dc2626;
+  --danger-soft: #fceaea;
+  --danger-ink: #7f1d1d;
+  --white: #ffffff;
+  --text-strong: var(--ink);
+  --text-body: var(--ink);
+  --text-muted: var(--ink-2);
+  --text-subtle: var(--ink-3);
+  --text-on-accent: var(--white);
+  --text-link: var(--accent-strong);
+  --surface-page: var(--page);
+  --surface-card: var(--surface);
+  --surface-sunken: var(--sunken);
+  --surface-selected: var(--accent-soft);
+  --border-hairline: var(--line);
+  --border-control: var(--line-strong);
+  --border-strong: var(--line-strong);
+  --interactive: var(--accent);
+  --interactive-hover: var(--accent-strong);
+  --interactive-soft: var(--accent-soft);
+  --focus-border: var(--accent);
+  --focus-ring: var(--accent-soft);
+  --field-error-border: var(--danger);
+  --field-error-ring: var(--danger-soft);
+  --color-background: 245 247 249;
+  --color-surface: 255 255 255;
+  --color-muted: 238 242 245;
+  --color-border: 225 231 236;
+  --color-text: 21 33 46;
+  --color-subdued: 84 97 110;
+  --color-primary: 14 140 140;
+  --color-primary-dark: 10 109 110;
+  --color-success: 21 128 61;
+  --color-danger: 220 38 38;
+  --shadow-overlay:
+    0 12px 32px -8px rgba(21, 33, 46, 0.22),
+    0 2px 6px rgba(21, 33, 46, 0.06);
+  --shadow-modal:
+    0 24px 60px -12px rgba(21, 33, 46, 0.4),
+    0 4px 12px rgba(21, 33, 46, 0.12);
+  --scrim: rgba(21, 33, 46, 0.42);
+  --radius-sm: 5px;
+  --radius-control: 6px;
+  --radius-card: 8px;
+  --radius-modal: 10px;
+  --radius-pill: 999px;
+  --radius-panel: var(--radius-card);
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --control-h: 36px;
+  --control-h-sm: 34px;
+  --row-h: 40px;
+  --row-h-dense: 36px;
+  --card-pad: 24px;
+  --card-pad-tight: 20px;
+  --section-gap: 24px;
+  --topbar-h: 68px;
+  --sidebar-w: 228px;
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-icons: "Material Symbols Outlined";
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+  --fs-h1: 22px;
+  --fs-h2: 17px;
+  --fs-h3: 14px;
+  --fs-body: 14px;
+  --fs-small: 12.5px;
+  --fs-micro: 11.5px;
+  --fs-overline: 11px;
+  --fs-mono: 13px;
+  --fs-mono-sm: 12px;
+  --lh-h1: 1.25;
+  --lh-h2: 1.3;
+  --lh-h3: 1.4;
+  --lh-body: 1.5;
+  --lh-small: 1.5;
+  --lh-micro: 1.4;
+  --lh-mono: 1.4;
+  --tracking-tight: 0;
+  --tracking-overline: 0.04em;
+  --numeric-tabular: tabular-nums;
+  --shadow-auth: var(--shadow-overlay);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  color: rgb(var(--color-text));
+  background: rgb(var(--color-background));
+  font-family:
+    var(--font-sans);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+@layer utilities {
+  .document-grid {
+    background-image:
+      linear-gradient(rgb(var(--color-border) / 0.26) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(var(--color-border) / 0.26) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+}
+
+/* DocumentViewer search hits. The pdf.js text layer is transparent text laid over the
+   rendered canvas, so a mark only needs a translucent background to highlight the glyph
+   underneath — keep the text transparent or it double-prints in black. */
+mark.dv-hl {
+  color: transparent;
+  background-color: rgb(var(--color-primary) / 0.38);
+  border-radius: 2px;
+}
+
+mark.dv-hl-active {
+  background-color: rgb(250 176 5 / 0.55);
+  outline: 1px solid rgb(217 119 6 / 0.9);
+}

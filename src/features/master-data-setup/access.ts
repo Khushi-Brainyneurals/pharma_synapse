@@ -1,0 +1,32 @@
+import type { UserRole } from "../auth/model/roles";
+
+/**
+ * Master-data access, straight from List of Rights.docx:
+ *   Reviewer (QA)  — Upload / edit (proposes the set for approval)
+ *   Approval       — Upload / edit AND approve (a rejection must state a reason)
+ *   Prepared-by    — VIEW only (see which files are uploaded and their content — the preview)
+ *   Admin / PR / Super Admin — no master-data access
+ *
+ * Nothing goes live until the Approver signs off; edits by QA are staged as a proposal.
+ */
+export interface MasterDataAccess {
+  canView: boolean;
+  canEdit: boolean;
+  canApprove: boolean;
+}
+
+const NONE: MasterDataAccess = { canView: false, canEdit: false, canApprove: false };
+
+export function masterDataAccess(role: UserRole | null | undefined): MasterDataAccess {
+  switch (role) {
+    case "reviewer_qa":
+      return { canView: true, canEdit: true, canApprove: false };
+    case "approvedby":
+      return { canView: true, canEdit: true, canApprove: true };
+    case "preparer":
+      return { canView: true, canEdit: false, canApprove: false };
+    default:
+      // admin, reviewer_pr, superadmin — the rights matrix leaves master data blank.
+      return NONE;
+  }
+}
