@@ -66,7 +66,7 @@ export function UserMenu({ user }: UserMenuProps) {
           <div className="border-b border-border px-4 py-3">
             <p className="truncate text-small font-semibold">{displayName}</p>
             <p className="mt-0.5 truncate text-micro text-subdued">
-              {user ? USER_ROLE_LABELS[user.role] : null}
+              {user ? (USER_ROLE_LABELS[user.role] ?? user.role) : null}
             </p>
           </div>
 

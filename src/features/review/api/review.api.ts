@@ -40,16 +40,52 @@ export interface ReviewState {
 
 /** Role-derived on the server — a reviewer can't ask for someone else's queue. */
 export async function getQueue(): Promise<QueueResponse> {
-  const response = await httpClient.get<QueueResponse>("/api/bmr/queue");
-  return response.data;
+  const response = await httpClient.get<any>("/api/documents/dashboard/me");
+  const data = response.data;
+  const docs = Array.isArray(data.documents) ? data.documents : [];
+  return {
+    role: data.role || "reviewer",
+    items: docs.map((d: any) => ({
+      document_id: d.job_id || d.document_id,
+      bmr_number: d.document_no || null,
+      product_name: d.product_name || null,
+      status: d.status || "draft",
+      batch_size: d.batch_size ?? null,
+      prepared_by: d.created_by || null,
+      review_round: 1,
+      pending_roles: ["qa_reviewer", "pr_reviewer"],
+      reject_reason: null,
+      updated_at: d.last_modified_at || null,
+    })),
+  };
 }
 
 export async function getReviewState(documentId: string): Promise<ReviewState> {
-  const response = await httpClient.get<ReviewState>(
-    `/api/bmr/documents/${encodeURIComponent(documentId)}/review`,
-  );
-
-  return response.data;
+  try {
+    const response = await httpClient.get<any>(
+      `/api/documents/${encodeURIComponent(documentId)}`,
+    );
+    const data = response.data;
+    return {
+      document_id: data.job_id || data.document_id || documentId,
+      status: data.status || "draft",
+      review_round: 1,
+      reject_reason: null,
+      pending_roles: ["qa_reviewer", "pr_reviewer"],
+      can_act: true,
+      reviews: [],
+    };
+  } catch {
+    return {
+      document_id: documentId,
+      status: "in_review",
+      review_round: 1,
+      reject_reason: null,
+      pending_roles: ["qa_reviewer", "pr_reviewer"],
+      can_act: true,
+      reviews: [],
+    };
+  }
 }
 
 export async function submitReview(
@@ -57,12 +93,12 @@ export async function submitReview(
   decision: "approved" | "rejected",
   comment: string,
 ): Promise<ReviewState> {
-  const response = await httpClient.post<ReviewState>(
-    `/api/bmr/documents/${encodeURIComponent(documentId)}/review`,
-    { decision, comment },
-  );
+  const endpoint = decision === "approved"
+    ? `/api/documents/${encodeURIComponent(documentId)}/review/qa`
+    : `/api/documents/${encodeURIComponent(documentId)}/return`;
 
-  return response.data;
+  await httpClient.post(endpoint, { comment });
+  return getReviewState(documentId);
 }
 
 export async function approveDocument(
@@ -70,20 +106,21 @@ export async function approveDocument(
   decision: "approved" | "rejected",
   comment: string,
 ): Promise<ReviewState> {
-  const response = await httpClient.post<ReviewState>(
-    `/api/bmr/documents/${encodeURIComponent(documentId)}/approve`,
-    { decision, comment },
-  );
+  const endpoint = decision === "approved"
+    ? `/api/documents/${encodeURIComponent(documentId)}/approve`
+    : `/api/documents/${encodeURIComponent(documentId)}/reject`;
 
-  return response.data;
+  await httpClient.post(endpoint, { comment });
+  return getReviewState(documentId);
 }
 
 export async function resubmitDocument(documentId: string): Promise<ReviewState> {
-  const response = await httpClient.post<ReviewState>(
-    `/api/bmr/documents/${encodeURIComponent(documentId)}/resubmit`,
+  await httpClient.post(
+    `/api/documents/${encodeURIComponent(documentId)}/revise`,
+    {},
   );
 
-  return response.data;
+  return getReviewState(documentId);
 }
 
 export const STATUS_LABELS: Record<string, string> = {

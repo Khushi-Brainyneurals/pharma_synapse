@@ -31,6 +31,7 @@ export function DocxViewer({ file }: { file: FormatPreviewFile }) {
           renderFootnotes: true,
           renderEndnotes: true,
           useBase64URL: true,
+          ignoreHeight: true,
         }),
       )
       .then(() => {

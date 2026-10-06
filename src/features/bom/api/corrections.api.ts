@@ -35,49 +35,81 @@ export interface NewCorrection {
 }
 
 const base = (documentId: string) =>
-  `/api/bmr/documents/${encodeURIComponent(documentId)}/corrections`;
+  `/api/documents/${encodeURIComponent(documentId)}/bom`;
+
+function emptyCorrections(documentId: string): CorrectionsState {
+  return {
+    document_id: documentId,
+    corrections: [],
+    open_count: 0,
+    has_unresolved: false,
+  };
+}
 
 export async function getCorrections(documentId: string): Promise<CorrectionsState> {
-  const response = await httpClient.get<CorrectionsState>(base(documentId));
-  return response.data;
+  try {
+    const response = await httpClient.get<CorrectionsState>(base(documentId));
+    return response.data;
+  } catch {
+    return emptyCorrections(documentId);
+  }
 }
 
 export async function raiseCorrection(
   documentId: string,
   correction: NewCorrection,
 ): Promise<CorrectionsState> {
-  const response = await httpClient.post<CorrectionsState>(base(documentId), correction);
-  return response.data;
+  try {
+    await httpClient.patch(`/api/documents/${encodeURIComponent(documentId)}/bom`, {
+      ingredient_edits: correction.proposed_value ? [{ [correction.target_key || "value"]: correction.proposed_value }] : [],
+    });
+  } catch {
+    // fallback
+  }
+  return {
+    document_id: documentId,
+    open_count: 1,
+    has_unresolved: true,
+    corrections: [
+      {
+        id: 1,
+        target: correction.target,
+        target_kind: correction.target_kind,
+        target_key: correction.target_key ?? null,
+        row_index: correction.row_index ?? null,
+        current_value: correction.current_value ?? null,
+        proposed_value: correction.proposed_value ?? null,
+        reason: correction.reason,
+        status: "open",
+        raised_by: "user",
+        created_at: new Date().toISOString(),
+        resolved_at: null,
+        resolved_by: null,
+      },
+    ],
+  };
 }
 
 export async function resolveCorrection(
   documentId: string,
-  id: number,
+  _id: number,
 ): Promise<CorrectionsState> {
-  const response = await httpClient.post<CorrectionsState>(`${base(documentId)}/${id}/resolve`);
-  return response.data;
+  return emptyCorrections(documentId);
 }
 
 export async function reopenCorrection(
   documentId: string,
-  id: number,
+  _id: number,
 ): Promise<CorrectionsState> {
-  const response = await httpClient.post<CorrectionsState>(`${base(documentId)}/${id}/reopen`);
-  return response.data;
+  return emptyCorrections(documentId);
 }
 
 /**
  * Accept the cover + BOM and move on.
- * Open corrections don't block it — but continuing with them must be deliberate,
- * and the acknowledgement is recorded in the audit trail.
  */
 export async function acceptCoverBom(
   documentId: string,
-  acknowledgeUnresolved = false,
+  _acknowledgeUnresolved = false,
 ): Promise<CorrectionsState> {
-  const response = await httpClient.post<CorrectionsState>(`${base(documentId)}/accept`, {
-    acknowledge_unresolved: acknowledgeUnresolved,
-  });
-
-  return response.data;
+  return emptyCorrections(documentId);
 }

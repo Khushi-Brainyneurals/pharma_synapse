@@ -158,3 +158,33 @@ mark.dv-hl-active {
   background-color: rgb(250 176 5 / 0.55);
   outline: 1px solid rgb(217 119 6 / 0.9);
 }
+
+/* Fix DOCX preview header overlap and table spacing */
+.format-preview-docx header,
+.format-preview-docx .docx-header {
+  position: relative !important;
+  margin-top: 0 !important;
+  margin-bottom: 1.25rem !important;
+  min-height: auto !important;
+  display: block !important;
+  overflow: visible !important;
+}
+
+.format-preview-docx section.docx {
+  padding-top: 1.5rem !important;
+}
+
+.format-preview-docx table {
+  border-collapse: collapse !important;
+}
+
+.format-preview-docx tr {
+  height: auto !important;
+}
+
+.format-preview-docx td,
+.format-preview-docx th {
+  position: relative !important;
+  vertical-align: top !important;
+}
+

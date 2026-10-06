@@ -23,11 +23,33 @@ export interface BoardResponse {
   items: BoardItem[];
 }
 
-/** Role-scoped on the server: a preparer sees their own work, everyone else the whole
- *  cross-author picture. */
 export async function getBoard(): Promise<BoardResponse> {
-  const response = await httpClient.get<BoardResponse>("/api/bmr/board");
-  return response.data;
+  let res: any;
+  try {
+    res = await httpClient.get<any>("/api/documents/dashboard/overview");
+  } catch {
+    res = await httpClient.get<any>("/api/documents/dashboard/me");
+  }
+  const data = res.data;
+  const docs = Array.isArray(data.documents) ? data.documents : [];
+  return {
+    role: data.role || "preparer",
+    items: docs.map((d: any) => ({
+      document_id: d.job_id || d.document_id,
+      bmr_number: d.document_no || null,
+      product_name: d.product_name || null,
+      status: d.status || "draft",
+      dosage_form: d.product_type || null,
+      doc_type: d.doc_type || null,
+      batch_size: d.batch_size ?? null,
+      prepared_by: d.created_by || null,
+      pending_roles: [],
+      review_round: 1,
+      reject_reason: null,
+      created_at: d.last_modified_at || null,
+      updated_at: d.last_modified_at || null,
+    })),
+  };
 }
 
 /** The four lifecycle buckets the summary strip counts, and which raw statuses fall in

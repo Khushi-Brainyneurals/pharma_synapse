@@ -180,9 +180,9 @@ export function DashboardPage() {
               {data ? (
                 <span className="inline-flex items-center gap-2 rounded-pill border border-border-strong bg-surface px-3.5 py-1.5 text-micro text-subdued">
                   <Clock3 className="size-3.5" aria-hidden="true" />
-                  Step limits — review <b className="font-mono font-semibold text-text">{data.sla_days.in_review}d</b> ·
-                  approval <b className="font-mono font-semibold text-text">{data.sla_days.approval}d</b> ·
-                  correction <b className="font-mono font-semibold text-text">{data.sla_days.returned}d</b>
+                  Step limits — review <b className="font-mono font-semibold text-text">{data.sla_days?.in_review ?? 3}d</b> ·
+                  approval <b className="font-mono font-semibold text-text">{data.sla_days?.approval ?? 2}d</b> ·
+                  correction <b className="font-mono font-semibold text-text">{data.sla_days?.returned ?? 5}d</b>
                 </span>
               ) : null}
 
@@ -446,7 +446,7 @@ function uniqueValues(items: DashboardItem[], key: "dosage_form" | "doc_type"): 
 function statusLabelFor(data: DashboardResponse | null, statusFilter: string): string {
   if (statusFilter === RETAINED_FILTER) return "superseded & cancelled";
   if (statusFilter === OVERDUE_FILTER) return "overdue";
-  const bucket = data?.buckets.find((candidate) => candidate.key === statusFilter);
+  const bucket = data?.buckets?.find((candidate) => candidate.key === statusFilter);
   return bucket ? `“${bucket.label}”` : "";
 }
 

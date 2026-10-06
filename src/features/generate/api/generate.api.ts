@@ -17,23 +17,23 @@ export interface SubmitResponse {
 /** Kicks off the build. Returns 202 — poll getGenerationStatus. */
 export async function generateDocument(documentId: string): Promise<GenerationStatus> {
   const response = await httpClient.post(
-    `/api/bmr/documents/${encodeURIComponent(documentId)}/generate`,
+    `/api/documents/${encodeURIComponent(documentId)}/generate`,
   );
 
   return response.data;
 }
 
 export async function getGenerationStatus(documentId: string): Promise<GenerationStatus> {
-  const response = await httpClient.get<GenerationStatus>(
-    `/api/bmr/documents/${encodeURIComponent(documentId)}/generation`,
+  const response = await httpClient.get<any>(
+    `/api/documents/${encodeURIComponent(documentId)}/generate/progress`,
   );
 
-  return response.data;
+  return response.data?.result ?? response.data;
 }
 
 export async function submitDocument(documentId: string): Promise<SubmitResponse> {
   const response = await httpClient.post<SubmitResponse>(
-    `/api/bmr/documents/${encodeURIComponent(documentId)}/submit`,
+    `/api/documents/${encodeURIComponent(documentId)}/submit`,
   );
 
   return response.data;
@@ -42,7 +42,7 @@ export async function submitDocument(documentId: string): Promise<SubmitResponse
 /** Downloads the .docx through the authenticated client, then saves it. */
 export async function downloadDocument(documentId: string, filename: string): Promise<void> {
   const response = await httpClient.get(
-    `/api/bmr/documents/${encodeURIComponent(documentId)}/download`,
+    `/api/documents/${encodeURIComponent(documentId)}/preview`,
     { responseType: "blob" },
   );
 
@@ -69,13 +69,13 @@ export interface GenerateProgress {
 
 export async function getGenerateProgress(documentId: string): Promise<GenerateProgress> {
   return (await httpClient.get<GenerateProgress>(
-    `/api/bmr/documents/${encodeURIComponent(documentId)}/generate/progress`,
+    `/api/documents/${encodeURIComponent(documentId)}/generate/progress`,
   )).data;
 }
 
 export async function getDocumentPdf(documentId: string): Promise<Blob> {
   return (await httpClient.get<Blob>(
-    `/api/bmr/documents/${encodeURIComponent(documentId)}/document.pdf`,
+    `/api/documents/${encodeURIComponent(documentId)}/preview`,
     { responseType: "blob" },
   )).data;
 }

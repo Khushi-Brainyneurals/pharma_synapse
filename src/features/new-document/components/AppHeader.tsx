@@ -52,7 +52,7 @@ export function AppHeader({ user, unit, isLoadingUnit = false, title = "New docu
           <span className="text-[var(--text-subtle)]">•</span>
 
           <span className="font-small text-subdued">
-            {user ? USER_ROLE_LABELS[user.role] : "Prepared By"}
+            {user ? (USER_ROLE_LABELS[user.role] ?? user.role) : "Prepared By"}
           </span>
         </div>
 

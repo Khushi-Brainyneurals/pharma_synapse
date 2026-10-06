@@ -15,6 +15,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { DocumentViewer } from "../../../shared/document/DocumentViewer";
+import { DocxViewer } from "../../preview/components/DocxViewer";
 import { getApiErrorCode, getApiErrorMessage } from "../../../shared/api/apiError";
 import { useAuthStore } from "../../auth/state/auth.store";
 import { AppHeader } from "../../new-document/components/AppHeader";
@@ -46,7 +47,16 @@ export function GenerateSubmitPage() {
   const [isBusy, setIsBusy] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [confirmSubmit, setConfirmSubmit] = useState(false);
+  const [previewBlob, setPreviewBlob] = useState<Blob | null>(null);
+  const [isBlobLoading, setIsBlobLoading] = useState(false);
+  const [isBlobDocx, setIsBlobDocx] = useState(true);
   const pollRef = useRef<number | null>(null);
+  const mainRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    mainRef.current?.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+  }, [documentId, previewBlob]);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current !== null) {
@@ -55,32 +65,33 @@ export function GenerateSubmitPage() {
     }
   }, []);
 
-  // ONE endpoint drives this page: `generate/progress`, the same contract the Cover + BOM
-  // step polls and the same one the AI team's service answers with. Its `result` carries
-  // the generation status once the .docx exists, so nothing else is fetched to enable
-  // Download.
-  //
-  // Mapped back onto the document status the rest of this screen already reads
-  // (`generating` / `generated` / `generation_failed` / the submitted states), so the one
-  // change here is where the answer comes from — not what every branch below means.
+  // ONE endpoint drives this page: `generate/progress`.
   const loadStatus = useCallback(async () => {
     try {
       const progress = await getGenerateProgress(documentId);
 
-      const next: GenerationStatus =
-        progress.result ??
-        {
-          document_id: documentId,
-          status: progress.status === "error" ? "generation_failed" : "generating",
-          has_artifact: false,
-          artifact_size: null,
-          error_message: progress.error,
-        };
+      const isDone = Boolean(
+        progress.status === "done" ||
+        (progress.result && (progress.result as any).docx_path) ||
+        (progress.result && (progress.result as any).status === "success"),
+      );
+
+      const isError = Boolean(
+        progress.status === "error" ||
+        progress.error ||
+        (progress.result && (progress.result as any).status === "error"),
+      );
+
+      const next: GenerationStatus = {
+        document_id: progress.document_id || documentId,
+        status: isDone ? "generated" : isError ? "generation_failed" : "generating",
+        has_artifact: isDone,
+        artifact_size: isDone ? 1 : null,
+        error_message: progress.error ?? (progress.result as any)?.error_message ?? null,
+      };
 
       setState(next);
       if (progress.status !== "running") stopPolling();
-      // The mount effect decides from the PROGRESS, not the mapped status: "nothing built
-      // yet" and "building right now" both read as `generating` once mapped.
       return progress;
     } catch (caught) {
       stopPolling();
@@ -168,12 +179,37 @@ export function GenerateSubmitPage() {
   const isGenerated = status === "generated" || isSubmitted;
   const filename = `BMR_${documentState?.bmr_number ?? documentId.slice(0, 8)}.docx`;
 
+  useEffect(() => {
+    if (!isGenerated || !state?.has_artifact) return;
+    let cancelled = false;
+    setIsBlobLoading(true);
+    getDocumentPdf(documentId)
+      .then(async (blob) => {
+        if (cancelled) return;
+        setPreviewBlob(blob);
+        const signature = new Uint8Array(await blob.slice(0, 5).arrayBuffer());
+        const text = String.fromCharCode(...signature);
+        setIsBlobDocx(text !== "%PDF-");
+      })
+      .catch((caught) => {
+        if (!cancelled) setError(getApiErrorMessage(caught, "Could not load document preview."));
+      })
+      .finally(() => {
+        if (!cancelled) setIsBlobLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [documentId, isGenerated, state?.has_artifact]);
+
   return (
     <div className="min-h-screen bg-background text-text">
       <AppHeader user={user} unit={user?.unitId ? { id: user.unitId } : null} />
+
       <div className="lg:grid lg:h-[calc(100vh-var(--topbar-h))] lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden">
         <AppSidebar user={user} />
-        <main className="min-w-0 min-h-0 lg:h-full lg:overflow-y-auto">
+
+        <main ref={mainRef} className="min-w-0 min-h-0 lg:h-full lg:overflow-y-auto">
           <div className="mx-auto space-y-5">
             <WizardHeader
               activeStepId="generate-submit"
@@ -181,7 +217,7 @@ export function GenerateSubmitPage() {
               onStepClick={goToStep}
               title="Generate & submit"
               description="The generated document, exactly as the AI built it — what you see here is the same file Download saves and reviewers sign. Build it, check it, then submit."
-              // identifier={documentState?.bmr_number ?? documentState?.draft_id ?? documentId}
+              identifier={documentState?.bmr_number ?? documentState?.draft_id ?? documentId}
               status="DRAFT"
               dosageForm={documentState?.dosage_form}
               docType={documentState?.doc_type}
@@ -213,13 +249,15 @@ export function GenerateSubmitPage() {
               </div>
             ) : null}
 
-            {/* Filename display */}
-            <div className="mx-8 flex flex-wrap items-center gap-2 rounded-card border border-border bg-surface p-2.5 shadow-overlay">
-              <span className="ml-1 inline-flex items-center gap-2 text-small font-semibold">
-                <FileText className="size-4 text-primary" aria-hidden="true" />
-                {filename}
-              </span>
-            </div>
+            {/* Filename display (only when preview artifact is not yet loaded) */}
+            {!isGenerated || !state?.has_artifact ? (
+              <div className="mx-8 flex flex-wrap items-center gap-2 rounded-card border border-border bg-surface p-2.5 shadow-overlay">
+                <span className="ml-1 inline-flex items-center gap-2 text-small font-semibold">
+                  <FileText className="size-4 text-primary" aria-hidden="true" />
+                  {filename}
+                </span>
+              </div>
+            ) : null}
 
             {isSubmitted ? (
               <div className="mx-8 flex items-start gap-2 rounded-panel border border-primary/30 bg-primary/[0.04] p-4">
@@ -235,13 +273,24 @@ export function GenerateSubmitPage() {
 
             {/* The REAL generated document */}
             {isGenerated && state?.has_artifact ? (
-              <DocumentViewer
-                docKey={`${documentId}:${state.artifact_size ?? 0}`}
-                load={() => getDocumentPdf(documentId)}
-                fileName={filename.replace(/\.docx$/, ".pdf")}
-                loadingLabel="Loading the generated document…"
-                errorTitle="Could not load the generated document"
-              />
+              isBlobLoading ? (
+                <div className="mx-8 flex items-center justify-center gap-2 rounded-panel border border-border bg-surface p-16 text-subdued">
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  <span className="text-small">Loading the generated document preview…</span>
+                </div>
+              ) : previewBlob ? (
+                isBlobDocx ? (
+                  <DocxViewer file={{ blob: previewBlob, filename, format: "docx" }} />
+                ) : (
+                  <DocumentViewer
+                    docKey={`${documentId}:${state.artifact_size ?? 0}`}
+                    load={() => Promise.resolve(previewBlob)}
+                    fileName={filename.replace(/\.docx$/, ".pdf")}
+                    loadingLabel="Loading the generated document…"
+                    errorTitle="Could not load the generated document"
+                  />
+                )
+              ) : null
             ) : status === "generating" ? (
               <div className="mx-8 flex items-center justify-center gap-2 rounded-panel border border-border bg-surface p-16 text-subdued">
                 <Loader2 className="size-4 animate-spin" aria-hidden="true" />

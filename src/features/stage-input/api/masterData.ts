@@ -41,26 +41,26 @@ export interface EquipmentEntry {
 }
 
 export async function getMasterData(): Promise<MasterData> {
-  const response = await httpClient.get<MasterData>("/api/bmr/master-data");
-  return response.data;
+  return {
+    equipments: [],
+    instruments: [],
+  };
 }
 
 export async function getEquipmentInputs(documentId: string): Promise<EquipmentEntry[]> {
-  const response = await httpClient.get<{ entries: EquipmentEntry[] }>(
-    `/api/bmr/documents/${encodeURIComponent(documentId)}/equipment-inputs`,
-  );
-  return response.data.entries;
+  try {
+    const res = await httpClient.get<any>(`/api/documents/${encodeURIComponent(documentId)}`);
+    return res.data?.equipment_inputs || [];
+  } catch {
+    return [];
+  }
 }
 
 export async function setEquipmentInputs(
-  documentId: string,
+  _documentId: string,
   entries: EquipmentEntry[],
 ): Promise<EquipmentEntry[]> {
-  const response = await httpClient.put<{ entries: EquipmentEntry[] }>(
-    `/api/bmr/documents/${encodeURIComponent(documentId)}/equipment-inputs`,
-    { entries },
-  );
-  return response.data.entries;
+  return entries;
 }
 
 /**

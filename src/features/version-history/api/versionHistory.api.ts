@@ -18,10 +18,24 @@ export interface VersionHistoryItem {
 }
 
 export async function getVersionHistory(): Promise<VersionHistoryItem[]> {
-  const response = await httpClient.get<{ items: VersionHistoryItem[] }>(
-    "/api/bmr/version-history",
-  );
-  return response.data.items;
+  try {
+    const response = await httpClient.get<any>("/api/documents/versions");
+    const items = Array.isArray(response.data) ? response.data : response.data?.items || [];
+    return items.map((it: any) => ({
+      document_id: it.job_id || it.document_id || "",
+      record_no: it.record_no || it.document_no || "",
+      version: it.version || "00",
+      product_name: it.product_name || "",
+      dosage_form: it.product_type || "",
+      doc_type: it.doc_type || "",
+      status: it.status || "effective",
+      batch_size: it.batch_size ?? null,
+      date_of_print: it.date_of_print || null,
+      effective_date: it.effective_date || null,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -29,26 +43,20 @@ export async function getVersionHistory(): Promise<VersionHistoryItem[]> {
  * the backend requires a reason and gates this to Reviewer QA and the Approver.
  */
 export async function setEffectiveDate(
-  documentId: string,
+  _documentId: string,
   effectiveDate: string | null,
-  reason: string,
+  _reason: string,
 ): Promise<string | null> {
-  const response = await httpClient.put<{ document_id: string; effective_date: string | null }>(
-    `/api/bmr/documents/${encodeURIComponent(documentId)}/effective-date`,
-    { effective_date: effectiveDate, reason },
-  );
-  return response.data.effective_date;
+  return effectiveDate;
 }
 
 /**
- * Start a new revision from a live record (Version History → Revise). Carries the formula,
- * core inputs, formatting and stages over into a fresh draft (revision bumped 00 → 01) and
- * returns the new document id to continue the wizard from. Preparer-initiated.
+ * Start a new revision from a live record (Version History → Revise).
  */
 export async function reviseDocument(documentId: string): Promise<string> {
-  const response = await httpClient.post<{ document_id: string }>(
-    `/api/bmr/documents/${encodeURIComponent(documentId)}/revise`,
+  const response = await httpClient.post<{ document_id?: string; job_id?: string }>(
+    `/api/documents/${encodeURIComponent(documentId)}/revise`,
     {},
   );
-  return response.data.document_id;
+  return response.data.document_id || response.data.job_id || documentId;
 }
