@@ -42,6 +42,8 @@ function transformLoginResponse(
   const accessToken =
     payload.accessToken ?? payload.access_token ?? response.access_token ?? payload.token ?? response.token;
   const refreshToken = payload.refreshToken ?? payload.refresh_token ?? response.refresh_token;
+  const addressId = payload.addressId ?? payload.address_id ?? response.addressId ?? response.address_id;
+  const address = payload.address ?? response.address;
 
   if (!accessToken) {
     throw new Error("LOGIN_RESPONSE_INVALID");
@@ -61,6 +63,8 @@ function transformLoginResponse(
       ...fallbackUser,
       ...payload.user,
       role: payload.user?.role ?? request.role,
+      addressId: payload.user?.addressId ?? addressId,
+      address: payload.user?.address ?? address,
     },
   };
 }

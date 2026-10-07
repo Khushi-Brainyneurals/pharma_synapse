@@ -13,6 +13,8 @@ export interface AuthenticatedUser {
   role: UserRole;
   unitId?: string | null;
   unitName?: string | null;
+  addressId?: number | null;
+  address?: string | null;
 }
 
 export interface LoginResponse {
@@ -21,6 +23,9 @@ export interface LoginResponse {
   access_token?: string;
   refresh_token?: string;
   token?: string;
+  addressId?: number | null;
+  address_id?: number | null;
+  address?: string | null;
   user: AuthenticatedUser;
 }
 

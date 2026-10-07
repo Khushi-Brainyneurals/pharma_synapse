@@ -2,7 +2,13 @@ import { AlertCircle, Download, FileText, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormatPreviewFile } from "../api/preview.api";
 
-export function DocxViewer({ file }: { file: FormatPreviewFile }) {
+export function DocxViewer({
+  file,
+  reserveBottomActionsSpace = false,
+}: {
+  file: FormatPreviewFile;
+  reserveBottomActionsSpace?: boolean;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const renderVersionRef = useRef(0);
   const [isRendering, setIsRendering] = useState(true);
@@ -31,7 +37,6 @@ export function DocxViewer({ file }: { file: FormatPreviewFile }) {
           renderFootnotes: true,
           renderEndnotes: true,
           useBase64URL: true,
-          ignoreHeight: true,
         }),
       )
       .then(() => {
@@ -91,7 +96,7 @@ export function DocxViewer({ file }: { file: FormatPreviewFile }) {
           </div>
         </div>
 
-        <div className="relative h-[720px] overflow-auto bg-sunken p-4 sm:p-6">
+        <div className={`relative overflow-auto bg-sunken p-4 sm:p-6 ${reserveBottomActionsSpace ? "h-[calc(100vh-390px)] min-h-[420px]" : "h-[720px]"}`}>
           {isRendering ? (
             <div
               className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-sunken text-subdued"

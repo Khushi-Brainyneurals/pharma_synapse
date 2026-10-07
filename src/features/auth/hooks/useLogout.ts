@@ -17,20 +17,18 @@ export function useLogout() {
   const clearSession = useAuthStore((state) => state.clearSession);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const logout = useCallback(async () => {
+  const logout = useCallback(() => {
     setIsLoggingOut(true);
 
-    try {
-      if (refreshToken) {
-        await logoutRequest({ refresh_token: refreshToken });
-      }
-    } catch {
-      // Ignore — clearing the local session below is what actually signs the
-      // user out of this browser.
-    } finally {
-      clearSession();
-      setIsLoggingOut(false);
-      navigate(ROUTES.login, { replace: true });
+    // End the local session first. This prevents an in-flight 401 from refreshing
+    // and reviving a session after the user explicitly chose to sign out.
+    clearSession();
+    navigate(ROUTES.login, { replace: true });
+
+    if (refreshToken) {
+      void logoutRequest({ refresh_token: refreshToken }).catch(() => {
+        // Server-side revocation is best-effort; the browser session is already gone.
+      });
     }
   }, [clearSession, navigate, refreshToken]);
 

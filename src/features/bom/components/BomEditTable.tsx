@@ -28,14 +28,14 @@ interface EditableRow {
  * table, so the edit view reads the same as the document it feeds. Layer and Part are
  * NOT columns here — they group the rows as full-width sub-headers, exactly as on 2.1.
  */
-const COLUMNS: { key: keyof EditableRow; label: string; className?: string; numeric?: boolean }[] = [
-  { key: "sr_no", label: "Sr. No.", className: "w-16", numeric: true },
+const COLUMNS: { key: keyof EditableRow; label: string; className?: string; numeric?: boolean; editable?: boolean }[] = [
+  { key: "sr_no", label: "Sr. No.", className: "w-16", numeric: true, editable: true },
   { key: "material_code", label: "Material Code", className: "w-32" },
-  { key: "name", label: "Ingredients", className: "min-w-[13rem]" },
+  { key: "name", label: "Ingredients", className: "min-w-[13rem]", editable: true },
   { key: "specification", label: "Spec.", className: "w-24" },
   { key: "label_claim", label: "Label Claim mg./Tab", className: "w-28", numeric: true },
   { key: "qty_required", label: "Qty. Required", className: "w-28", numeric: true },
-  { key: "uom", label: "U O M", className: "w-20" },
+  { key: "uom", label: "U O M", className: "w-20", editable: true },
 ];
 
 /** Which BomIngredient field each editable column maps to — used to label the correction. */
@@ -110,6 +110,7 @@ export function BomEditTable({ ingredients, onSave, onCancel, saving = false, ch
       if (edited) {
         const originalRow = toRow(original);
         for (const col of COLUMNS) {
+          if (!col.editable) continue;
           const to = edited[col.key].trim();
           if (to !== originalRow[col.key]) {
             out.push({
@@ -125,24 +126,6 @@ export function BomEditTable({ ingredients, onSave, onCancel, saving = false, ch
         }
       }
 
-      const dup = dupRows[index];
-      if (dup) {
-        const dupSeed = toDupRow(original);
-        for (const col of COLUMNS) {
-          const to = dup[col.key].trim();
-          if (to !== dupSeed[col.key]) {
-            out.push({
-              row_index: index,
-              sr_no: original.sr_no,
-              material_code: original.material_code,
-              field: `${FIELD_NAME[col.key]}__2`,
-              label: `${col.label.replace(/\.$/, "")} (2nd line)`,
-              from: dupSeed[col.key],
-              to,
-            });
-          }
-        }
-      }
     });
     return out;
   }, [ingredients, rows, dupRows]);
@@ -302,13 +285,13 @@ function GroupBlock({
             <tr className={isChanged ? "bg-accent-soft/40" : "hover:bg-muted/50"}>
               {COLUMNS.map((col) => (
                 <td key={col.key} className="border border-border px-2 py-1.5 align-middle">
-                  <input
-                    type="text"
-                    inputMode={col.numeric ? "decimal" : "text"}
-                    value={edited[col.key]}
-                    onChange={(event) => onCell(index, col.key, event.target.value)}
-                    className={`w-full rounded-control border border-border bg-surface px-2 py-1.5 text-small outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30 ${col.numeric ? "text-right tabular-nums" : ""}`}
-                  />
+                  {col.editable ? <input
+                      type="text"
+                      inputMode={col.numeric ? "decimal" : "text"}
+                      value={edited[col.key]}
+                      onChange={(event) => onCell(index, col.key, event.target.value)}
+                      className={`w-full rounded-control border border-border bg-surface px-2 py-1.5 text-small outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30 ${col.numeric ? "text-right tabular-nums" : ""}`}
+                    /> : <span className={`block px-2 py-1.5 text-subdued ${col.numeric ? "text-right tabular-nums" : ""}`}>{edited[col.key] || "—"}</span>}
                 </td>
               ))}
             </tr>
@@ -320,13 +303,7 @@ function GroupBlock({
               <tr className={changedDup.has(index) ? "bg-accent-soft/40" : "bg-sunken/30"}>
                 {COLUMNS.map((col) => (
                   <td key={col.key} className="border border-border px-2 py-1.5 align-middle">
-                    <input
-                      type="text"
-                      inputMode={col.numeric ? "decimal" : "text"}
-                      value={dupRows[index][col.key]}
-                      onChange={(event) => onDupCell(index, col.key, event.target.value)}
-                      className={`w-full rounded-control border border-border bg-surface/70 px-2 py-1.5 text-small outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30 ${col.numeric ? "text-right tabular-nums" : ""}`}
-                    />
+                    <span className={`block px-2 py-1.5 text-subdued ${col.numeric ? "text-right tabular-nums" : ""}`}>{dupRows[index][col.key] || "—"}</span>
                   </td>
                 ))}
               </tr>

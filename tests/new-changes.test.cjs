@@ -132,13 +132,13 @@ test('resume cannot jump ahead, go backwards, cross documents or leave the appli
 
 test('login always opens the dashboard', () => {
   const { getPostLoginPath } = loader()('src/app/routing/postLoginPath.ts');
-  for (const role of ['preparer', 'reviewer_qa', 'reviewer_pr', 'approvedby', 'admin', 'superadmin']) assert.equal(getPostLoginPath(role), '/');
+  for (const role of ['preparer', 'reviewer_qa', 'reviewer_pr', 'approver', 'admin', 'superadmin']) assert.equal(getPostLoginPath(role), '/');
 });
 
 test('only Reviewer QA can edit company standard info', () => {
   const { canEditCompanyInfo } = loader()('src/features/company/access.ts');
   assert.equal(canEditCompanyInfo('reviewer_qa'), true);
-  for (const role of ['preparer', 'reviewer_pr', 'approvedby', 'admin', 'superadmin', null, undefined]) {
+  for (const role of ['preparer', 'reviewer_pr', 'approver', 'admin', 'superadmin', null, undefined]) {
     assert.equal(canEditCompanyInfo(role), false);
   }
 });

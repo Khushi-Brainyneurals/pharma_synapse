@@ -1,23 +1,34 @@
 import { httpClient } from "../../../shared/api/httpClient";
-import type { BomResponse, GenerateBomResponse } from "./bom.types";
+import type {
+  BomResponse,
+  CoverPreviewFile,
+  GenerateBomResponse,
+  GenerateCoverProgress,
+  UpdateBomPayload,
+} from "./bom.types";
 
-/** Kicks off OCR + extraction. Returns 202 immediately — this takes minutes. */
-export async function generateBom(documentId: string): Promise<GenerateBomResponse> {
+/** Starts one asynchronous cover-generation attempt; progress is polled separately. */
+export async function generateBom(documentId: string, signal?: AbortSignal): Promise<GenerateBomResponse> {
   const response = await httpClient.post<GenerateBomResponse>(
     `/api/documents/${encodeURIComponent(documentId)}/generate-cover`,
+    undefined,
+    { signal },
   );
 
   return response.data;
 }
 
-export async function getBom(documentId: string): Promise<BomResponse> {
+export async function getBom(documentId: string, signal?: AbortSignal): Promise<BomResponse> {
   const response = await httpClient.get<any>(
     `/api/documents/${encodeURIComponent(documentId)}`,
+    { signal },
   );
   const data = response.data;
   return {
     document_id: data.job_id || data.document_id || documentId,
-    status: data.ingredients && data.ingredients.length > 0 ? "extracted" : "extracting",
+    doc_type: String(data.doc_type || "bmr").toLowerCase() === "bpr" ? "bpr" : "bmr",
+    status: data.preview_url ? "extracted" : "not_generated",
+    preview_url: typeof data.preview_url === "string" ? data.preview_url : "",
     header: {
       company_name: null,
       department: null,
@@ -77,20 +88,55 @@ export async function getBom(documentId: string): Promise<BomResponse> {
   };
 }
 
-export async function getCoverBomPdf(documentId: string): Promise<Blob> {
-  const response = await httpClient.get(
-    `/api/documents/${encodeURIComponent(documentId)}/cover-preview`,
-    { responseType: "blob" },
+export async function getCoverGenerationProgress(
+  documentId: string,
+  signal?: AbortSignal,
+): Promise<GenerateCoverProgress> {
+  const response = await httpClient.get<GenerateCoverProgress>(
+    `/api/documents/${encodeURIComponent(documentId)}/generate-cover/progress`,
+    { signal },
   );
-
-  return response.data as Blob;
+  return response.data;
 }
 
-export async function getCoverBomDocx(documentId: string): Promise<Blob> {
+export async function getCoverBomDocx(
+  documentId: string,
+  signal?: AbortSignal,
+): Promise<CoverPreviewFile> {
   const response = await httpClient.get(
     `/api/documents/${encodeURIComponent(documentId)}/cover-preview`,
-    { responseType: "blob" },
+    {
+      responseType: "blob",
+      signal,
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    },
   );
 
-  return response.data as Blob;
+  const blob = response.data as Blob;
+  if (!(blob instanceof Blob) || blob.size === 0) {
+    throw new Error("The backend returned an empty Cover + BOM document.");
+  }
+  return {
+    blob,
+    filename:
+      getResponseFilename(response.headers["content-disposition"]) ??
+      `cover_preview_${documentId}.docx`,
+  };
+}
+
+export async function updateBom(documentId: string, payload: UpdateBomPayload) {
+  const response = await httpClient.patch(
+    `/api/documents/${encodeURIComponent(documentId)}/bom`,
+    payload,
+  );
+  return response.data;
+}
+
+function getResponseFilename(contentDisposition: unknown): string | null {
+  if (typeof contentDisposition !== "string") return null;
+  const encoded = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  const plain = contentDisposition.match(/filename\s*=\s*"?([^";]+)"?/i)?.[1];
+  const value = encoded ?? plain;
+  if (!value) return null;
+  try { return decodeURIComponent(value.trim()); } catch { return value.trim(); }
 }

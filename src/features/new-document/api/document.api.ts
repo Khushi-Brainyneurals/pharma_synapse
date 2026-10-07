@@ -59,7 +59,7 @@ export async function getOptions(): Promise<OptionsResponse> {
     default_stages: data.default_stages || [],
     batch_types: data.batch_types || ["commercial", "exhibit", "scale_up"],
     commercial_modes: data.commercial_modes || ["revision", "validation"],
-    supported_dosage_forms: data.supported_dosage_forms || data.product_types || ["tablet", "capsule"],
+    supported_dosage_forms: data.supported_dosage_forms || data.product_types || ["tablet"],
     supported_doc_types: data.supported_doc_types || data.doc_types || ["bmr", "bpr"],
   };
 }

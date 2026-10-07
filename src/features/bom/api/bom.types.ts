@@ -53,14 +53,14 @@ export interface BomCover {
 }
 
 /**
- * `status` drives the whole screen:
- *   extracting        → poll, show progress
- *   extracted         → render cover + BOM
- *   extraction_failed → show error_message + retry
+ * `status` reflects whether GET document currently exposes a generated preview.
+ * Active generation status comes only from the dedicated progress endpoint.
  */
 export interface BomResponse {
   document_id: string;
+  doc_type: "bmr" | "bpr";
   status: string;
+  preview_url: string;
   header: DocumentHeader;
   cover: BomCover;
   ingredients: BomIngredient[];
@@ -73,8 +73,43 @@ export interface BomResponse {
 
 export interface GenerateBomResponse {
   document_id: string;
+  status: "started";
+}
+
+export interface GenerateCoverResult {
+  document_id: string;
+  warnings: string[];
+  preview_url: string;
   status: string;
-  message: string;
+}
+
+export interface GenerateCoverProgress {
+  document_id: string;
+  status: "started" | "running" | "done" | "error";
+  percent: number;
+  step: string;
+  result: GenerateCoverResult | null;
+  error: string | null;
+}
+
+export interface UpdateBomPayload {
+  batch_size?: number;
+  core?: {
+    batch_type?: string;
+    commercial_mode?: string;
+    source_type?: string;
+  };
+  ingredient_edits?: Array<{
+    ingredient_name: string;
+    sr_no: number;
+    uom: string;
+  }>;
+  user: string;
+}
+
+export interface CoverPreviewFile {
+  blob: Blob;
+  filename: string;
 }
 
 export interface DocumentHeader {

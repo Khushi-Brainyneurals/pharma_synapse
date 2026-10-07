@@ -1,6 +1,6 @@
 import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, Download, Info, Loader2, Pencil } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { getApiErrorMessage } from "../../../shared/api/apiError";
 import { useAuthStore } from "../../auth/state/auth.store";
 import { AppHeader } from "../../new-document/components/AppHeader";
@@ -15,9 +15,11 @@ import {
   type FormatPreviewFile,
 } from "../api/preview.api";
 import { DocxViewer } from "../components/DocxViewer";
+import { generateBom } from "../../bom/api/bom.api";
 
 export function PreviewPage() {
   const { documentId = "" } = useParams();
+  const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const { goToStep } = useStepNavigation(documentId);
   const { document: documentState } = useDocument(documentId);
@@ -26,6 +28,9 @@ export function PreviewPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isStartingCover, setIsStartingCover] = useState(false);
+  const generationInFlightRef = useRef(false);
+  const generationControllerRef = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -48,6 +53,33 @@ export function PreviewPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => () => generationControllerRef.current?.abort(), []);
+
+  const proceedToCoverBom = useCallback(async () => {
+    if (!documentId || generationInFlightRef.current) return;
+    generationInFlightRef.current = true;
+    setIsStartingCover(true);
+    setError(null);
+    const controller = new AbortController();
+    generationControllerRef.current = controller;
+    try {
+      await generateBom(documentId, controller.signal);
+      navigate(`/documents/${encodeURIComponent(documentId)}/cover-bom`, {
+        state: { coverGenerationStarted: true },
+      });
+    } catch (caught) {
+      if (!controller.signal.aborted) {
+        setError(getApiErrorMessage(caught, "Could not start Cover + BOM generation."));
+      }
+    } finally {
+      if (generationControllerRef.current === controller) {
+        generationControllerRef.current = null;
+        generationInFlightRef.current = false;
+        setIsStartingCover(false);
+      }
+    }
+  }, [documentId, navigate]);
 
   const handleDownload = useCallback(async () => {
     if (!formatPreview) return;
@@ -117,11 +149,11 @@ export function PreviewPage() {
                     errorTitle="Could not render the format preview"
                   />
                 ) : (
-                  <DocxViewer file={formatPreview} />
+                  <DocxViewer file={formatPreview} reserveBottomActionsSpace />
                 )}
 
                 {/* Sticky Footer matching Cover + BOM Page */}
-                <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t bg-surface p-3.5 shadow-auth">
+                <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t bg-surface p-3.5 shadow-auth">
                   <div className="flex items-center gap-2 text-small text-subdued">
                     <CheckCircle2 className="size-4 text-success" aria-hidden="true" />
                     Preview generated from the latest saved core inputs
@@ -150,11 +182,13 @@ export function PreviewPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => goToStep("cover-bom")}
+                      onClick={() => void proceedToCoverBom()}
+                      disabled={isStartingCover}
                       className="inline-flex items-center gap-2 rounded-control bg-primary px-4 py-2 text-small font-semibold text-white transition hover:bg-primary-dark"
                     >
-                      Proceed to Cover + BOM
-                      <ArrowRight className="size-4" aria-hidden="true" />
+                      {isStartingCover ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
+                      {isStartingCover ? "Starting Cover + BOM…" : "Proceed to Cover + BOM"}
+                      {!isStartingCover ? <ArrowRight className="size-4" aria-hidden="true" /> : null}
                     </button>
                   </div>
                 </div>

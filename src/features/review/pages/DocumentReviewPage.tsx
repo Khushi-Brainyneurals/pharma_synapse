@@ -76,7 +76,7 @@ export function DocumentReviewPage() {
     void load();
   }, [load]);
 
-  const isApprover = user?.role === "approvedby";
+  const isApprover = user?.role === "approver";
 
   const addComment = () => {
     const text = commentDraft.trim();

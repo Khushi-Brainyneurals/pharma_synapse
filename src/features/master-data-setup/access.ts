@@ -21,7 +21,7 @@ export function masterDataAccess(role: UserRole | null | undefined): MasterDataA
   switch (role) {
     case "reviewer_qa":
       return { canView: true, canEdit: true, canApprove: false };
-    case "approvedby":
+    case "approver":
       return { canView: true, canEdit: true, canApprove: true };
     case "preparer":
       return { canView: true, canEdit: false, canApprove: false };

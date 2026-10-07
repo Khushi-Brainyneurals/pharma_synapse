@@ -9,7 +9,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useLocation, useParams } from "react-router-dom";
 import { getApiErrorMessage } from "../../../shared/api/apiError";
 import { useAuthStore } from "../../auth/state/auth.store";
 import { AppHeader } from "../../new-document/components/AppHeader";
@@ -17,50 +17,45 @@ import { AppSidebar } from "../../new-document/components/AppSidebar";
 import { WizardHeader } from "../../new-document/components/WizardHeader";
 import { useDocument } from "../../new-document/hooks/useDocument";
 import { useStepNavigation } from "../../new-document/hooks/useStepNavigation";
-import { generateBom, getBom, getCoverBomDocx } from "../api/bom.api";
-import type { BomResponse } from "../api/bom.types";
+import {
+  generateBom,
+  getBom,
+  getCoverBomDocx,
+  getCoverGenerationProgress,
+  updateBom,
+} from "../api/bom.api";
+import type { BomResponse, CoverPreviewFile, GenerateCoverProgress } from "../api/bom.types";
 import { BomEditTable, type BomFieldChange } from "../components/BomEditTable";
 import { CoverBomDocument } from "../components/CoverBomDocument";
-import {
-  acceptCoverBom,
-  getCorrections,
-  raiseCorrection,
-  reopenCorrection,
-  resolveCorrection,
-  type CorrectionsState,
-  type NewCorrection,
-} from "../api/corrections.api";
-import { CorrectionDialog, type CorrectionTarget } from "../components/CorrectionDialog";
-import { CorrectionsPanel } from "../components/CorrectionsPanel";
 
-const POLL_INTERVAL_MS = 5000;
+const POLL_INTERVAL_MS = 1500;
 
 export function CoverBomPage() {
   const { documentId = "" } = useParams();
+  const location = useLocation();
   const user = useAuthStore((state) => state.user);
   const { goToStep } = useStepNavigation(documentId);
-  const { document: documentState, reload: reloadDocument } = useDocument(documentId);
+  const { document: documentState } = useDocument(documentId);
 
   const [bom, setBom] = useState<BomResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(false);
-  const [corrections, setCorrections] = useState<CorrectionsState | null>(null);
-  const [correcting, setCorrecting] = useState<CorrectionTarget | null>(null);
-  const [busyCorrection, setBusyCorrection] = useState<number | null>(null);
-  const [acceptWarning, setAcceptWarning] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [preview, setPreview] = useState<CoverPreviewFile | null>(null);
+  const [generationProgress, setGenerationProgress] = useState<GenerateCoverProgress | null>(null);
   const [editingBom, setEditingBom] = useState(false);
   const [savingBom, setSavingBom] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const pollRef = useRef<number | null>(null);
+  const generationControllerRef = useRef<AbortController | null>(null);
+  const generationInFlightRef = useRef(false);
+  const resumeGeneration = Boolean((location.state as { coverGenerationStarted?: boolean } | null)?.coverGenerationStarted);
+  const isBmr = bom?.doc_type === "bmr";
 
   // The reference pill: the BMR number once assigned (at submission), otherwise the
   // document id — matching the designed draft screen. The wizard document is a DRAFT
   // until it's submitted for review.
   const identifier = bom?.header.bmr_number ?? documentState?.bmr_number ?? documentId;
 
-  // Editing a BOM cell files a correction against that row — the BOM is only ever
-  // changed through the structured table, never inside the Word document. Only the
-  // cells the user actually changed are sent.
   const saveBomEdits = useCallback(
     async (changes: BomFieldChange[]) => {
       if (changes.length === 0) {
@@ -69,20 +64,20 @@ export function CoverBomPage() {
       }
 
       setSavingBom(true);
+      setError(null);
       try {
-        let state: CorrectionsState | null = corrections;
-        for (const item of changes) {
-          state = await raiseCorrection(documentId, {
-            target: `BOM · Sr ${item.sr_no ?? item.row_index + 1} · ${item.label}`,
-            target_kind: "bom",
-            target_key: item.material_code,
-            row_index: item.row_index,
-            current_value: item.from,
-            proposed_value: item.to,
-            reason: "Edited in the BOM table",
-          });
-        }
-        setCorrections(state);
+        if (!bom || bom.doc_type !== "bmr") return;
+        await updateBom(documentId, {
+          ingredient_edits: buildIngredientEdits(bom, changes),
+          user: user?.username ?? user?.id ?? "",
+        });
+        setPreview(null);
+        const [nextBom, nextPreview] = await Promise.all([
+          getBom(documentId),
+          getCoverBomDocx(documentId),
+        ]);
+        setBom(nextBom);
+        setPreview(nextPreview);
         setEditingBom(false);
       } catch (caught) {
         setError(getApiErrorMessage(caught, "Could not save the BOM changes."));
@@ -90,17 +85,17 @@ export function CoverBomPage() {
         setSavingBom(false);
       }
     },
-    [corrections, documentId],
+    [bom, documentId, user?.id, user?.username],
   );
 
   const downloadCoverBomDocx = useCallback(async () => {
     setDownloading(true);
     try {
-      const blob = await getCoverBomDocx(documentId);
-      const url = window.URL.createObjectURL(blob);
+      const file = preview ?? await getCoverBomDocx(documentId);
+      const url = window.URL.createObjectURL(file.blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `BMR-${documentId}-cover-bom.docx`;
+      anchor.download = file.filename;
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
@@ -110,120 +105,98 @@ export function CoverBomPage() {
     } finally {
       setDownloading(false);
     }
-  }, [documentId]);
+  }, [documentId, preview]);
 
-  const stopPolling = useCallback(() => {
-    if (pollRef.current !== null) {
-      window.clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-  }, []);
-
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
+    setIsLoading(true);
+    setPreview(null);
     try {
-      const next = await getBom(documentId);
+      const next = await getBom(documentId, signal);
       setBom(next);
       setError(null);
-
-      if (next.status !== "extracting") {
-        stopPolling();
-        setCorrections(await getCorrections(documentId).catch(() => null));
-      }
+      setPreview(next.preview_url ? await getCoverBomDocx(documentId, signal) : null);
 
       return next;
     } catch (caught) {
-      stopPolling();
+      if (signal?.aborted) return null;
       setError(getApiErrorMessage(caught, "Could not load the Cover + BOM."));
       return null;
+    } finally {
+      if (!signal?.aborted) setIsLoading(false);
     }
-  }, [documentId, stopPolling]);
+  }, [documentId]);
 
-  const startPolling = useCallback(() => {
-    stopPolling();
-    pollRef.current = window.setInterval(() => void load(), POLL_INTERVAL_MS);
-  }, [load, stopPolling]);
-
-  const startExtraction = useCallback(async () => {
+  const runGeneration = useCallback(async (startGeneration: boolean) => {
+    if (generationInFlightRef.current) return;
+    generationInFlightRef.current = true;
     setIsStarting(true);
     setError(null);
+    setPreview(null);
+    setGenerationProgress(null);
+    const controller = new AbortController();
+    generationControllerRef.current = controller;
 
     try {
-      await generateBom(documentId);
-      await load();
-      startPolling();
-    } catch (caught) {
-      setError(getApiErrorMessage(caught, "Could not start extraction."));
-    } finally {
-      setIsStarting(false);
-    }
-  }, [documentId, load, startPolling]);
-
-  // On entry: read current state. Extraction is expensive, so only kick it off if it
-  // has never run — never re-run it just because the user reloaded the page.
-  useEffect(() => {
-    let cancelled = false;
-
-    void (async () => {
-      const current = await load();
-      if (cancelled || !current) {
-        return;
-      }
-
-      if (current.status === "extracting") {
-        startPolling();
-      } else if (current.status === "core_inputs_set") {
-        await startExtraction();
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      stopPolling();
-    };
-  }, [load, startExtraction, startPolling, stopPolling]);
-
-  const addCorrection = useCallback(
-    async (correction: NewCorrection) => {
-      setCorrections(await raiseCorrection(documentId, correction));
-      setCorrecting(null);
-    },
-    [documentId],
-  );
-
-  const changeCorrection = useCallback(
-    async (id: number, action: "resolve" | "reopen") => {
-      setBusyCorrection(id);
-      try {
-        setCorrections(
-          action === "resolve"
-            ? await resolveCorrection(documentId, id)
-            : await reopenCorrection(documentId, id),
-        );
-      } finally {
-        setBusyCorrection(null);
-      }
-    },
-    [documentId],
-  );
-
-  // Open corrections don't block continuing — but doing so must be deliberate, and
-  // the acknowledgement is written to the audit trail.
-  const accept = useCallback(
-    async (acknowledge = false) => {
-      try {
-        await acceptCoverBom(documentId, acknowledge);
-        setAcceptWarning(false);
-        goToStep("stages");
-      } catch (caught) {
-        if (corrections?.has_unresolved && !acknowledge) {
-          setAcceptWarning(true);
-          return;
+      if (startGeneration) await generateBom(documentId, controller.signal);
+      while (!controller.signal.aborted) {
+        const progress = await getCoverGenerationProgress(documentId, controller.signal);
+        setGenerationProgress(progress);
+        if (progress.status === "error") {
+          throw new Error(progress.error || "Cover generation failed.");
         }
-        setError(getApiErrorMessage(caught, "Could not accept the cover and BOM."));
+        if (progress.status === "done") {
+          const [nextBom, nextPreview] = await Promise.all([
+            getBom(documentId, controller.signal),
+            getCoverBomDocx(documentId, controller.signal),
+          ]);
+          setBom(nextBom);
+          setPreview(nextPreview);
+          break;
+        }
+        await delay(POLL_INTERVAL_MS, controller.signal);
       }
-    },
-    [corrections, documentId, goToStep],
-  );
+    } catch (caught) {
+      if (!controller.signal.aborted) {
+        setError(getApiErrorMessage(caught, "Could not generate the Cover + BOM."));
+      }
+    } finally {
+      if (generationControllerRef.current === controller) {
+        generationControllerRef.current = null;
+        generationInFlightRef.current = false;
+        setIsStarting(false);
+        setIsLoading(false);
+      }
+    }
+  }, [documentId]);
+
+  useEffect(() => {
+    const loadController = new AbortController();
+    if (resumeGeneration) void runGeneration(false);
+    else {
+      void (async () => {
+        const current = await load(loadController.signal);
+        if (!current || current.status !== "not_generated" || loadController.signal.aborted) return;
+        try {
+          const progress = await getCoverGenerationProgress(documentId, loadController.signal);
+          if (progress.status === "started" || progress.status === "running" || progress.status === "done") {
+            setGenerationProgress(progress);
+            void runGeneration(false);
+          }
+        } catch {
+          // No generation exists yet. Stay in the explicit "not generated" state.
+        }
+      })();
+    }
+    return () => {
+      loadController.abort();
+      const controller = generationControllerRef.current;
+      generationControllerRef.current = null;
+      generationInFlightRef.current = false;
+      controller?.abort();
+    };
+  }, [load, resumeGeneration, runGeneration]);
+
+  const accept = useCallback(() => goToStep("stages"), [goToStep]);
 
   const status = bom?.status;
 
@@ -246,18 +219,17 @@ export function CoverBomPage() {
               docType={documentState?.doc_type}
             />
 
-            {error ? <ErrorPanel message={error} onRetry={() => void startExtraction()} /> : null}
+            {error ? <ErrorPanel message={error} onRetry={() => void runGeneration(true)} /> : null}
 
-            {status === "extracting" || isStarting ? <ExtractingPanel /> : null}
+            {isLoading && !isStarting ? <LoadingPanel /> : null}
 
-            {status === "extraction_failed" ? (
-              <ErrorPanel
-                message={bom?.error_message ?? "Extraction failed."}
-                onRetry={() => void startExtraction()}
-              />
+            {isStarting ? <ExtractingPanel progress={generationProgress} /> : null}
+
+            {!isLoading && !isStarting && !error && status === "not_generated" ? (
+              <NotGeneratedPanel onGenerate={() => void runGeneration(true)} />
             ) : null}
 
-            {status === "extracted" && bom ? (
+            {status === "extracted" && bom && (preview || editingBom) ? (
               <>
                 {bom.warnings.length > 0 ? (
                   <div className="rounded-panel border border-draft-fg/30 bg-draft-bg p-4 mx-8">
@@ -291,71 +263,17 @@ export function CoverBomPage() {
                           onSave={(changes) => void saveBomEdits(changes)}
                           onCancel={() => setEditingBom(false)}
                           saving={savingBom}
-                        >
-                          {/* Pass corrections as children so they render inside the table,
-                              above its internal sticky footer */}
-                          {corrections && corrections.corrections.length > 0 ? (
-                            <CorrectionsPanel
-                              corrections={corrections.corrections}
-                              onResolve={(id) => void changeCorrection(id, "resolve")}
-                              onReopen={(id) => void changeCorrection(id, "reopen")}
-                              busyId={busyCorrection}
-                            />
-                          ) : null}
-                        </BomEditTable>
+                        />
                   </>
                 ) : (
                   <>
-                    {/* The real document as it will print — the .docx rendered by the AI
-                        backend and shown as a PDF (cover + BOM). This is the actual output,
-                        not a browser re-creation, so what's reviewed is what's produced. */}
-                    <CoverBomDocument documentId={documentId} />
+                    {preview ? <CoverBomDocument file={preview} /> : null}
 
-                    {corrections && corrections.corrections.length > 0 ? (
-                      <CorrectionsPanel
-                        corrections={corrections.corrections}
-                        onResolve={(id) => void changeCorrection(id, "resolve")}
-                        onReopen={(id) => void changeCorrection(id, "reopen")}
-                        busyId={busyCorrection}
-                      />
-                    ) : null}
-
-                    {acceptWarning && corrections ? (
-                      <div className="rounded-card border border-draft-fg/30 bg-draft-bg p-5">
-                        <p className="text-small font-semibold text-draft-fg">
-                          Continue with {corrections.open_count} correction
-                          {corrections.open_count === 1 ? "" : "s"} still open?
-                        </p>
-                        <p className="mt-1 text-small text-draft-fg">
-                          The document moves on carrying these observations. They stay on the
-                          record, and the audit trail will show that you chose to proceed.
-                        </p>
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => void accept(true)}
-                            className="h-[34px] rounded-control bg-primary px-3.5 text-small font-semibold text-white transition hover:bg-primary-dark"
-                          >
-                            Accept with corrections open
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setAcceptWarning(false)}
-                            className="h-[34px] rounded-control border border-border bg-surface px-3.5 text-small font-semibold transition hover:bg-primary/10"
-                          >
-                            Go back and resolve them
-                          </button>
-                        </div>
-                      </div>
-                    ) : null}
-
-                    <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t bg-surface p-3.5 shadow-auth">
+                    <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t bg-surface p-3.5 shadow-auth">
                       <div className="flex items-center gap-2 text-small text-subdued">
                         <CheckCircle2 className="size-4 text-success" aria-hidden="true" />
                         Latest generated version loaded
-                        {corrections?.open_count
-                          ? ` · ${corrections.open_count} correction(s) open`
-                          : ` · ${bom.ingredients.length} ingredients`}
+                        {bom.doc_type === "bmr" ? ` · ${bom.ingredients.length} ingredients` : ""}
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <button
@@ -371,17 +289,19 @@ export function CoverBomPage() {
                           )}
                           Download DOCX
                         </button>
+                        {isBmr ? (
+                          <button
+                            type="button"
+                            onClick={() => setEditingBom(true)}
+                            className="inline-flex items-center gap-2 rounded-control border border-border px-4 py-2 text-small font-semibold transition hover:bg-primary/10"
+                          >
+                            <Pencil className="size-4" aria-hidden="true" />
+                            Edit BOM
+                          </button>
+                        ) : null}
                         <button
                           type="button"
-                          onClick={() => setEditingBom(true)}
-                          className="inline-flex items-center gap-2 rounded-control border border-border px-4 py-2 text-small font-semibold transition hover:bg-primary/10"
-                        >
-                          <Pencil className="size-4" aria-hidden="true" />
-                          Edit BOM
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void accept(false)}
+                          onClick={accept}
                           className="inline-flex items-center gap-2 rounded-control bg-primary px-4 py-2 text-small font-semibold text-white transition hover:bg-primary-dark"
                         >
                           Proceed to Select Stages
@@ -397,29 +317,43 @@ export function CoverBomPage() {
         </main>
       </div>
 
-      {correcting ? (
-        <CorrectionDialog
-          target={correcting}
-          onCancel={() => setCorrecting(null)}
-          onAdd={addCorrection}
-        />
-      ) : null}
     </div>
   );
 }
 
 
-function ExtractingPanel() {
+function ExtractingPanel({ progress }: { progress: GenerateCoverProgress | null }) {
+  const percent = Math.min(100, Math.max(0, Math.round(progress?.percent ?? 0)));
   return (
     <div className="rounded-panel border border-border bg-surface p-10 mx-8 text-center">
       <Loader2 className="mx-auto size-6 animate-spin text-primary" aria-hidden="true" />
-      <p className="mt-3 text-small font-semibold">Reading your MFC…</p>
-      <p className="mt-1 text-small text-subdued">
-        Scanning the document and extracting the formulation. This usually takes a few
-        minutes — you can leave this page open.
-      </p>
+      <p className="mt-3 text-small font-semibold">{progress?.step || "Starting Cover + BOM generation…"}</p>
+      <div className="mx-auto mt-4 flex max-w-xl items-center gap-3">
+      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full bg-primary transition-[width] duration-300"
+          style={{ width: `${percent}%` }}
+          role="progressbar"
+          aria-valuenow={percent}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        />
+      </div>
+
+      <span className="text-small font-semibold text-subdued whitespace-nowrap">
+        {percent}%
+      </span>
+    </div>
     </div>
   );
+}
+
+function LoadingPanel() {
+  return <div className="mx-8 flex items-center justify-center gap-2 rounded-panel border border-border bg-surface p-10 text-subdued"><Loader2 className="size-5 animate-spin" /><span className="text-small">Loading Cover + BOM…</span></div>;
+}
+
+function NotGeneratedPanel({ onGenerate }: { onGenerate: () => void }) {
+  return <div className="mx-8 rounded-panel border border-border bg-surface p-8 text-center"><p className="text-small font-semibold">Cover + BOM has not been generated.</p><button type="button" onClick={onGenerate} className="mt-4 inline-flex items-center gap-2 rounded-control bg-primary px-4 py-2 text-small font-semibold text-white"><RefreshCw className="size-4" />Generate Cover + BOM</button></div>;
 }
 
 function ErrorPanel({ message, onRetry }: { message: string; onRetry: () => void }) {
@@ -442,4 +376,33 @@ function ErrorPanel({ message, onRetry }: { message: string; onRetry: () => void
       </div>
     </div>
   );
+}
+
+function buildIngredientEdits(bom: BomResponse, changes: BomFieldChange[]) {
+  const rows = new Map<number, { ingredient_name: string; sr_no: number; uom: string }>();
+  for (const change of changes) {
+    const ingredient = bom.ingredients[change.row_index];
+    if (!ingredient) continue;
+    const edit = rows.get(change.row_index) ?? {
+      ingredient_name: ingredient.name,
+      sr_no: ingredient.sr_no ?? 0,
+      uom: ingredient.uom ?? "kg",
+    };
+    if (change.field === "name") edit.ingredient_name = change.to.trim();
+    if (change.field === "sr_no") edit.sr_no = Number(change.to);
+    if (change.field === "uom") edit.uom = change.to.trim();
+    rows.set(change.row_index, edit);
+  }
+  return [...rows.values()];
+}
+
+function delay(ms: number, signal: AbortSignal) {
+  if (signal.aborted) return Promise.reject(new DOMException("Aborted", "AbortError"));
+  return new Promise<void>((resolve, reject) => {
+    const timer = window.setTimeout(resolve, ms);
+    signal.addEventListener("abort", () => {
+      window.clearTimeout(timer);
+      reject(new DOMException("Aborted", "AbortError"));
+    }, { once: true });
+  });
 }

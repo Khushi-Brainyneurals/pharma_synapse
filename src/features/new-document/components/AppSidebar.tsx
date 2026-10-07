@@ -53,25 +53,21 @@ export function AppSidebar({ user }: AppSidebarProps) {
   // preview of the uploaded masters instead of the equipment/instrument change-request page.
   const previewOnly = mdAccess.canView && !mdAccess.canEdit;
 
-  async function handleLogout() {
+  function handleLogout() {
     if (isLoggingOut) {
       return;
     }
 
     setIsLoggingOut(true);
 
-    try {
-      const refreshToken = getStoredRefreshToken();
+    const refreshToken = getStoredRefreshToken();
+    clearSession();
+    navigate(ROUTES.login, { replace: true });
 
-      if (refreshToken) {
-        await logout({ refresh_token: refreshToken });
-      }
-    } catch {
-      // Local cleanup must still win if the server-side logout request fails.
-    } finally {
-      clearSession();
-      navigate(ROUTES.login, { replace: true });
-      setIsLoggingOut(false);
+    if (refreshToken) {
+      void logout({ refresh_token: refreshToken }).catch(() => {
+        // Server-side revocation is best-effort; the browser session is already gone.
+      });
     }
   }
 
