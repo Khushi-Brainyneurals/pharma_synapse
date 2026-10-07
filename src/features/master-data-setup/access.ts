@@ -17,11 +17,13 @@ export interface MasterDataAccess {
 
 const NONE: MasterDataAccess = { canView: false, canEdit: false, canApprove: false };
 
-export function masterDataAccess(role: UserRole | null | undefined): MasterDataAccess {
+export function masterDataAccess(role: UserRole | string | null | undefined): MasterDataAccess {
   switch (role) {
     case "reviewer_qa":
+    case "reviewer":
       return { canView: true, canEdit: true, canApprove: false };
     case "approvedby":
+    case "approver":
       return { canView: true, canEdit: true, canApprove: true };
     case "preparer":
       return { canView: true, canEdit: false, canApprove: false };

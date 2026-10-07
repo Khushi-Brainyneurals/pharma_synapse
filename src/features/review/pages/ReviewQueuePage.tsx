@@ -155,6 +155,7 @@ const STATUS_ROLE_SHORT: Record<string, string> = {
   reviewer_qa: "QA",
   reviewer_pr: "Production",
   approvedby: "Approved By",
+  approver: "Approved By",
 };
 
 export { STATUS_LABELS };

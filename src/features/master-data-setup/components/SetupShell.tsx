@@ -4,6 +4,7 @@ import { useAuthStore } from "../../auth/state/auth.store";
 import { AppHeader } from "../../new-document/components/AppHeader";
 import { AppSidebar } from "../../new-document/components/AppSidebar";
 import { masterDataAccess } from "../access";
+import { MasterDataZipButton } from "./MasterDataZipButton";
 import {
   BATCH_DOCS,
   DOCUMENT_TYPE,
@@ -129,9 +130,12 @@ function Stepper({ current }: { current: StepKey }) {
           key={group.key}
           className={`flex-1 ${gi > 0 ? "border-t border-border pt-3 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0" : ""}`}
         >
-          <p className="mb-2 px-1.5 text-micro font-bold uppercase tracking-overline text-subdued">
-            {group.label}
-          </p>
+          <div className="mb-2 flex items-center justify-between px-1.5">
+            <p className="text-micro font-bold uppercase tracking-overline text-subdued">
+              {group.label}
+            </p>
+            {group.key === "static" ? <MasterDataZipButton /> : null}
+          </div>
           <ol className="flex flex-wrap items-center gap-1">
             {group.steps.map((key, i) => {
               const s = STEPS.find((x) => x.key === key);

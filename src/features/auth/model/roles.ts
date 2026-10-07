@@ -4,7 +4,7 @@ export const USER_ROLES = {
   PREPARED_BY: "preparer",
   REVIEWER_QA: "reviewer_qa",
   REVIEWER_PR: "reviewer_pr",
-  APPROVED_BY: "approvedby",
+  APPROVED_BY: "approver",
 } as const;
 
 export type UserRole = (typeof USER_ROLES)[keyof typeof USER_ROLES];

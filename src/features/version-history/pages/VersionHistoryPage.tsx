@@ -13,7 +13,7 @@ import {
   type VersionHistoryItem,
 } from "../api/versionHistory.api";
 
-const EDIT_ROLES = new Set(["reviewer_qa", "approvedby"]);
+const EDIT_ROLES = new Set(["reviewer_qa", "approvedby", "approver"]);
 
 /** Friendly labels for the pre-filter dropdowns. Falls back to a title-cased raw value. */
 const DOSAGE_LABELS: Record<string, string> = { tablet: "Tablet", capsule: "Capsule" };

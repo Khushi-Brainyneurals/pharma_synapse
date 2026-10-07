@@ -137,7 +137,7 @@ export function PreviewPage() {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
         {/* left: doc list */}
-        <div className="overflow-hidden rounded-panel border border-border bg-surface">
+        <div className="h-fit overflow-hidden rounded-panel border border-border bg-surface">
           <div className="border-b border-border p-3">
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-subdued" aria-hidden="true" />
@@ -217,19 +217,10 @@ export function PreviewPage() {
                   >
                     <Maximize2 className="size-3.5" aria-hidden="true" /> Full screen
                   </button>
-                  {access.canEdit ? (
-                    <>
-                      <button type="button" className="rounded-control border border-border px-2.5 py-1 text-primary hover:bg-accent-soft">Replace</button>
-                      <button type="button" className="rounded-control border border-border px-2.5 py-1 text-danger-ink hover:bg-danger-soft">Remove</button>
-                    </>
-                  ) : null}
                 </div>
               </div>
               <div className="flex items-center justify-between border-b border-border px-3 py-1.5 text-micro text-subdued">
                 <PageControls page={page} total={TOTAL_PAGES} onChange={setPage} />
-                <span className="inline-flex items-center gap-1 text-primary">
-                  <Eye className="size-3.5" aria-hidden="true" /> Previewed — marked as checked
-                </span>
               </div>
               <div className="bg-sunken/40 p-6">
                 <MockPage doc={currentDoc} page={page} total={TOTAL_PAGES} />

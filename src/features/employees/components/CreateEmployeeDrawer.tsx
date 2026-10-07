@@ -9,7 +9,7 @@ import {
 } from "../api/employees.api";
 import { StepUpModal } from "./StepUpModal";
 
-const ALL_ROLES = ["preparer", "reviewer_qa", "reviewer_pr", "approvedby", "admin", "superadmin"];
+const ALL_ROLES = ["preparer", "reviewer_qa", "reviewer_pr", "approver", "admin", "superadmin"];
 
 interface CreateEmployeeDrawerProps {
   onCancel: () => void;

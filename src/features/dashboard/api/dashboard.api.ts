@@ -111,8 +111,26 @@ function normalizeDashboardItem(raw: any): DashboardItem {
 }
 
 export async function getDashboard(): Promise<DashboardResponse> {
-  const response = await httpClient.get<any>("/api/documents/dashboard/me");
-  const data = response.data ?? {};
+  let response: any;
+  try {
+    response = await httpClient.get<any>("/api/documents/dashboard/me");
+  } catch (err: any) {
+    if (err?.response?.status === 403) {
+      return {
+        role: "admin",
+        cards: [],
+        buckets: [],
+        items: [],
+        sla_days: {},
+        active_count: 0,
+        overdue_count: 0,
+        retained_count: 0,
+        can_create: false,
+      };
+    }
+    throw err;
+  }
+  const data = response?.data ?? {};
   const rawList = Array.isArray(data.items) ? data.items : Array.isArray(data.documents) ? data.documents : [];
   const items = rawList.map(normalizeDashboardItem);
   const rawCards = Array.isArray(data.cards)

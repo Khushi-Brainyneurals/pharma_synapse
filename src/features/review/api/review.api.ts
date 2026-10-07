@@ -143,5 +143,6 @@ export const STATUS_LABELS: Record<string, string> = {
 export const ROLE_LABELS: Record<string, string> = {
   reviewer_qa: "Reviewer — QA",
   reviewer_pr: "Reviewer — Production",
+  approver: "Approved By",
   approvedby: "Approved By",
 };

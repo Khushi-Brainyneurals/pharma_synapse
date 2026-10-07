@@ -132,6 +132,7 @@ export const ROLE_LABELS: Record<string, string> = {
   reviewer_qa: "Reviewer QA",
   reviewer_pr: "Reviewer PR",
   approvedby: "Approver",
+  approver: "Approver",
   admin: "Admin",
   superadmin: "Super Admin",
 };

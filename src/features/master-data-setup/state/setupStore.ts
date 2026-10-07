@@ -52,7 +52,7 @@ interface SetupState {
   removeUpload: (code: string) => void;
   setBatchUpload: (code: string, file: UploadedFile) => void;
   removeBatchUpload: (code: string) => void;
-  updateEquip: (sr: number, field: keyof EquipmentRow, value: string) => void;
+  updateEquip: (sr: number, field: keyof EquipmentRow, value: any) => void;
   addEquipRow: () => void;
   removeEquipRow: (sr: number) => void;
   updateInstr: (sr: number, field: "name" | "instrumentId" | "location", value: string) => void;
@@ -78,7 +78,17 @@ export const useSetupStore = create<SetupState>((set) => ({
     set((s) => ({
       equipment: [
         ...s.equipment,
-        { sr: Math.max(0, ...s.equipment.map((r) => r.sr)) + 1, name: "", capacity: "N/A", workingCap: "N/A", mcId: "", stage: "", procStage: "", cpp: "" },
+        {
+          sr: Math.max(0, ...s.equipment.map((r) => r.sr)) + 1,
+          name: "",
+          capacity: "N/A",
+          workingCap: "N/A",
+          mcId: "",
+          stage: "",
+          procStage: "",
+          cpp: "",
+          isNew: true,
+        },
       ],
     })),
   removeEquipRow: (sr) => set((s) => ({ equipment: s.equipment.filter((r) => r.sr !== sr) })),

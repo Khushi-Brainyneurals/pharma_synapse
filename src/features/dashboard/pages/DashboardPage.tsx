@@ -169,8 +169,12 @@ export function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    if (user?.role === "admin" || user?.role === "superadmin") {
+      navigate(ROUTES.employees, { replace: true });
+      return;
+    }
     void load();
-  }, [load]);
+  }, [user?.role, navigate, load]);
 
   useEffect(() => {
     if (!toast) return;
