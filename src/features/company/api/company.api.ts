@@ -76,3 +76,37 @@ export async function fetchLogoObjectUrl(): Promise<string | null> {
     return null;
   }
 }
+
+export interface CompanyApprovalState {
+  category: string;
+  product_type: string | null;
+  doc_type: string | null;
+  status: string;
+  submitted_by: string | null;
+  submitted_at: string | null;
+  decided_by: string | null;
+  decided_at: string | null;
+  reject_reason: string | null;
+}
+
+export async function getCompanyApproval(): Promise<CompanyApprovalState> {
+  const response = await httpClient.get<CompanyApprovalState>("/api/company-info/approval");
+  return response.data;
+}
+
+export async function submitCompanyApproval(): Promise<CompanyApprovalState> {
+  const response = await httpClient.post<CompanyApprovalState>("/api/company-info/approval/submit");
+  return response.data;
+}
+
+export async function decideCompanyApproval(
+  decision: "approved" | "rejected",
+  reason?: string,
+): Promise<CompanyApprovalState> {
+  const response = await httpClient.post<CompanyApprovalState>(
+    `/api/company-info/approval/decide?decision=${decision}`,
+    reason ? { reason } : {},
+  );
+  return response.data;
+}
+
