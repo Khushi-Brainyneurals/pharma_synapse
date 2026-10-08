@@ -15,6 +15,7 @@ export interface DashboardItem {
   batch_type: string | null;
   status: string;
   resume_step: string;
+  resume_stage_key?: string | null;
   state: string;
   state_label: string;
   bucket: string | null;
@@ -69,11 +70,11 @@ function normalizeDashboardItem(raw: any): DashboardItem {
   const state_label = String(raw.state_label ?? (status === "draft" ? "Draft" : status));
   const isDraft = status === "draft" || state === "draft";
   const isUnderReview = status === "under_review" || status === "in_review" || status === "submitted";
-  const isReturned = status === "returned" || status === "rejected";
+  const isReturned = status === "returned" || status === "rejected" || status === "returned_for_correction";
   const isApproved = status === "approved" || status === "pending_approval";
 
   const permissions = raw.permissions ?? {
-    can_edit: Boolean(raw.can_edit ?? isDraft),
+    can_edit: Boolean(raw.can_edit ?? (isDraft || isReturned)),
     can_delete: Boolean(raw.can_delete ?? isDraft),
     can_cancel: Boolean(raw.can_cancel ?? false),
     can_review: Boolean(raw.can_review ?? isUnderReview),
@@ -91,7 +92,8 @@ function normalizeDashboardItem(raw: any): DashboardItem {
     batch_size: raw.batch_size != null ? Number(raw.batch_size) : null,
     batch_type: raw.batch_type ?? null,
     status,
-    resume_step: raw.resume_step ?? "inputs",
+    resume_step: raw.resume_step ?? raw.state ?? "inputs",
+    resume_stage_key: raw.resume_stage_key ?? null,
     state,
     state_label,
     bucket: raw.bucket ?? (isDraft ? "draft" : status),

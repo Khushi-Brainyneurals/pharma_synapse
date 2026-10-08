@@ -7,25 +7,32 @@ export async function getDocument(documentId: string): Promise<DocumentDetail> {
     `/api/documents/${encodeURIComponent(documentId)}`,
   );
   const data = response.data;
-  const resumeStep = data.resume_step || "inputs";
+  const resumeStep = data.resume_step || data.state || "inputs";
   const stepOrder = ["type", "inputs", "preview", "cover-bom", "stages", "generate-submit"];
   const stepMap: Record<string, number> = {
     type: 0,
     inputs: 1,
     core_inputs: 1,
+    core_input: 1,
     preview: 2,
     format_preview: 2,
     "cover-bom": 3,
     cover_bom: 3,
+    cover_review: 3,
+    review_cover: 3,
+    cover: 3,
+    bom: 3,
     stages: 4,
     stage_params: 4,
     "stage-input": 4,
+    select_stages: 4,
     submit: 5,
     generate: 5,
     "generate-submit": 5,
   };
-  const activeIdx = stepMap[resumeStep] ?? 1;
-  const isSubmitted = ["submitted", "in_review", "in_approval", "approved", "rejected"].includes(data.status);
+  const stepKey = String(resumeStep).toLowerCase().trim();
+  const activeIdx = stepMap[stepKey] ?? stepMap[resumeStep] ?? 1;
+  const isSubmitted = ["submitted", "in_review", "in_approval", "approved", "rejected", "approved_for_print"].includes(data.status);
   const completedSteps = isSubmitted
     ? stepOrder
     : stepOrder.slice(0, activeIdx);
