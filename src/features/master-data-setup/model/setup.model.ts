@@ -26,6 +26,8 @@ export interface UploadedFile {
   at: string;
   format: "PDF" | "DOCX";
   blobUrl?: string;
+  stageKey?: string;
+  rawFile?: File;
 }
 
 export const DOCUMENT_TYPE = { dosage: "Tablet", doc: "BMR", label: "Tablet · BMR" };

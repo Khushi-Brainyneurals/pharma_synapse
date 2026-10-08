@@ -76,8 +76,8 @@ export function AppSidebar({ user }: AppSidebarProps) {
   }
 
   return (
-    <aside className="hidden border-r border-border bg-surface lg:flex lg:h-full lg:w-sidebar-w lg:flex-col">
-      <nav className="flex-1 px-3 py-4" aria-label="Primary">
+    <aside className="hidden shrink-0 border-r border-border bg-surface lg:flex lg:h-full lg:w-sidebar-w lg:flex-col">
+      <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-4" aria-label="Primary">
         <Link to="/" className="mb-3 flex items-center gap-2 rounded-control px-3 py-2 text-small font-semibold hover:bg-muted" aria-current={location.pathname === "/" ? "page" : undefined}>
           <LayoutDashboard className="size-4" aria-hidden="true" /> Dashboard
         </Link>
@@ -141,7 +141,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
         </ul>
       </nav>
 
-      <div className="border-t border-border px-4 py-3">
+      <div className="shrink-0 border-t border-border px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-micro font-medium uppercase tracking-overline text-subdued">

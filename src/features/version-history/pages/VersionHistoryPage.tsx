@@ -175,9 +175,9 @@ export function VersionHistoryPage() {
   return (
     <div className="min-h-screen bg-background text-text">
       <AppHeader user={user} unit={user?.unitId ? { id: user.unitId } : null} title="Version History" />
-      <div className="flex">
+      <div className="lg:grid lg:h-[calc(100vh-var(--topbar-h))] lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden">
         <AppSidebar user={user} />
-        <main className="min-w-0 flex-1 p-4 lg:p-6">
+        <main className="min-w-0 min-h-0 p-4 lg:p-6 lg:h-full lg:overflow-y-auto">
           <div className="mx-auto max-w-7xl space-y-4">
             <header className="flex flex-wrap items-end justify-between gap-3">
               <div>

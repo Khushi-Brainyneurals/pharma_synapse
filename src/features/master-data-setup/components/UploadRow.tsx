@@ -66,6 +66,7 @@ export function UploadRow({
       at: nowStamp(),
       format,
       blobUrl,
+      rawFile: picked,
     });
   }
 

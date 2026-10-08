@@ -1,7 +1,9 @@
-import { ChevronLeft, ChevronRight, Download, FileText, X } from "lucide-react";
-import { useState } from "react";
+import { ChevronLeft, ChevronRight, Download, FileText, Loader2, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Dialog } from "../../../shared/ui/Dialog";
 import { Identifier } from "../../../shared/ui/Identifier";
+import { DocxViewer } from "../../preview/components/DocxViewer";
+import { getOtherDocumentPreviewBlob, getStageDocumentPreviewBlob } from "../api/masterDataDocuments.api";
 import type { DocDef, UploadedFile } from "../model/setup.model";
 
 interface DocumentPreviewDialogProps {
@@ -14,20 +16,60 @@ export function DocumentPreviewDialog({ doc, file, onClose }: DocumentPreviewDia
   const [page, setPage] = useState(1);
   const totalPages = 2;
 
-  const handleDownload = () => {
+  const [blob, setBlob] = useState<Blob | null>(null);
+  const [streamUrl, setStreamUrl] = useState<string | null>(file.blobUrl ?? null);
+  const [isLoading, setIsLoading] = useState(!file.blobUrl);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
     if (file.blobUrl) {
+      setStreamUrl(file.blobUrl);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setLoadError(null);
+
+    const loader = file.stageKey
+      ? getStageDocumentPreviewBlob("tablet", "bmr", file.stageKey, doc.code)
+      : getOtherDocumentPreviewBlob("tablet", "bmr", doc.code);
+
+    loader
+      .then((b) => {
+        if (!cancelled) {
+          setBlob(b);
+          setStreamUrl(URL.createObjectURL(b));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLoadError("Could not stream document preview from backend.");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [doc.code, file.blobUrl, file.stageKey]);
+
+  const handleDownload = () => {
+    const targetUrl = streamUrl || file.blobUrl;
+    if (targetUrl) {
       const a = document.createElement("a");
-      a.href = file.blobUrl;
+      a.href = targetUrl;
       a.download = file.filename;
       a.click();
       return;
     }
     // Fallback template download
     const dummyContent = `Format: ${file.format}\nDocument: ${doc.name} (${doc.code})\nFilename: ${file.filename}\nUploaded by: ${file.by}\nAt: ${file.at}\n\nThis is the blank approved master format template for ${doc.name}.`;
-    const blob = new Blob([dummyContent], {
+    const fallbackBlob = new Blob([dummyContent], {
       type: file.format === "PDF" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     });
-    const url = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(fallbackBlob);
     const a = document.createElement("a");
     a.href = url;
     a.download = file.filename;
@@ -71,12 +113,19 @@ export function DocumentPreviewDialog({ doc, file, onClose }: DocumentPreviewDia
         </div>
 
         {/* Document preview container */}
-        <div className="relative min-h-[460px] max-h-[65vh] overflow-y-auto rounded-card border border-border bg-muted/60 p-4 sm:p-6">
-          {file.blobUrl && file.format === "PDF" ? (
+        <div className="relative min-h-[460px] max-h-[70vh] overflow-y-auto rounded-card border border-border bg-muted/60 p-4 sm:p-6">
+          {isLoading ? (
+            <div className="flex h-96 flex-col items-center justify-center gap-3 text-subdued">
+              <Loader2 className="size-6 animate-spin text-primary" />
+              <p className="text-small">Loading document preview from backend…</p>
+            </div>
+          ) : blob && (file.format === "DOCX" || file.filename.toLowerCase().endsWith(".docx")) ? (
+            <DocxViewer file={{ blob, filename: file.filename, format: "docx" }} />
+          ) : streamUrl && (file.format === "PDF" || file.filename.toLowerCase().endsWith(".pdf")) ? (
             <object
-              data={file.blobUrl}
+              data={streamUrl}
               type="application/pdf"
-              className="h-[55vh] w-full rounded border border-border"
+              className="h-[60vh] w-full rounded border border-border"
               aria-label={`${file.filename} preview`}
             >
               <PreviewDocumentSheet doc={doc} file={file} page={page} total={totalPages} />

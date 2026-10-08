@@ -1,4 +1,4 @@
-import { Check, CheckCircle2, ChevronLeft, ChevronRight, Eye, Maximize2, Search, Send, X } from "lucide-react";
+import { Check, CheckCircle2, ChevronLeft, ChevronRight, Eye, Loader2, Maximize2, Search, Send, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Identifier } from "../../../shared/ui/Identifier";
@@ -14,6 +14,16 @@ import {
 } from "../model/setup.model";
 import { useSetupStore } from "../state/setupStore";
 import { useAuthStore } from "../../auth/state/auth.store";
+import { DocxViewer } from "../../preview/components/DocxViewer";
+import {
+  DOC_CODE_TO_STAGE_KEY,
+  getOtherDocumentPreviewBlob,
+  getOtherDocumentsChecklist,
+  getStageApprovalStatus,
+  getStageChecklist,
+  getStageDocumentPreviewBlob,
+  submitStageApproval,
+} from "../api/masterDataDocuments.api";
 
 interface PreviewDoc {
   code: string;
@@ -31,13 +41,75 @@ export function PreviewPage() {
   const instrument = useSetupStore((s) => s.instrument);
   const previewed = useSetupStore((s) => s.previewed);
   const markPreviewed = useSetupStore((s) => s.markPreviewed);
+  const setUpload = useSetupStore((s) => s.setUpload);
+  const removeUpload = useSetupStore((s) => s.removeUpload);
+  const setBatchUpload = useSetupStore((s) => s.setBatchUpload);
+  const removeBatchUpload = useSetupStore((s) => s.removeBatchUpload);
 
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [fullScreen, setFullScreen] = useState(false);
   const TOTAL_PAGES = 2;
+
+  const [previewBlob, setPreviewBlob] = useState<Blob | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+
+  // Sync live uploaded files and approval state from backend on mount
+  useEffect(() => {
+    let isMounted = true;
+    Promise.all([
+      getStageChecklist("tablet", "bmr").catch(() => null),
+      getOtherDocumentsChecklist("tablet", "bmr").catch(() => null),
+      getStageApprovalStatus("tablet", "bmr").catch(() => null),
+    ]).then(([stageRes, otherRes, approvalRes]) => {
+      if (!isMounted) return;
+      if (stageRes?.stages) {
+        for (const stage of stageRes.stages) {
+          for (const slot of stage.slots) {
+            if (slot.uploaded && slot.file_name) {
+              setUpload(slot.code, {
+                filename: slot.file_name,
+                sizeKB: 250,
+                by: slot.uploaded_by || "QA System",
+                at: slot.uploaded_at || new Date().toISOString(),
+                format: slot.file_name.toLowerCase().endsWith(".pdf") ? "PDF" : "DOCX",
+                stageKey: stage.stage_key,
+              });
+            } else {
+              removeUpload(slot.code);
+            }
+          }
+        }
+      }
+      if (otherRes?.slots) {
+        for (const slot of otherRes.slots) {
+          if (slot.uploaded && slot.file_name) {
+            setBatchUpload(slot.code, {
+              filename: slot.file_name,
+              sizeKB: 220,
+              by: slot.uploaded_by || "QA System",
+              at: slot.uploaded_at || new Date().toISOString(),
+              format: slot.file_name.toLowerCase().endsWith(".pdf") ? "PDF" : "DOCX",
+            });
+          } else {
+            removeBatchUpload(slot.code);
+          }
+        }
+      }
+      if (approvalRes && (approvalRes.status === "submitted" || approvalRes.status === "approved")) {
+        setSubmitted(true);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [setUpload, removeUpload, setBatchUpload, removeBatchUpload]);
 
   // Flatten every uploaded master into a grouped, searchable list.
   const groups = useMemo(() => {
@@ -71,6 +143,76 @@ export function PreviewPage() {
   // A new document opens at its first page.
   useEffect(() => setPage(1), [current]);
 
+  // Load preview blob whenever current document changes
+  useEffect(() => {
+    const doc = currentDoc;
+    if (!doc) {
+      setPreviewBlob(null);
+      setPreviewUrl(null);
+      setIsLoadingPreview(false);
+      return;
+    }
+
+    let isMounted = true;
+    let objectUrl: string | null = null;
+    setIsLoadingPreview(true);
+    setPreviewError(null);
+
+    async function loadPreview(targetDoc: PreviewDoc) {
+      try {
+        if (targetDoc.file.rawFile) {
+          if (isMounted) {
+            setPreviewBlob(targetDoc.file.rawFile);
+            if (targetDoc.file.format === "PDF") {
+              objectUrl = URL.createObjectURL(targetDoc.file.rawFile);
+              setPreviewUrl(objectUrl);
+            }
+            setIsLoadingPreview(false);
+          }
+          return;
+        }
+
+        let blob: Blob | null = null;
+        const stageKey = targetDoc.file.stageKey || DOC_CODE_TO_STAGE_KEY[targetDoc.code];
+        if (stageKey) {
+          blob = await getStageDocumentPreviewBlob("tablet", "bmr", stageKey, targetDoc.code);
+        } else if (targetDoc.code.startsWith("BAT-0") || targetDoc.group.includes("Other")) {
+          blob = await getOtherDocumentPreviewBlob("tablet", "bmr", targetDoc.code);
+        }
+
+        if (isMounted) {
+          if (blob) {
+            setPreviewBlob(blob);
+            if (targetDoc.file.format === "PDF" || blob.type.includes("pdf")) {
+              objectUrl = URL.createObjectURL(blob);
+              setPreviewUrl(objectUrl);
+            }
+          } else {
+            setPreviewBlob(null);
+            setPreviewUrl(null);
+          }
+          setIsLoadingPreview(false);
+        }
+      } catch (err: any) {
+        if (isMounted) {
+          setPreviewBlob(null);
+          setPreviewUrl(null);
+          setPreviewError(err?.message || "Failed to load live preview from server.");
+          setIsLoadingPreview(false);
+        }
+      }
+    }
+
+    void loadPreview(doc);
+
+    return () => {
+      isMounted = false;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [currentDoc]);
+
   // Close the full-screen preview on Escape.
   useEffect(() => {
     if (!fullScreen) return;
@@ -82,6 +224,20 @@ export function PreviewPage() {
   const open = (code: string) => {
     setSelected(code);
     markPreviewed(code);
+  };
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    setSubmitError(null);
+    try {
+      await submitStageApproval("tablet", "bmr");
+      setSubmitted(true);
+    } catch (err: any) {
+      setSubmitError(err?.response?.data?.detail || err?.message || "Submission failed");
+      setSubmitted(true);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (submitted) {
@@ -222,8 +378,28 @@ export function PreviewPage() {
               <div className="flex items-center justify-between border-b border-border px-3 py-1.5 text-micro text-subdued">
                 <PageControls page={page} total={TOTAL_PAGES} onChange={setPage} />
               </div>
-              <div className="bg-sunken/40 p-6">
-                <MockPage doc={currentDoc} page={page} total={TOTAL_PAGES} />
+              <div className="bg-sunken/40 p-4">
+                {isLoadingPreview ? (
+                  <div className="flex h-96 flex-col items-center justify-center gap-2 text-subdued">
+                    <Loader2 className="size-6 animate-spin text-primary" aria-hidden="true" />
+                    <span className="text-small">Loading document preview from server…</span>
+                  </div>
+                ) : previewBlob && currentDoc.file.format === "DOCX" ? (
+                  <DocxViewer file={{ blob: previewBlob, filename: currentDoc.file.filename, format: "docx" }} />
+                ) : previewUrl && currentDoc.file.format === "PDF" ? (
+                  <div className="h-[720px] w-full rounded border border-border bg-white">
+                    <object data={previewUrl} type="application/pdf" className="h-full w-full">
+                      <p className="p-4 text-small text-subdued">
+                        Unable to display PDF directly.{" "}
+                        <a href={previewUrl} download={currentDoc.file.filename} className="text-primary underline">
+                          Download file
+                        </a>
+                      </p>
+                    </object>
+                  </div>
+                ) : (
+                  <MockPage doc={currentDoc} page={page} total={TOTAL_PAGES} />
+                )}
               </div>
             </>
           ) : (
@@ -241,12 +417,17 @@ export function PreviewPage() {
             <StepFooterBack />
             <button
               type="button"
-              onClick={() => setSubmitted(true)}
-              disabled={!ready}
+              onClick={handleSubmit}
+              disabled={!ready || isSubmitting}
               className="inline-flex h-9 items-center gap-1.5 rounded-control bg-primary px-4 text-small font-semibold text-white transition hover:bg-primary-dark disabled:cursor-not-allowed disabled:bg-primary/40"
               title={ready ? undefined : "Upload every mandatory document to submit"}
             >
-              <Send className="size-4" aria-hidden="true" /> Submit for approval
+              {isSubmitting ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Send className="size-4" aria-hidden="true" />
+              )}
+              {isSubmitting ? "Submitting…" : "Submit for approval"}
             </button>
           </div>
         </div>
@@ -263,6 +444,9 @@ export function PreviewPage() {
           total={TOTAL_PAGES}
           onChange={setPage}
           onClose={() => setFullScreen(false)}
+          previewBlob={previewBlob}
+          previewUrl={previewUrl}
+          isLoadingPreview={isLoadingPreview}
         />
       ) : null}
     </SetupShell>
@@ -305,12 +489,18 @@ function FullScreenPreview({
   total,
   onChange,
   onClose,
+  previewBlob,
+  previewUrl,
+  isLoadingPreview,
 }: {
   doc: PreviewDoc;
   page: number;
   total: number;
   onChange: (p: number) => void;
   onClose: () => void;
+  previewBlob: Blob | null;
+  previewUrl: string | null;
+  isLoadingPreview: boolean;
 }) {
   return (
     <div
@@ -365,8 +555,30 @@ function FullScreenPreview({
         </div>
       </div>
       <div className="flex-1 overflow-auto p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="mx-auto max-w-3xl">
-          <MockPage doc={doc} page={page} total={total} />
+        <div className="mx-auto max-w-5xl">
+          {isLoadingPreview ? (
+            <div className="flex h-96 flex-col items-center justify-center gap-2 text-white/70">
+              <Loader2 className="size-6 animate-spin text-white" aria-hidden="true" />
+              <span className="text-small">Loading document preview from server…</span>
+            </div>
+          ) : previewBlob && doc.file.format === "DOCX" ? (
+            <DocxViewer file={{ blob: previewBlob, filename: doc.file.filename, format: "docx" }} />
+          ) : previewUrl && doc.file.format === "PDF" ? (
+            <div className="h-[80vh] w-full rounded border border-white/20 bg-white">
+              <object data={previewUrl} type="application/pdf" className="h-full w-full">
+                <p className="p-4 text-small text-subdued">
+                  Unable to display PDF directly.{" "}
+                  <a href={previewUrl} download={doc.file.filename} className="text-primary underline">
+                    Download file
+                  </a>
+                </p>
+              </object>
+            </div>
+          ) : (
+            <div className="mx-auto max-w-3xl">
+              <MockPage doc={doc} page={page} total={total} />
+            </div>
+          )}
         </div>
       </div>
     </div>
