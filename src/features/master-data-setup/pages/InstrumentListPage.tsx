@@ -11,6 +11,7 @@ import { useSetupStore } from "../state/setupStore";
 import { useAuthStore } from "../../auth/state/auth.store";
 import { USER_ROLE_LABELS } from "../../auth/model/roles";
 import {
+  backendInstrumentToInstrumentRow,
   decideInstrumentApproval,
   getInstrumentApproval,
   getInstruments,
@@ -28,6 +29,7 @@ export function InstrumentListPage() {
   const setStages = useSetupStore((s) => s.setInstrStages);
   const addRow = useSetupStore((s) => s.addInstrRow);
   const removeRow = useSetupStore((s) => s.removeInstrRow);
+  const setInstrumentRows = useSetupStore((s) => s.setInstrumentRows);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [approval, setApproval] = useState<ApprovalState | null>(null);
@@ -52,11 +54,13 @@ export function InstrumentListPage() {
       const serverRows = await getInstruments();
       if (serverRows && serverRows.length > 0) {
         setServerBaseline(serverRows);
+        const mapped = serverRows.map(backendInstrumentToInstrumentRow);
+        setInstrumentRows(mapped);
       }
     } catch {
       // Offline fallback
     }
-  }, []);
+  }, [setInstrumentRows]);
 
   useEffect(() => {
     void loadApproval();

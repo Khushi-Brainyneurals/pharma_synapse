@@ -1,4 +1,5 @@
 import { httpClient } from "../../../shared/api/httpClient";
+import { useAuthStore } from "../../auth/state/auth.store";
 
 /** One document as it sits on the read-only status board. */
 export interface BoardItem {
@@ -23,12 +24,22 @@ export interface BoardResponse {
   items: BoardItem[];
 }
 
-export async function getBoard(): Promise<BoardResponse> {
+export async function getBoard(role?: string): Promise<BoardResponse> {
+  const currentRole = role || useAuthStore.getState().user?.role;
+  const isApprover = currentRole === "approver";
+  const endpoint = isApprover
+    ? "/api/documents/dashboard/overview"
+    : "/api/documents/dashboard/me";
+
   let res: any;
   try {
-    res = await httpClient.get<any>("/api/documents/dashboard/overview");
-  } catch {
-    res = await httpClient.get<any>("/api/documents/dashboard/me");
+    res = await httpClient.get<any>(endpoint);
+  } catch (err) {
+    if (isApprover) {
+      res = await httpClient.get<any>("/api/documents/dashboard/me");
+    } else {
+      throw err;
+    }
   }
   const data = res.data;
   const docs = Array.isArray(data.documents) ? data.documents : [];

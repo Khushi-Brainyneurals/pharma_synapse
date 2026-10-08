@@ -138,6 +138,7 @@ export interface EquipmentRow {
   cpp: string;
   steps?: MasterDataStep[];
   isNew?: boolean;
+  _row_id?: number;
 }
 
 export const EQUIPMENT_SEED: EquipmentRow[] = [
@@ -225,6 +226,7 @@ export interface InstrumentRow {
   stages: string[];
   /** Marks a just-added row (the "NEW" chip in the design). */
   isNew?: boolean;
+  _row_id?: number;
 }
 
 export const INSTRUMENT_SEED: InstrumentRow[] = [

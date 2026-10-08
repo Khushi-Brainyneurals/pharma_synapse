@@ -71,7 +71,7 @@ export function StatusBoardPage() {
   const load = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await getBoard();
+      const response = await getBoard(user?.role);
       setItems(response.items);
       setLoadedAt(Date.now());
       setError(null);
@@ -80,7 +80,7 @@ export function StatusBoardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [user?.role]);
 
   useEffect(() => {
     void load();

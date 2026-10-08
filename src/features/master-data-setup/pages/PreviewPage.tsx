@@ -24,6 +24,12 @@ import {
   getStageDocumentPreviewBlob,
   submitStageApproval,
 } from "../api/masterDataDocuments.api";
+import {
+  backendEquipmentToEquipmentRow,
+  backendInstrumentToInstrumentRow,
+  getEquipments,
+  getInstruments,
+} from "../../master-data/api/equipmentInstrument.api";
 
 interface PreviewDoc {
   code: string;
@@ -39,6 +45,8 @@ export function PreviewPage() {
   const batch = useSetupStore((s) => s.batchUploads);
   const equipment = useSetupStore((s) => s.equipment);
   const instrument = useSetupStore((s) => s.instrument);
+  const setEquipmentRows = useSetupStore((s) => s.setEquipmentRows);
+  const setInstrumentRows = useSetupStore((s) => s.setInstrumentRows);
   const previewed = useSetupStore((s) => s.previewed);
   const markPreviewed = useSetupStore((s) => s.markPreviewed);
   const setUpload = useSetupStore((s) => s.setUpload);
@@ -60,15 +68,23 @@ export function PreviewPage() {
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
-  // Sync live uploaded files and approval state from backend on mount
+  // Sync live uploaded files, equipments, instruments, and approval state from backend on mount
   useEffect(() => {
     let isMounted = true;
     Promise.all([
       getStageChecklist("tablet", "bmr").catch(() => null),
       getOtherDocumentsChecklist("tablet", "bmr").catch(() => null),
       getStageApprovalStatus("tablet", "bmr").catch(() => null),
-    ]).then(([stageRes, otherRes, approvalRes]) => {
+      getEquipments().catch(() => null),
+      getInstruments().catch(() => null),
+    ]).then(([stageRes, otherRes, approvalRes, equipsRes, instrsRes]) => {
       if (!isMounted) return;
+      if (equipsRes && equipsRes.length > 0) {
+        setEquipmentRows(equipsRes.map(backendEquipmentToEquipmentRow));
+      }
+      if (instrsRes && instrsRes.length > 0) {
+        setInstrumentRows(instrsRes.map(backendInstrumentToInstrumentRow));
+      }
       if (stageRes?.stages) {
         for (const stage of stageRes.stages) {
           for (const slot of stage.slots) {
@@ -109,7 +125,7 @@ export function PreviewPage() {
     return () => {
       isMounted = false;
     };
-  }, [setUpload, removeUpload, setBatchUpload, removeBatchUpload]);
+  }, [setUpload, removeUpload, setBatchUpload, removeBatchUpload, setEquipmentRows, setInstrumentRows]);
 
   // Flatten every uploaded master into a grouped, searchable list.
   const groups = useMemo(() => {

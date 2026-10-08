@@ -12,6 +12,7 @@ import { useAuthStore } from "../../auth/state/auth.store";
 import { USER_ROLE_LABELS } from "../../auth/model/roles";
 import { EquipmentMasterTable } from "../components/EquipmentMasterTable";
 import {
+  backendEquipmentToEquipmentRow,
   decideEquipmentApproval,
   getEquipmentApproval,
   getEquipments,
@@ -26,6 +27,7 @@ export function EquipmentListPage() {
   const canEdit = masterDataAccess(user?.role).canEdit;
   const rows = useSetupStore((s) => s.equipment);
   const update = useSetupStore((s) => s.updateEquip);
+  const setEquipmentRows = useSetupStore((s) => s.setEquipmentRows);
   const addRow = useSetupStore((s) => s.addEquipRow);
   const removeRow = useSetupStore((s) => s.removeEquipRow);
 
@@ -53,11 +55,13 @@ export function EquipmentListPage() {
       const serverRows = await getEquipments();
       if (serverRows && serverRows.length > 0) {
         setServerBaseline(serverRows);
+        const mapped = serverRows.map(backendEquipmentToEquipmentRow);
+        setEquipmentRows(mapped);
       }
     } catch {
       // Offline fallback: retains seed in setupStore
     }
-  }, []);
+  }, [setEquipmentRows]);
 
   useEffect(() => {
     void loadApproval();

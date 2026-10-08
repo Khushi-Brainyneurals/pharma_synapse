@@ -53,10 +53,12 @@ interface SetupState {
   setBatchUpload: (code: string, file: UploadedFile) => void;
   removeBatchUpload: (code: string) => void;
   updateEquip: (sr: number, field: keyof EquipmentRow, value: any) => void;
+  setEquipmentRows: (rows: EquipmentRow[]) => void;
   addEquipRow: () => void;
   removeEquipRow: (sr: number) => void;
   updateInstr: (sr: number, field: "name" | "instrumentId" | "location", value: string) => void;
   setInstrStages: (sr: number, stages: string[]) => void;
+  setInstrumentRows: (rows: InstrumentRow[]) => void;
   addInstrRow: () => void;
   removeInstrRow: (sr: number) => void;
   markPreviewed: (code: string) => void;
@@ -72,6 +74,8 @@ export const useSetupStore = create<SetupState>((set) => ({
   removeUpload: (code) => set((s) => ({ uploads: { ...s.uploads, [code]: null } })),
   setBatchUpload: (code, file) => set((s) => ({ batchUploads: { ...s.batchUploads, [code]: file } })),
   removeBatchUpload: (code) => set((s) => ({ batchUploads: { ...s.batchUploads, [code]: null } })),
+  setEquipmentRows: (rows) => set({ equipment: rows }),
+  setInstrumentRows: (rows) => set({ instrument: rows }),
   updateEquip: (sr, field, value) =>
     set((s) => ({ equipment: s.equipment.map((r) => (r.sr === sr ? { ...r, [field]: value } : r)) })),
   addEquipRow: () =>

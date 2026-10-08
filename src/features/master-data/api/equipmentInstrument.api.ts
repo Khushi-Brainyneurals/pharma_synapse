@@ -62,6 +62,32 @@ export async function getEquipments(signal?: AbortSignal): Promise<BackendEquipm
   }
 }
 
+export function backendEquipmentToEquipmentRow(
+  row: BackendEquipmentRow,
+  index: number,
+): EquipmentRow {
+  const steps: MasterDataStep[] = (row.steps ?? []).map((s) => ({
+    step: s.step || "",
+    cpp: Array.isArray(s.cpp) ? s.cpp : [],
+  }));
+
+  const allCpps = steps.flatMap((s) => s.cpp).filter(Boolean);
+  const cppString = allCpps.length > 0 ? allCpps.join(", ") : "N/A";
+
+  return {
+    sr: row.sr_no ?? row._row_id ?? index + 1,
+    name: row.name_of_machine || "",
+    capacity: row.capacity && row.capacity.trim() ? row.capacity.trim() : "N/A",
+    workingCap: row.working_capacity && row.working_capacity.trim() ? row.working_capacity.trim() : "N/A",
+    mcId: row.machine_id_no || "",
+    stage: row.stage || "",
+    procStage: row.processing_stage || row.stage || "",
+    cpp: cppString,
+    steps: steps.length > 0 ? steps : undefined,
+    _row_id: row._row_id,
+  };
+}
+
 export function toEquipmentPayload(row: EquipmentRow, index: number): BackendEquipmentRow {
   const sanitizeSteps = (steps?: MasterDataStep[]) => {
     return (steps ?? [])
@@ -148,6 +174,26 @@ export async function getInstruments(signal?: AbortSignal): Promise<BackendInstr
   } catch (error) {
     throw new Error(getApiErrorMessage(error, "Unable to load instrument list."));
   }
+}
+
+export function backendInstrumentToInstrumentRow(
+  row: BackendInstrumentRow,
+  index: number,
+): InstrumentRow {
+  const rawStages = row.stage || "";
+  const stages = rawStages
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  return {
+    sr: row.sr_no ?? row._row_id ?? index + 1,
+    name: row.name_of_instrument || "",
+    instrumentId: row.instrument_id_no || "",
+    location: row.location || "",
+    stages: stages.length > 0 ? stages : ["Dispensing"],
+    _row_id: row._row_id,
+  };
 }
 
 export function toInstrumentPayload(row: InstrumentRow, index: number): BackendInstrumentRow {
