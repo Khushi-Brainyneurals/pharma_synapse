@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Dialog } from "../../../shared/ui/Dialog";
 import { Identifier } from "../../../shared/ui/Identifier";
 import { DocxViewer } from "../../preview/components/DocxViewer";
+import { DocumentViewer } from "../../../shared/document/DocumentViewer";
 import { getOtherDocumentPreviewBlob, getStageDocumentPreviewBlob } from "../api/masterDataDocuments.api";
 import type { DocDef, UploadedFile } from "../model/setup.model";
 
@@ -16,15 +17,40 @@ export function DocumentPreviewDialog({ doc, file, onClose }: DocumentPreviewDia
   const [page, setPage] = useState(1);
   const totalPages = 2;
 
-  const [blob, setBlob] = useState<Blob | null>(null);
+  const [blob, setBlob] = useState<Blob | null>(file.rawFile ?? null);
   const [streamUrl, setStreamUrl] = useState<string | null>(file.blobUrl ?? null);
-  const [isLoading, setIsLoading] = useState(!file.blobUrl);
+  const [detectedFormat, setDetectedFormat] = useState<"PDF" | "DOCX" | null>(null);
+  const [isLoading, setIsLoading] = useState(!file.rawFile && !file.blobUrl);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    if (file.blobUrl) {
-      setStreamUrl(file.blobUrl);
+
+    async function inspectAndSetBlob(b: Blob) {
+      setBlob(b);
+      let fmt: "PDF" | "DOCX" =
+        file.format === "DOCX" || file.filename.toLowerCase().endsWith(".docx") ? "DOCX" : "PDF";
+      try {
+        const head = await b.slice(0, 5).text();
+        if (head.startsWith("%PDF")) {
+          fmt = "PDF";
+        } else {
+          const buf = await b.slice(0, 4).arrayBuffer();
+          const bytes = new Uint8Array(buf);
+          if (bytes[0] === 0x50 && bytes[1] === 0x4b) {
+            fmt = "DOCX";
+          }
+        }
+      } catch {
+        // fallback
+      }
+      if (!cancelled) {
+        setDetectedFormat(fmt);
+      }
+    }
+
+    if (file.rawFile) {
+      inspectAndSetBlob(file.rawFile);
       setIsLoading(false);
       return;
     }
@@ -37,10 +63,9 @@ export function DocumentPreviewDialog({ doc, file, onClose }: DocumentPreviewDia
       : getOtherDocumentPreviewBlob("tablet", "bmr", doc.code);
 
     loader
-      .then((b) => {
+      .then(async (b) => {
         if (!cancelled) {
-          setBlob(b);
-          setStreamUrl(URL.createObjectURL(b));
+          await inspectAndSetBlob(b);
         }
       })
       .catch(() => {
@@ -53,9 +78,19 @@ export function DocumentPreviewDialog({ doc, file, onClose }: DocumentPreviewDia
     return () => {
       cancelled = true;
     };
-  }, [doc.code, file.blobUrl, file.stageKey]);
+  }, [doc.code, file.blobUrl, file.stageKey, file.rawFile, file.format, file.filename]);
 
   const handleDownload = () => {
+    const targetBlob = blob || file.rawFile;
+    if (targetBlob) {
+      const url = URL.createObjectURL(targetBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = file.filename;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return;
+    }
     const targetUrl = streamUrl || file.blobUrl;
     if (targetUrl) {
       const a = document.createElement("a");
@@ -90,7 +125,7 @@ export function DocumentPreviewDialog({ doc, file, onClose }: DocumentPreviewDia
               <div className="flex items-center gap-2">
                 <Identifier className="font-semibold text-text">{file.filename}</Identifier>
                 <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-subdued">
-                  {file.format}
+                  {detectedFormat || file.format}
                 </span>
                 <span className="text-micro text-subdued">· {file.sizeKB} KB</span>
               </div>
@@ -119,17 +154,16 @@ export function DocumentPreviewDialog({ doc, file, onClose }: DocumentPreviewDia
               <Loader2 className="size-6 animate-spin text-primary" />
               <p className="text-small">Loading document preview from backend…</p>
             </div>
-          ) : blob && (file.format === "DOCX" || file.filename.toLowerCase().endsWith(".docx")) ? (
+          ) : blob && detectedFormat === "DOCX" ? (
             <DocxViewer file={{ blob, filename: file.filename, format: "docx" }} hideHeader />
-          ) : streamUrl && (file.format === "PDF" || file.filename.toLowerCase().endsWith(".pdf")) ? (
-            <object
-              data={streamUrl}
-              type="application/pdf"
-              className="h-[50vh] w-full rounded border border-border"
-              aria-label={`${file.filename} preview`}
-            >
-              <PreviewDocumentSheet doc={doc} file={file} page={page} total={totalPages} />
-            </object>
+          ) : blob && detectedFormat === "PDF" ? (
+            <div className="h-[50vh] w-full overflow-hidden rounded border border-border bg-white">
+              <DocumentViewer
+                docKey={`modal-preview-${doc.code}`}
+                load={async () => blob}
+                fileName={file.filename}
+              />
+            </div>
           ) : (
             <PreviewDocumentSheet doc={doc} file={file} page={page} total={totalPages} />
           )}

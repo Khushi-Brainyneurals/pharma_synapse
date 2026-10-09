@@ -15,6 +15,7 @@ import {
 import { useSetupStore } from "../state/setupStore";
 import { useAuthStore } from "../../auth/state/auth.store";
 import { DocxViewer } from "../../preview/components/DocxViewer";
+import { DocumentViewer } from "../../../shared/document/DocumentViewer";
 import {
   DOC_CODE_TO_STAGE_KEY,
   getOtherDocumentPreviewBlob,
@@ -64,7 +65,7 @@ export function PreviewPage() {
   const TOTAL_PAGES = 2;
 
   const [previewBlob, setPreviewBlob] = useState<Blob | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [detectedFormat, setDetectedFormat] = useState<"PDF" | "DOCX" | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
@@ -164,13 +165,12 @@ export function PreviewPage() {
     const doc = currentDoc;
     if (!doc) {
       setPreviewBlob(null);
-      setPreviewUrl(null);
+      setDetectedFormat(null);
       setIsLoadingPreview(false);
       return;
     }
 
     let isMounted = true;
-    let objectUrl: string | null = null;
     setIsLoadingPreview(true);
     setPreviewError(null);
 
@@ -179,10 +179,8 @@ export function PreviewPage() {
         if (targetDoc.file.rawFile) {
           if (isMounted) {
             setPreviewBlob(targetDoc.file.rawFile);
-            if (targetDoc.file.format === "PDF") {
-              objectUrl = URL.createObjectURL(targetDoc.file.rawFile);
-              setPreviewUrl(objectUrl);
-            }
+            const isDoc = targetDoc.file.rawFile.name.toLowerCase().endsWith(".docx");
+            setDetectedFormat(isDoc ? "DOCX" : "PDF");
             setIsLoadingPreview(false);
           }
           return;
@@ -199,20 +197,35 @@ export function PreviewPage() {
         if (isMounted) {
           if (blob) {
             setPreviewBlob(blob);
-            if (targetDoc.file.format === "PDF" || blob.type.includes("pdf")) {
-              objectUrl = URL.createObjectURL(blob);
-              setPreviewUrl(objectUrl);
+            let fmt: "PDF" | "DOCX" =
+              targetDoc.file.format === "DOCX" || targetDoc.file.filename.toLowerCase().endsWith(".docx")
+                ? "DOCX"
+                : "PDF";
+            try {
+              const header = await blob.slice(0, 5).text();
+              if (header.startsWith("%PDF")) {
+                fmt = "PDF";
+              } else {
+                const buf = await blob.slice(0, 4).arrayBuffer();
+                const bytes = new Uint8Array(buf);
+                if (bytes[0] === 0x50 && bytes[1] === 0x4b) {
+                  fmt = "DOCX";
+                }
+              }
+            } catch {
+              // keep fallback fmt
             }
+            setDetectedFormat(fmt);
           } else {
             setPreviewBlob(null);
-            setPreviewUrl(null);
+            setDetectedFormat(null);
           }
           setIsLoadingPreview(false);
         }
       } catch (err: any) {
         if (isMounted) {
           setPreviewBlob(null);
-          setPreviewUrl(null);
+          setDetectedFormat(null);
           setPreviewError(err?.message || "Failed to load live preview from server.");
           setIsLoadingPreview(false);
         }
@@ -223,9 +236,6 @@ export function PreviewPage() {
 
     return () => {
       isMounted = false;
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
     };
   }, [currentDoc]);
 
@@ -401,18 +411,15 @@ export function PreviewPage() {
                     <Loader2 className="size-6 animate-spin text-primary" aria-hidden="true" />
                     <span className="text-small">Loading document preview from server…</span>
                   </div>
-                ) : previewBlob && currentDoc.file.format === "DOCX" ? (
-                  <DocxViewer file={{ blob: previewBlob, filename: currentDoc.file.filename, format: "docx" }} />
-                ) : previewUrl && currentDoc.file.format === "PDF" ? (
-                  <div className="h-[720px] w-full rounded border border-border bg-white">
-                    <object data={previewUrl} type="application/pdf" className="h-full w-full">
-                      <p className="p-4 text-small text-subdued">
-                        Unable to display PDF directly.{" "}
-                        <a href={previewUrl} download={currentDoc.file.filename} className="text-primary underline">
-                          Download file
-                        </a>
-                      </p>
-                    </object>
+                ) : previewBlob && detectedFormat === "DOCX" ? (
+                  <DocxViewer file={{ blob: previewBlob, filename: currentDoc.file.filename, format: "docx" }} hideHeader />
+                ) : previewBlob && detectedFormat === "PDF" ? (
+                  <div className="h-[720px] w-full rounded border border-border bg-white overflow-hidden">
+                    <DocumentViewer
+                      docKey={`preview-${currentDoc.code}`}
+                      load={async () => previewBlob}
+                      fileName={currentDoc.file.filename}
+                    />
                   </div>
                 ) : (
                   <MockPage doc={currentDoc} page={page} total={TOTAL_PAGES} />
@@ -469,7 +476,7 @@ export function PreviewPage() {
           onChange={setPage}
           onClose={() => setFullScreen(false)}
           previewBlob={previewBlob}
-          previewUrl={previewUrl}
+          detectedFormat={detectedFormat}
           isLoadingPreview={isLoadingPreview}
         />
       ) : null}
@@ -514,7 +521,7 @@ function FullScreenPreview({
   onChange,
   onClose,
   previewBlob,
-  previewUrl,
+  detectedFormat,
   isLoadingPreview,
 }: {
   doc: PreviewDoc;
@@ -523,7 +530,7 @@ function FullScreenPreview({
   onChange: (p: number) => void;
   onClose: () => void;
   previewBlob: Blob | null;
-  previewUrl: string | null;
+  detectedFormat: "PDF" | "DOCX" | null;
   isLoadingPreview: boolean;
 }) {
   return (
@@ -585,18 +592,15 @@ function FullScreenPreview({
               <Loader2 className="size-6 animate-spin text-white" aria-hidden="true" />
               <span className="text-small">Loading document preview from server…</span>
             </div>
-          ) : previewBlob && doc.file.format === "DOCX" ? (
-            <DocxViewer file={{ blob: previewBlob, filename: doc.file.filename, format: "docx" }} />
-          ) : previewUrl && doc.file.format === "PDF" ? (
-            <div className="h-[80vh] w-full rounded border border-white/20 bg-white">
-              <object data={previewUrl} type="application/pdf" className="h-full w-full">
-                <p className="p-4 text-small text-subdued">
-                  Unable to display PDF directly.{" "}
-                  <a href={previewUrl} download={doc.file.filename} className="text-primary underline">
-                    Download file
-                  </a>
-                </p>
-              </object>
+          ) : previewBlob && detectedFormat === "DOCX" ? (
+            <DocxViewer file={{ blob: previewBlob, filename: doc.file.filename, format: "docx" }} hideHeader />
+          ) : previewBlob && detectedFormat === "PDF" ? (
+            <div className="h-[80vh] w-full rounded border border-white/20 bg-white overflow-hidden">
+              <DocumentViewer
+                docKey={`fullscreen-${doc.code}`}
+                load={async () => previewBlob}
+                fileName={doc.file.filename}
+              />
             </div>
           ) : (
             <div className="mx-auto max-w-3xl">
