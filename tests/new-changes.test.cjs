@@ -515,10 +515,10 @@ test('masterDataAccess correctly partitions permissions for all user roles', () 
   assert.equal(qa.canEdit, true);
   assert.equal(qa.canApprove, false);
 
-  // Approver has full rights (view, edit, approve)
+  // Approver has view and approve rights only (cannot edit master data)
   const app = masterDataAccess('approver');
   assert.equal(app.canView, true);
-  assert.equal(app.canEdit, true);
+  assert.equal(app.canEdit, false);
   assert.equal(app.canApprove, true);
 
   // Reviewer PR, admin, and superadmin have no master data access
