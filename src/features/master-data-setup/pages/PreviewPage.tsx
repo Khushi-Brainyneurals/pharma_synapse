@@ -1,5 +1,5 @@
-import { Check, CheckCircle2, ChevronLeft, ChevronRight, Eye, Loader2, Maximize2, Search, Send, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Check, CheckCircle2, ChevronLeft, ChevronRight, Eye, Loader2, Maximize2, Minus, Plus, Search, Send, StretchHorizontal, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Identifier } from "../../../shared/ui/Identifier";
 import { masterDataAccess } from "../access";
@@ -412,9 +412,16 @@ export function PreviewPage() {
                     <span className="text-small">Loading document preview from server…</span>
                   </div>
                 ) : previewBlob && detectedFormat === "DOCX" ? (
-                  <DocxViewer file={{ blob: previewBlob, filename: currentDoc.file.filename, format: "docx" }} hideHeader />
+                  <div className="h-[760px] w-full rounded border border-border bg-neutral-100/90 overflow-auto flex justify-center py-4">
+                    <DocxViewer
+                      file={{ blob: previewBlob, filename: currentDoc.file.filename, format: "docx" }}
+                      hideHeader
+                      borderless
+                      containerHeightClass="h-auto min-h-full"
+                    />
+                  </div>
                 ) : previewBlob && detectedFormat === "PDF" ? (
-                  <div className="h-[720px] w-full rounded border border-border bg-white overflow-hidden">
+                  <div className="h-[760px] w-full rounded border border-border bg-white overflow-hidden">
                     <DocumentViewer
                       docKey={`preview-${currentDoc.code}`}
                       load={async () => previewBlob}
@@ -422,7 +429,9 @@ export function PreviewPage() {
                     />
                   </div>
                 ) : (
-                  <MockPage doc={currentDoc} page={page} total={TOTAL_PAGES} />
+                  <div className="h-[760px] w-full overflow-auto py-4 flex justify-center">
+                    <MockPage doc={currentDoc} page={page} total={TOTAL_PAGES} />
+                  </div>
                 )}
               </div>
             </>
@@ -513,7 +522,7 @@ function PageControls({ page, total, onChange }: { page: number; total: number; 
 }
 
 /** Full-screen document preview overlay — the same rendered page, larger, with page
- *  navigation. Closes on the X, a backdrop click or Escape. */
+ *  navigation and zoom/fit controls. Closes on the X, a backdrop click or Escape. */
 function FullScreenPreview({
   doc,
   page,
@@ -533,81 +542,170 @@ function FullScreenPreview({
   detectedFormat: "PDF" | "DOCX" | null;
   isLoadingPreview: boolean;
 }) {
+  const [zoom, setZoom] = useState(1);
+  const [fitWidth, setFitWidth] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (fitWidth && scrollRef.current) {
+      const w = scrollRef.current.clientWidth - 48;
+      const s = Math.min(1.3, Math.max(0.4, w / 794));
+      setZoom(Number(s.toFixed(2)));
+    }
+  }, [fitWidth]);
+
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex flex-col bg-neutral-900/95 backdrop-blur-md text-white"
       role="dialog"
       aria-modal="true"
       aria-label={`${doc.name} — full screen`}
       onClick={onClose}
     >
-      <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3 text-white" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-neutral-900/90 px-4 py-2.5 backdrop-blur-sm"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="min-w-0">
           <p className="flex items-center gap-2 text-small font-semibold">
             {doc.name}
-            <span className="rounded border border-white/20 px-1.5 py-0.5 text-[10px]">
+            <span className="rounded border border-white/20 bg-white/10 px-1.5 py-0.5 text-[10px]">
               <Identifier>{doc.code}</Identifier>
+            </span>
+            <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-primary-light">
+              {detectedFormat || doc.file.format}
             </span>
           </p>
           <p className="truncate text-micro text-white/60">
             <Identifier>{doc.file.filename}</Identifier> · {formatSize(doc.file.sizeKB)}
           </p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1.5 text-micro text-white/80">
+
+        <div className="flex items-center gap-3">
+          {detectedFormat === "DOCX" ? (
+            <>
+              <div className="flex items-center gap-1 rounded-control border border-white/20 bg-white/5 p-0.5 text-micro">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFitWidth(false);
+                    setZoom((z) => Math.max(0.4, Number((z - 0.15).toFixed(2))));
+                  }}
+                  title="Zoom out"
+                  aria-label="Zoom out"
+                  className="flex size-7 items-center justify-center rounded-control transition hover:bg-white/10 disabled:opacity-40"
+                  disabled={zoom <= 0.4}
+                >
+                  <Minus className="size-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFitWidth(false);
+                    setZoom(1);
+                  }}
+                  title="Reset zoom (100%)"
+                  className="w-12 text-center font-mono tabular-nums text-white/80 hover:text-white"
+                >
+                  {Math.round(zoom * 100)}%
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFitWidth(false);
+                    setZoom((z) => Math.min(2.0, Number((z + 0.15).toFixed(2))));
+                  }}
+                  title="Zoom in"
+                  aria-label="Zoom in"
+                  className="flex size-7 items-center justify-center rounded-control transition hover:bg-white/10 disabled:opacity-40"
+                  disabled={zoom >= 2.0}
+                >
+                  <Plus className="size-3.5" />
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setFitWidth((prev) => !prev)}
+                title={fitWidth ? "Disable fit to width" : "Fit to width"}
+                className={`flex h-8 items-center gap-1.5 rounded-control border px-2.5 text-micro font-medium transition ${
+                  fitWidth
+                    ? "border-primary bg-primary/20 text-white"
+                    : "border-white/20 bg-white/5 text-white/80 hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                <StretchHorizontal className="size-3.5" />
+                <span className="hidden sm:inline">Fit width</span>
+              </button>
+            </>
+          ) : null}
+
+          <div className="flex items-center gap-1 text-micro text-white/80">
             <button
               type="button"
               onClick={() => onChange(Math.max(1, page - 1))}
               disabled={page <= 1}
               aria-label="Previous page"
-              className="flex size-7 items-center justify-center rounded-control border border-white/20 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex size-8 items-center justify-center rounded-control border border-white/20 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <ChevronLeft className="size-4" aria-hidden="true" />
+              <ChevronLeft className="size-4" />
             </button>
-            <span className="font-mono tabular-nums">Page {page} / {total}</span>
+            <span className="font-mono tabular-nums px-1.5">Page {page} / {total}</span>
             <button
               type="button"
               onClick={() => onChange(Math.min(total, page + 1))}
               disabled={page >= total}
               aria-label="Next page"
-              className="flex size-7 items-center justify-center rounded-control border border-white/20 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex size-8 items-center justify-center rounded-control border border-white/20 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <ChevronRight className="size-4" aria-hidden="true" />
+              <ChevronRight className="size-4" />
             </button>
           </div>
+
           <button
             type="button"
             onClick={onClose}
             aria-label="Close full screen"
             className="flex size-8 items-center justify-center rounded-control border border-white/20 text-white transition hover:bg-white/10"
           >
-            <X className="size-4" aria-hidden="true" />
+            <X className="size-4" />
           </button>
         </div>
       </div>
-      <div className="flex-1 overflow-auto p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="mx-auto max-w-5xl">
-          {isLoadingPreview ? (
-            <div className="flex h-96 flex-col items-center justify-center gap-2 text-white/70">
-              <Loader2 className="size-6 animate-spin text-white" aria-hidden="true" />
-              <span className="text-small">Loading document preview from server…</span>
-            </div>
-          ) : previewBlob && detectedFormat === "DOCX" ? (
-            <DocxViewer file={{ blob: previewBlob, filename: doc.file.filename, format: "docx" }} hideHeader />
-          ) : previewBlob && detectedFormat === "PDF" ? (
-            <div className="h-[80vh] w-full rounded border border-white/20 bg-white overflow-hidden">
-              <DocumentViewer
-                docKey={`fullscreen-${doc.code}`}
-                load={async () => previewBlob}
-                fileName={doc.file.filename}
-              />
-            </div>
-          ) : (
-            <div className="mx-auto max-w-3xl">
-              <MockPage doc={doc} page={page} total={total} />
-            </div>
-          )}
-        </div>
+
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-auto bg-neutral-950/90 py-8 px-4 flex justify-center items-start"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {isLoadingPreview ? (
+          <div className="flex h-96 flex-col items-center justify-center gap-2 text-white/70">
+            <Loader2 className="size-6 animate-spin text-white" />
+            <span className="text-small">Loading document preview from server…</span>
+          </div>
+        ) : previewBlob && detectedFormat === "DOCX" ? (
+          <div className="w-full flex justify-center">
+            <DocxViewer
+              file={{ blob: previewBlob, filename: doc.file.filename, format: "docx" }}
+              hideHeader
+              borderless
+              containerHeightClass="h-auto min-h-full"
+              zoom={zoom}
+            />
+          </div>
+        ) : previewBlob && detectedFormat === "PDF" ? (
+          <div className="h-[85vh] w-full max-w-5xl rounded border border-white/20 bg-white overflow-hidden">
+            <DocumentViewer
+              docKey={`fullscreen-${doc.code}`}
+              load={async () => previewBlob}
+              fileName={doc.file.filename}
+            />
+          </div>
+        ) : (
+          <div className="w-[210mm] max-w-full">
+            <MockPage doc={doc} page={page} total={total} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -641,7 +739,7 @@ function Chip({ label, value, ok, to }: { label: string; value: string; ok: bool
 
 function MockPage({ doc, page = 1, total = 2 }: { doc: PreviewDoc; page?: number; total?: number }) {
   return (
-    <div className="mx-auto max-w-xl rounded-card border border-border bg-white p-8 text-black shadow-sm">
+    <div className="mx-auto w-[210mm] max-w-full min-h-[297mm] rounded-sm border border-border/80 bg-white p-10 text-black shadow-lg">
       <div className="flex items-center justify-between text-[9px] uppercase tracking-wide text-black/50">
         <span>UNIT-01 · Master Template</span>
         <span>{DOCUMENT_TYPE.dosage} · {DOCUMENT_TYPE.doc}</span>

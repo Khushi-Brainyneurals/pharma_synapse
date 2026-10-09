@@ -159,6 +159,33 @@ mark.dv-hl-active {
   outline: 1px solid rgb(217 119 6 / 0.9);
 }
 
+/* Authentic A4 DOCX page presentation */
+.format-preview-docx {
+  width: 100%;
+}
+
+.format-preview-docx .docx-wrapper {
+  background: transparent !important;
+  padding: 1rem 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  width: 100% !important;
+}
+
+.format-preview-docx section.docx {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  width: 210mm !important;
+  min-height: 297mm !important;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.18), 0 2px 6px -1px rgba(0, 0, 0, 0.1) !important;
+  margin: 0 auto 2rem auto !important;
+  box-sizing: border-box !important;
+  border-radius: 2px !important;
+  padding-top: 1.5rem !important;
+  position: relative !important;
+}
+
 /* Fix DOCX preview header overlap and table spacing */
 .format-preview-docx header,
 .format-preview-docx .docx-header {
@@ -170,12 +197,9 @@ mark.dv-hl-active {
   overflow: visible !important;
 }
 
-.format-preview-docx section.docx {
-  padding-top: 1.5rem !important;
-}
-
 .format-preview-docx table {
   border-collapse: collapse !important;
+  max-width: 100% !important;
 }
 
 .format-preview-docx tr {
@@ -186,5 +210,7 @@ mark.dv-hl-active {
 .format-preview-docx th {
   position: relative !important;
   vertical-align: top !important;
+  word-break: break-word !important;
 }
+
 

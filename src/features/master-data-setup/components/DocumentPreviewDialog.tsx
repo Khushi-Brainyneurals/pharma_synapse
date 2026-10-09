@@ -148,16 +148,21 @@ export function DocumentPreviewDialog({ doc, file, onClose }: DocumentPreviewDia
         </div>
 
         {/* Document preview container */}
-        <div className="relative min-h-[360px] max-h-[55vh] overflow-y-auto rounded-card border border-border bg-muted/60 p-4 sm:p-6">
+        <div className="relative h-[68vh] overflow-y-auto rounded-card border border-border bg-neutral-100/90 p-4 sm:p-6 flex justify-center">
           {isLoading ? (
             <div className="flex h-80 flex-col items-center justify-center gap-3 text-subdued">
               <Loader2 className="size-6 animate-spin text-primary" />
               <p className="text-small">Loading document preview from backend…</p>
             </div>
           ) : blob && detectedFormat === "DOCX" ? (
-            <DocxViewer file={{ blob, filename: file.filename, format: "docx" }} hideHeader />
+            <DocxViewer
+              file={{ blob, filename: file.filename, format: "docx" }}
+              hideHeader
+              borderless
+              containerHeightClass="h-auto min-h-full"
+            />
           ) : blob && detectedFormat === "PDF" ? (
-            <div className="h-[50vh] w-full overflow-hidden rounded border border-border bg-white">
+            <div className="h-full w-full overflow-hidden rounded border border-border bg-white">
               <DocumentViewer
                 docKey={`modal-preview-${doc.code}`}
                 load={async () => blob}
@@ -212,7 +217,7 @@ function PreviewDocumentSheet({
   total: number;
 }) {
   return (
-    <div className="mx-auto max-w-2xl rounded-card border border-border/80 bg-white p-8 text-black shadow-sm">
+    <div className="mx-auto w-[210mm] max-w-full min-h-[297mm] rounded-sm border border-border/80 bg-white p-10 text-black shadow-lg">
       <div className="flex items-center justify-between border-b border-black/10 pb-3 text-[10px] font-semibold uppercase tracking-wider text-black/60">
         <span>UNIT-01 · Master Format Template</span>
         <span>Tablet · BMR</span>
