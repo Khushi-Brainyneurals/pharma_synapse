@@ -2,7 +2,13 @@ import { AlertCircle, Download, FileText, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormatPreviewFile } from "../api/preview.api";
 
-export function DocxViewer({ file }: { file: FormatPreviewFile }) {
+export function DocxViewer({
+  file,
+  hideHeader = false,
+}: {
+  file: FormatPreviewFile;
+  hideHeader?: boolean;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const renderVersionRef = useRef(0);
   const [isRendering, setIsRendering] = useState(true);
@@ -66,32 +72,34 @@ export function DocxViewer({ file }: { file: FormatPreviewFile }) {
   }, [file]);
 
   return (
-    <div className="px-4 py-2 sm:px-6 lg:px-8">
+    <div className={hideHeader ? "" : "px-4 py-2 sm:px-6 lg:px-8"}>
       <div className="overflow-hidden rounded-panel border border-border bg-surface">
-        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-control bg-muted text-primary">
-              <FileText className="size-4" aria-hidden="true" />
-            </span>
-            <span className="truncate text-small font-semibold" title={file.filename}>
-              {file.filename}
-            </span>
+        {!hideHeader && (
+          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-control bg-muted text-primary">
+                <FileText className="size-4" aria-hidden="true" />
+              </span>
+              <span className="truncate text-small font-semibold" title={file.filename}>
+                {file.filename}
+              </span>
+            </div>
+            <div className="flex shrink-0 items-center gap-3 text-micro text-subdued">
+              <span className="tabular-nums">{formatBytes(file.blob.size)}</span>
+              <button
+                type="button"
+                onClick={download}
+                title="Download DOCX"
+                aria-label="Download DOCX"
+                className="flex size-7 items-center justify-center rounded-control text-subdued transition hover:bg-muted hover:text-text"
+              >
+                <Download className="size-4" aria-hidden="true" />
+              </button>
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-3 text-micro text-subdued">
-            <span className="tabular-nums">{formatBytes(file.blob.size)}</span>
-            <button
-              type="button"
-              onClick={download}
-              title="Download DOCX"
-              aria-label="Download DOCX"
-              className="flex size-7 items-center justify-center rounded-control text-subdued transition hover:bg-muted hover:text-text"
-            >
-              <Download className="size-4" aria-hidden="true" />
-            </button>
-          </div>
-        </div>
+        )}
 
-        <div className="relative h-[720px] overflow-auto bg-sunken p-4 sm:p-6">
+        <div className={`relative ${hideHeader ? "h-[50vh] max-h-[480px]" : "h-[720px]"} overflow-auto bg-sunken p-4 sm:p-6`}>
           {isRendering ? (
             <div
               className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-sunken text-subdued"

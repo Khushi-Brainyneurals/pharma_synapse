@@ -113,19 +113,19 @@ export function DocumentPreviewDialog({ doc, file, onClose }: DocumentPreviewDia
         </div>
 
         {/* Document preview container */}
-        <div className="relative min-h-[460px] max-h-[70vh] overflow-y-auto rounded-card border border-border bg-muted/60 p-4 sm:p-6">
+        <div className="relative min-h-[360px] max-h-[55vh] overflow-y-auto rounded-card border border-border bg-muted/60 p-4 sm:p-6">
           {isLoading ? (
-            <div className="flex h-96 flex-col items-center justify-center gap-3 text-subdued">
+            <div className="flex h-80 flex-col items-center justify-center gap-3 text-subdued">
               <Loader2 className="size-6 animate-spin text-primary" />
               <p className="text-small">Loading document preview from backend…</p>
             </div>
           ) : blob && (file.format === "DOCX" || file.filename.toLowerCase().endsWith(".docx")) ? (
-            <DocxViewer file={{ blob, filename: file.filename, format: "docx" }} />
+            <DocxViewer file={{ blob, filename: file.filename, format: "docx" }} hideHeader />
           ) : streamUrl && (file.format === "PDF" || file.filename.toLowerCase().endsWith(".pdf")) ? (
             <object
               data={streamUrl}
               type="application/pdf"
-              className="h-[60vh] w-full rounded border border-border"
+              className="h-[50vh] w-full rounded border border-border"
               aria-label={`${file.filename} preview`}
             >
               <PreviewDocumentSheet doc={doc} file={file} page={page} total={totalPages} />
@@ -135,7 +135,7 @@ export function DocumentPreviewDialog({ doc, file, onClose }: DocumentPreviewDia
           )}
         </div>
 
-        {/* Footer with page navigation and close button */}
+        {/* Footer with page navigation */}
         <div className="flex items-center justify-between border-t border-border pt-3">
           <div className="flex items-center gap-2">
             <button
@@ -160,14 +160,6 @@ export function DocumentPreviewDialog({ doc, file, onClose }: DocumentPreviewDia
               <ChevronRight className="size-4" />
             </button>
           </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-control border border-border bg-surface px-4 py-1.5 text-small font-semibold text-text hover:bg-muted"
-          >
-            Close
-          </button>
         </div>
       </div>
     </Dialog>

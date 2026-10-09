@@ -10,6 +10,7 @@ interface StepsEditorDialogProps {
   processingStage: string;
   steps: MasterDataStep[];
   canEdit: boolean;
+  initialTab?: "all" | "cpp" | "cqa";
   onSave: (steps: MasterDataStep[]) => void;
   onClose: () => void;
 }
@@ -23,9 +24,11 @@ export function StepsEditorDialog({
   processingStage,
   steps,
   canEdit,
+  initialTab = "all",
   onSave,
   onClose,
 }: StepsEditorDialogProps) {
+  const [activeTab, setActiveTab] = useState<"all" | "cpp" | "cqa">(initialTab);
   const [draft, setDraft] = useState<MasterDataStep[]>(() =>
     steps.map((item) => ({
       step: item.step,
@@ -103,11 +106,46 @@ export function StepsEditorDialog({
     );
   }
 
+  const totalCpp = draft.reduce((sum, item) => sum + item.cpp.length, 0);
+  const totalCqa = draft.reduce((sum, item) => sum + (item.cqa?.length ?? 0), 0);
+
   return (
     <Dialog title={`Process steps - ${machineName || "Untitled machine"}`} size="lg" onClose={onClose}>
-      <div className="mb-4 rounded-control border border-border bg-muted/40 p-3">
-        <p className="text-micro font-semibold uppercase tracking-overline text-subdued">Processing stage</p>
-        <p className="mt-1 text-small text-text">{processingStage.trim() || "Not set"}</p>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="rounded-control border border-border bg-muted/40 p-2.5 flex-1 min-w-48">
+          <p className="text-micro font-semibold uppercase tracking-overline text-subdued">Processing stage</p>
+          <p className="mt-0.5 text-small font-medium text-text">{processingStage.trim() || "Not set"}</p>
+        </div>
+
+        <div className="inline-flex rounded-control bg-muted p-1 text-small">
+          <button
+            type="button"
+            onClick={() => setActiveTab("all")}
+            className={`rounded-control px-3 py-1 text-micro font-medium transition ${
+              activeTab === "all" ? "bg-surface text-text shadow-xs" : "text-subdued hover:text-text"
+            }`}
+          >
+            All ({totalCpp} CPPs · {totalCqa} CQAs)
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("cpp")}
+            className={`rounded-control px-3 py-1 text-micro font-medium transition ${
+              activeTab === "cpp" ? "bg-surface text-primary-dark font-semibold shadow-xs" : "text-subdued hover:text-text"
+            }`}
+          >
+            Process Steps & CPPs ({totalCpp})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("cqa")}
+            className={`rounded-control px-3 py-1 text-micro font-medium transition ${
+              activeTab === "cqa" ? "bg-surface text-inreview-fg font-semibold shadow-xs" : "text-subdued hover:text-text"
+            }`}
+          >
+            Process Steps & CQAs ({totalCqa})
+          </button>
+        </div>
       </div>
 
       {draft.length === 0 ? (
@@ -136,18 +174,23 @@ export function StepsEditorDialog({
                     {item.step}
                   </span>
                   <div className="flex items-center gap-2 text-micro">
-                    <span className="rounded bg-primary/10 px-2 py-0.5 font-medium text-primary-dark">
-                      {item.cpp.length} CPP{item.cpp.length === 1 ? "" : "s"}
-                    </span>
-                    <span className="rounded bg-inreview-bg px-2 py-0.5 font-medium text-inreview-fg">
-                      {cqaList.length} CQA{cqaList.length === 1 ? "" : "s"}
-                    </span>
+                    {(activeTab === "all" || activeTab === "cpp") && (
+                      <span className="rounded bg-primary/10 px-2 py-0.5 font-medium text-primary-dark">
+                        {item.cpp.length} CPP{item.cpp.length === 1 ? "" : "s"}
+                      </span>
+                    )}
+                    {(activeTab === "all" || activeTab === "cqa") && (
+                      <span className="rounded bg-inreview-bg px-2 py-0.5 font-medium text-inreview-fg">
+                        {cqaList.length} CQA{cqaList.length === 1 ? "" : "s"}
+                      </span>
+                    )}
                   </div>
                 </button>
 
                 {isOpen ? (
                   <div className="space-y-4 border-t border-border px-3 py-3">
                     {/* CPP Section */}
+                    {(activeTab === "all" || activeTab === "cpp") && (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <p className="text-micro font-semibold uppercase tracking-overline text-primary-dark">
@@ -195,10 +238,12 @@ export function StepsEditorDialog({
                         </button>
                       ) : null}
                     </div>
+                    )}
 
-                    <div className="border-t border-border/60" />
+                    {activeTab === "all" && <div className="border-t border-border/60" />}
 
                     {/* CQA Section */}
+                    {(activeTab === "all" || activeTab === "cqa") && (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <p className="text-micro font-semibold uppercase tracking-overline text-inreview-fg">
@@ -246,6 +291,7 @@ export function StepsEditorDialog({
                         </button>
                       ) : null}
                     </div>
+                    )}
                   </div>
                 ) : null}
               </div>

@@ -256,36 +256,37 @@ export function PreviewPage() {
     }
   };
 
-  if (submitted) {
-    return (
-      <SetupShell step="preview" title="Document preview" description="Submitted for approval.">
-        <div className="mx-auto flex max-w-lg flex-col items-center gap-3 rounded-panel border border-approved-fg/30 bg-approved-bg/50 p-10 text-center">
-          <span className="flex size-12 items-center justify-center rounded-full bg-approved-bg text-approved-fg">
-            <CheckCircle2 className="size-6" aria-hidden="true" />
-          </span>
-          <h2 className="text-h2 font-semibold text-text">Submitted to Master-Data Approvals</h2>
-          <p className="max-w-sm text-small text-subdued">
-            The full master-data set — {totalUploaded} documents, both list masters and the other documents — is routed to
-            the Approver. They re-authenticate and sign against the field-level diff before any of it takes effect.
-          </p>
-        </div>
-      </SetupShell>
-    );
-  }
-
   return (
     <SetupShell
       step="preview"
       title="Document preview"
       description={
-        <>
-          One last look before it goes for approval. <strong>Click a document to open and check it</strong> — fix
-          anything wrong right here, no need to walk back through the steps.
-        </>
+        submitted ? (
+          "Submitted for approval."
+        ) : (
+          <>
+            One last look before it goes for approval. <strong>Click a document to open and check it</strong> — fix
+            anything wrong right here, no need to walk back through the steps.
+          </>
+        )
       }
     >
+      {submitted && (
+        <div className="flex items-center gap-3 rounded-panel border border-approved-fg/30 bg-approved-bg/50 px-4 py-3 text-text">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-approved-bg text-approved-fg">
+            <CheckCircle2 className="size-4" aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-small font-semibold text-text">Submitted to Master-Data Approvals</p>
+            <p className="text-micro text-subdued">
+              The full master-data set — {totalUploaded} documents, list masters, and other documents — is routed to the Approver for sign-off. You can inspect all documents below.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* The how-it-works guidance is for the QA editor; a preparer just views, so it's hidden for them. */}
-      {access.canEdit ? (
+      {access.canEdit && !submitted ? (
         <HowThisWorks
           items={[
             <>Click a document on the left to open it — the eye marks it as checked.</>,
@@ -431,20 +432,27 @@ export function PreviewPage() {
           </p>
           <div className="flex items-center gap-3">
             <StepFooterBack />
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={!ready || isSubmitting}
-              className="inline-flex h-9 items-center gap-1.5 rounded-control bg-primary px-4 text-small font-semibold text-white transition hover:bg-primary-dark disabled:cursor-not-allowed disabled:bg-primary/40"
-              title={ready ? undefined : "Upload every mandatory document to submit"}
-            >
-              {isSubmitting ? (
-                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-              ) : (
-                <Send className="size-4" aria-hidden="true" />
-              )}
-              {isSubmitting ? "Submitting…" : "Submit for approval"}
-            </button>
+            {submitted ? (
+              <div className="inline-flex h-9 items-center gap-2 rounded-control border border-approved-fg/30 bg-approved-bg px-4 text-small font-semibold text-approved-fg">
+                <CheckCircle2 className="size-4" aria-hidden="true" />
+                Submitted for approval
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={!ready || isSubmitting}
+                className="inline-flex h-9 items-center gap-1.5 rounded-control bg-primary px-4 text-small font-semibold text-white transition hover:bg-primary-dark disabled:cursor-not-allowed disabled:bg-primary/40"
+                title={ready ? undefined : "Upload every mandatory document to submit"}
+              >
+                {isSubmitting ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Send className="size-4" aria-hidden="true" />
+                )}
+                {isSubmitting ? "Submitting…" : "Submit for approval"}
+              </button>
+            )}
           </div>
         </div>
       ) : (

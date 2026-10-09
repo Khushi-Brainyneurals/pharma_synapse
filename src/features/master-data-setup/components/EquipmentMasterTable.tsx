@@ -83,19 +83,20 @@ function getRowSteps(row: EquipmentRow): MasterDataStep[] {
   }));
 }
 
-function summarizeSteps(steps: MasterDataStep[]): string {
+function summarizeCpp(steps: MasterDataStep[]): string {
   if (steps.length === 0) {
-    return "Manage steps";
+    return "0 steps · 0 CPPs";
   }
-
   const cppCount = steps.reduce((sum, item) => sum + item.cpp.length, 0);
+  return `${steps.length} step${steps.length === 1 ? "" : "s"} · ${cppCount} CPP${cppCount === 1 ? "" : "s"}`;
+}
+
+function summarizeCqa(steps: MasterDataStep[]): string {
+  if (steps.length === 0) {
+    return "0 steps · 0 CQAs";
+  }
   const cqaCount = steps.reduce((sum, item) => sum + (item.cqa?.length ?? 0), 0);
-  const parts = [
-    `${steps.length} step${steps.length === 1 ? "" : "s"}`,
-    `${cppCount} CPP${cppCount === 1 ? "" : "s"}`,
-    `${cqaCount} CQA${cqaCount === 1 ? "" : "s"}`,
-  ];
-  return parts.join(" · ");
+  return `${steps.length} step${steps.length === 1 ? "" : "s"} · ${cqaCount} CQA${cqaCount === 1 ? "" : "s"}`;
 }
 
 export function EquipmentMasterTable({
@@ -111,6 +112,7 @@ export function EquipmentMasterTable({
     machineName: string;
     processingStage: string;
     steps: MasterDataStep[];
+    initialTab: "all" | "cpp" | "cqa";
   } | null>(null);
 
   function handleProcStageChange(rowSr: number, newProcStage: string) {
@@ -125,12 +127,13 @@ export function EquipmentMasterTable({
     onUpdate(rowSr, "cqa", nextCqa);
   }
 
-  function openStepsEditor(row: EquipmentRow) {
+  function openStepsEditor(row: EquipmentRow, initialTab: "all" | "cpp" | "cqa" = "all") {
     setStepsDialog({
       rowSr: row.sr,
       machineName: row.name,
       processingStage: row.procStage,
       steps: getRowSteps(row),
+      initialTab,
     });
   }
 
@@ -189,8 +192,11 @@ export function EquipmentMasterTable({
               <th scope="col" className="min-w-44 px-2 py-3 font-semibold">
                 Processing stage
               </th>
-              <th scope="col" className="min-w-44 px-2 py-3 font-semibold">
-                Process steps, CPPs &amp; CQAs
+              <th scope="col" className="min-w-40 px-2 py-3 font-semibold">
+                Process steps &amp; CPPs
+              </th>
+              <th scope="col" className="min-w-40 px-2 py-3 font-semibold">
+                Process steps &amp; CQAs
               </th>
               {canEdit ? (
                 <th scope="col" className="w-16 px-2 py-3 font-semibold">
@@ -203,7 +209,7 @@ export function EquipmentMasterTable({
             {rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={canEdit ? 9 : 8}
+                  colSpan={canEdit ? 10 : 9}
                   className="px-4 py-10 text-center text-small text-subdued"
                 >
                   No rows have been added to this list yet.
@@ -310,15 +316,27 @@ export function EquipmentMasterTable({
                       />
                     </td>
 
-                    {/* Process steps, CPPs & CQAs */}
-                    <td className="min-w-44 px-2 py-2">
+                    {/* Process steps & CPPs */}
+                    <td className="min-w-40 px-2 py-2">
                       <button
                         type="button"
-                        aria-label={`Process steps, CPPs & CQAs, row ${index + 1}`}
+                        aria-label={`Process steps & CPPs, row ${index + 1}`}
                         className="min-h-9 w-full rounded-control border border-border bg-surface px-2.5 py-1.5 text-left text-sm text-text transition hover:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                        onClick={() => openStepsEditor(row)}
+                        onClick={() => openStepsEditor(row, "cpp")}
                       >
-                        {summarizeSteps(steps)}
+                        {summarizeCpp(steps)}
+                      </button>
+                    </td>
+
+                    {/* Process steps & CQAs */}
+                    <td className="min-w-40 px-2 py-2">
+                      <button
+                        type="button"
+                        aria-label={`Process steps & CQAs, row ${index + 1}`}
+                        className="min-h-9 w-full rounded-control border border-border bg-surface px-2.5 py-1.5 text-left text-sm text-text transition hover:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        onClick={() => openStepsEditor(row, "cqa")}
+                      >
+                        {summarizeCqa(steps)}
                       </button>
                     </td>
 
@@ -368,6 +386,7 @@ export function EquipmentMasterTable({
           processingStage={stepsDialog.processingStage}
           steps={stepsDialog.steps}
           canEdit={canEdit}
+          initialTab={stepsDialog.initialTab}
           onSave={handleSaveSteps}
           onClose={() => setStepsDialog(null)}
         />
