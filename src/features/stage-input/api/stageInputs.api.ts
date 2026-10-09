@@ -1,77 +1,73 @@
 import { httpClient } from "../../../shared/api/httpClient";
-import type { StageInputsResponse, StageInputsSaveResponse, StageForm } from "./stageInputs.types";
+import { buildSchemaDefaults, hasMeaningfulValues, initializeStageSchemaValues, mergeSchemaValues, sanitizeStageValues, type StageSchemaContext } from "../model/schemaForm";
+import type { JsonSchema, StageForm, StageInputsSaveResponse } from "./stageInputs.types";
 
-export async function getStageInputs(documentId: string): Promise<StageInputsResponse> {
-  return getStageSchema(documentId);
+export async function getStageParamsSchema(
+  stageKey: string,
+  productType: string,
+  docType: string,
+): Promise<JsonSchema> {
+  const response = await httpClient.get<JsonSchema>(
+    `/api/documents/stages/${encodeURIComponent(stageKey)}/params-schema`,
+    { params: { product_type: productType, doc_type: docType } },
+  );
+  return response.data;
 }
 
-/**
- * The schema for EVERY catalog stage (selected or not) with saved values merged.
- * Used by the Select-Stages screen to render each stage's parameters in its expand
- * panel before the stage set is committed.
- */
-export async function getStageSchema(documentId: string): Promise<StageInputsResponse> {
-  let doc: any = null;
-  try {
-    const docRes = await httpClient.get<any>(`/api/documents/${encodeURIComponent(documentId)}`);
-    doc = docRes.data;
-  } catch {
-    // fallback if doc load fails
-  }
+export async function getSavedStageParams(
+  documentId: string,
+  stageKey: string,
+): Promise<Record<string, unknown>> {
+  const response = await httpClient.get<Record<string, unknown>>(
+    `/api/documents/${encodeURIComponent(documentId)}/stages/${encodeURIComponent(stageKey)}/params`,
+  );
+  return response.data || {};
+}
 
-  const productType = doc?.product_type || "tablet";
-  const docType = doc?.doc_type || "bmr";
-
-  let stagesList: { key: string; label: string }[] = [];
-  try {
-    const stagesRes = await httpClient.get<any>(
-      `/api/documents/stages?product_type=${encodeURIComponent(productType)}&doc_type=${encodeURIComponent(docType)}`,
-    );
-    stagesList = stagesRes.data?.stages || [];
-  } catch {
-    stagesList = (doc?.stages || []).map((k: string) => ({
-      key: k,
-      label: k.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()),
-    }));
-  }
-
-  const stageForms: StageForm[] = stagesList.map((st) => ({
-    key: st.key,
-    label: st.label,
-    description: `Configure parameters and equipment for ${st.label}.`,
-    fields: [],
-    values: doc?.stage_params?.[st.key] || {},
-    problems: [],
-    is_complete: true,
-  }));
-
+/** Load the independent schema and document-specific values together for one stage. */
+export async function getStageForm(
+  documentId: string,
+  stageKey: string,
+  label: string,
+  productType: string,
+  docType: string,
+  context: StageSchemaContext = {},
+): Promise<StageForm> {
+  const [schema, saved] = await Promise.all([
+    getStageParamsSchema(stageKey, productType, docType),
+    getSavedStageParams(documentId, stageKey),
+  ]);
+  const defaults = buildSchemaDefaults(schema);
+  const hasSaved = hasMeaningfulValues(saved);
+  const merged = hasSaved
+    ? mergeSchemaValues(defaults, saved, schema)
+    : defaults;
+  const values = initializeStageSchemaValues(schema, merged, { ...context, stageKey });
   return {
-    document_id: documentId,
-    status: doc?.status || "draft",
-    stages: stageForms,
-    machine_setting_params: [],
-    coating_params: [],
-    ipqc_frequencies: [],
-    default_ipqc_tests: [],
-    layers: doc?.layers || [],
-    all_complete: true,
+    key: stageKey,
+    label,
+    description: schema.description || `Configure inputs for ${label}.`,
+    fields: [],
+    values,
+    problems: [],
+    is_complete: false,
+    schema,
+    has_saved_values: hasSaved,
   };
 }
 
-/** Saves ONE stage. Incomplete saves are allowed — work is never discarded. */
+/** Saves one schema-filtered stage payload. Errors intentionally reach the page error UI. */
 export async function saveStageInputs(
   documentId: string,
   stage: string,
   values: Record<string, unknown>,
+  schema?: JsonSchema,
 ): Promise<StageInputsSaveResponse> {
-  try {
-    await httpClient.post(
-      `/api/documents/${encodeURIComponent(documentId)}/stages/${encodeURIComponent(stage)}/params`,
-      values,
-    );
-  } catch {
-    // If backend returns error, still return gracefully
-  }
+  const body = schema ? sanitizeStageValues(stage, schema, values) : values;
+  await httpClient.post(
+    `/api/documents/${encodeURIComponent(documentId)}/stages/${encodeURIComponent(stage)}/params`,
+    body,
+  );
 
   return {
     document_id: documentId,

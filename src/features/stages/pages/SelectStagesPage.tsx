@@ -4,28 +4,26 @@ import {
   ArrowLeft,
   Check,
   ChevronDown,
-  Info,
   Loader2,
-  Plus,
   SlidersHorizontal,
   SquarePen,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getApiErrorMessage } from "../../../shared/api/apiError";
 import { useAuthStore } from "../../auth/state/auth.store";
-import { getOptions, setStages } from "../../new-document/api/document.api";
+import { generateDocument } from "../../generate/api/generate.api";
+import { getStages, setStages } from "../../new-document/api/document.api";
 import type { StageOption } from "../../new-document/api/document.types";
 import { AppHeader } from "../../new-document/components/AppHeader";
 import { AppSidebar } from "../../new-document/components/AppSidebar";
 import { WizardHeader } from "../../new-document/components/WizardHeader";
 import { useDocument } from "../../new-document/hooks/useDocument";
 import { useStepNavigation } from "../../new-document/hooks/useStepNavigation";
-import { getStageSchema, saveStageInputs } from "../../stage-input/api/stageInputs.api";
-import type { StageForm, StageInputsResponse } from "../../stage-input/api/stageInputs.types";
-import { RepeatStagePanel } from "../components/RepeatStagePanel";
-import { BATCH_YIELD_KEY, repeatFor, conditionSourcesFor, setUnitValue, copyUnitValues, type RepeatValueKey } from "../model/stageRepeats";
-import { StageParamPanel } from "../components/StageParamPanel";
+import { getStageForm, saveStageInputs } from "../../stage-input/api/stageInputs.api";
+import type { StageForm } from "../../stage-input/api/stageInputs.types";
+import { SchemaStagePanel } from "../../stage-input/components/SchemaStagePanel";
+import { schemaHasAssetInputs, validateSchema } from "../../stage-input/model/schemaForm";
 
 interface StageUi {
   checked: boolean;
@@ -41,42 +39,44 @@ export function SelectStagesPage() {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const { goToStep } = useStepNavigation(documentId);
-  const { document, isLoading, reload } = useDocument(documentId);
+  const { document, isLoading } = useDocument(documentId);
 
   const [options, setOptions] = useState<StageOption[]>([]);
-  const [schema, setSchema] = useState<StageInputsResponse | null>(null);
+  const [forms, setForms] = useState<Record<string, StageForm>>({});
   const [ui, setUi] = useState<Record<string, StageUi>>({});
   const [values, setValues] = useState<StageValues>({});
   const [ready, setReady] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [busyStage, setBusyStage] = useState<string | null>(null);
+  const [loadingSchemas, setLoadingSchemas] = useState<Record<string, boolean>>({});
+  const [schemaErrors, setSchemaErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const stageLoadPromises = useRef<Partial<Record<string, Promise<StageForm>>>>({});
 
   useEffect(() => {
     let cancelled = false;
 
+    if (!document?.dosage_form || !document.doc_type) return;
+    setReady(false);
+    setError(null);
     void (async () => {
       try {
-        const [optionsResponse, schemaResponse] = await Promise.all([
-          getOptions(),
-          getStageSchema(documentId),
-        ]);
+        const stagesResponse = await getStages(document.dosage_form!, document.doc_type!);
         if (cancelled) return;
-
-        setOptions(optionsResponse.stages);
-        setSchema(schemaResponse);
+        if (!stagesResponse.supported) throw new Error(stagesResponse.message || "This document type is not supported.");
+        setOptions(stagesResponse.stages);
+        setForms({});
+        setValues({});
 
         const alreadyConfigured = document?.stages && document.stages.length > 0;
         const selectedKeys = new Set(
-          alreadyConfigured ? document!.stages : optionsResponse.default_stages,
+          alreadyConfigured ? document!.stages : [],
         );
 
         const nextUi: Record<string, StageUi> = {};
-        const nextValues: StageValues = {};
-        for (const form of schemaResponse.stages) {
-          nextValues[form.key] = { ...form.values };
-          const isSelected = selectedKeys.has(form.key);
-          nextUi[form.key] = {
+        for (const stage of stagesResponse.stages) {
+          const isSelected = selectedKeys.has(stage.key);
+          nextUi[stage.key] = {
             checked: isSelected,
             // A stage that was already selected on a saved document counts as reviewed.
             saved: Boolean(alreadyConfigured && isSelected),
@@ -84,7 +84,6 @@ export function SelectStagesPage() {
           };
         }
         setUi(nextUi);
-        setValues(nextValues);
         setReady(true);
       } catch (caught) {
         if (!cancelled) setError(getApiErrorMessage(caught, "Could not load the stage list."));
@@ -96,23 +95,38 @@ export function SelectStagesPage() {
     };
   }, [document, documentId]);
 
-  const formFor = useCallback(
-    (key: string): StageForm | undefined => schema?.stages.find((form) => form.key === key),
-    [schema],
-  );
+  const formFor = useCallback((key: string) => forms[key], [forms]);
 
-  const reference = schema;
-  const batchYieldForm = formFor(BATCH_YIELD_KEY);
-  const stageOrder = options.filter((stage) => ui[stage.key]?.checked).map((stage) => stage.key);
-
-  const setUnitFieldValue = useCallback((stage: string, valueKey: RepeatValueKey, unit: string, field: string, value: unknown) => {
-    setValues((current) => setUnitValue(current, stage, valueKey, unit, field, value));
-    setUi((current) => ({ ...current, [stage]: { ...current[stage], saved: false } }));
-  }, []);
-  const copyUnit = useCallback((stage: string, valueKey: RepeatValueKey, from: string, to: string) => {
-    setValues((current) => copyUnitValues(current, stage, valueKey, from, to));
-    setUi((current) => ({ ...current, [stage]: { ...current[stage], saved: false } }));
-  }, []);
+  const ensureStageLoaded = useCallback(async (key: string): Promise<StageForm> => {
+    if (forms[key]) return forms[key];
+    if (stageLoadPromises.current[key]) return stageLoadPromises.current[key];
+    const stage = options.find((option) => option.key === key);
+    if (!stage || !document?.dosage_form || !document.doc_type) throw new Error("Document stage context is unavailable.");
+    const productType = document.dosage_form;
+    const docType = document.doc_type;
+    setLoadingSchemas((current) => ({ ...current, [key]: true }));
+    setSchemaErrors((current) => ({ ...current, [key]: "" }));
+    const request = (async () => {
+      const form = await getStageForm(documentId, key, stage.label, productType, docType, {
+        layers: document.layers,
+        coatingTypes: document.coating_types,
+      });
+      setForms((current) => ({ ...current, [key]: form }));
+      setValues((current) => ({ ...current, [key]: form.values }));
+      return form;
+    })();
+    stageLoadPromises.current[key] = request;
+    try {
+      return await request;
+    } catch (caught) {
+      const message = getApiErrorMessage(caught, `Could not load inputs for ${stage.label}.`);
+      setSchemaErrors((current) => ({ ...current, [key]: message }));
+      throw caught;
+    } finally {
+      delete stageLoadPromises.current[key];
+      setLoadingSchemas((current) => ({ ...current, [key]: false }));
+    }
+  }, [document, documentId, forms, options]);
 
   const setFieldValue = useCallback((stageKey: string, fieldKey: string, value: unknown) => {
     setUi((cur) => ({ ...cur, [stageKey]: { ...cur[stageKey], saved: false } }));
@@ -153,16 +167,19 @@ export function SelectStagesPage() {
       const selected = options.filter((option) => ui[option.key]?.checked).map((option) => option.key);
       const label = options.find((option) => option.key === key)?.label ?? key;
       try {
-        await setStages(documentId, selected, {});
-        for (const source of ["dispensing_rm", "dispensing_coating"]) {
-          if (source !== key && selected.includes(source)) {
-            await saveStageInputs(documentId, source, values[source] ?? {});
-          }
-        }
-        await saveStageInputs(documentId, key, values[key] ?? {});
-        await saveStageInputs(documentId, BATCH_YIELD_KEY, values[BATCH_YIELD_KEY] ?? {});
+        await setStages(documentId, selected);
+        const form = await ensureStageLoaded(key);
+        const problems = form.schema ? validateSchema(form.schema, values[key] ?? form.values, {
+          stageKey: key,
+          layers: document?.layers,
+        }) : [];
+        if (problems.length) throw new Error(problems[0]);
+        await saveStageInputs(documentId, key, values[key] ?? form.values, form.schema);
+        setUi((current) => ({ ...current, [key]: { ...current[key], saved: true, open: false } }));
+        const hasAssetInputs = Boolean(form.schema && schemaHasAssetInputs(form.schema));
+        if (!hasAssetInputs) return;
         navigate(
-          `/documents/${encodeURIComponent(documentId)}/stage-input?stage=${encodeURIComponent(label)}`,
+          `/documents/${encodeURIComponent(documentId)}/stage-input?stage=${encodeURIComponent(key)}&label=${encodeURIComponent(label)}`,
         );
       } catch (caught) {
         setError(getApiErrorMessage(caught, "Could not save this stage."));
@@ -170,33 +187,8 @@ export function SelectStagesPage() {
         setBusyStage(null);
       }
     },
-    [documentId, navigate, options, ui, values],
+    [document?.layers, documentId, ensureStageLoaded, navigate, options, ui, values],
   );
-
-  const advisories = useMemo(() => {
-    const missing: string[] = [];
-    for (const stage of options) {
-      if (!ui[stage.key]?.checked) continue;
-      for (const impliedKey of stage.implies) {
-        if (!ui[impliedKey]?.checked && !missing.includes(impliedKey)) missing.push(impliedKey);
-      }
-    }
-    const labels = missing.map((k) => options.find((o) => o.key === k)?.label ?? k);
-    const text = missing.length
-      ? `Coating usually needs ${labels.join(" and ")}. Add ${
-          missing.length > 1 ? "them" : "it"
-        } to this BMR?`
-      : "";
-    return { text, impliedKeys: missing };
-  }, [options, ui]);
-
-  const addImplied = useCallback(() => {
-    setUi((cur) => {
-      const next = { ...cur };
-      for (const key of advisories.impliedKeys) next[key] = { ...next[key], checked: true };
-      return next;
-    });
-  }, [advisories.impliedKeys]);
 
   const selectedKeys = useMemo(
     () => options.filter((s) => ui[s.key]?.checked).map((s) => s.key),
@@ -209,19 +201,28 @@ export function SelectStagesPage() {
     setError(null);
     try {
       // Commit the selection first — a stage must be selected before its inputs save.
-      await setStages(documentId, selectedKeys, {});
-      // Persist each selected stage's parameters (saved even if partly filled).
-      for (const key of [...selectedKeys, BATCH_YIELD_KEY]) {
-        await saveStageInputs(documentId, key, values[key] ?? {});
+      await setStages(documentId, selectedKeys);
+      // Every selected stage is schema-backed before advancing; already-loaded stages reuse their cache.
+      for (const key of selectedKeys) {
+        const form = forms[key] ?? await ensureStageLoaded(key);
+        if (!form.schema) continue;
+        const problems = validateSchema(form.schema, values[key] ?? form.values, {
+          stageKey: key,
+          layers: document?.layers,
+        });
+        if (problems.length) throw new Error(`${form.label}: ${problems[0]}`);
+        await saveStageInputs(documentId, key, values[key] ?? form.values, form.schema);
       }
-      await reload();
+      // Start the build only after every selected stage has been validated and saved.
+      // The Generate page takes over by polling progress, then loads the preview on completion.
+      await generateDocument(documentId);
       goToStep("generate-submit");
     } catch (caught) {
       setError(getApiErrorMessage(caught, "Could not save the stage selection."));
     } finally {
       setIsSaving(false);
     }
-  }, [documentId, goToStep, reload, selectedKeys, values]);
+  }, [document?.layers, documentId, ensureStageLoaded, forms, goToStep, selectedKeys, values]);
 
 return (
     <div className="flex flex-col min-h-screen bg-background text-text">
@@ -272,58 +273,30 @@ return (
                         index={index}
                         s={ui[stage.key]}
                         form={formFor(stage.key)}
-                        reference={reference}
                         values={values[stage.key] ?? {}}
                         busy={busyStage === stage.key}
-                        onToggle={() => toggleStage(stage.key)}
-                        onExpand={() => expand(stage.key)}
-                        allValues={values}
-                        stageOrder={stageOrder}
+                        loading={Boolean(loadingSchemas[stage.key])}
+                        loadError={schemaErrors[stage.key]}
+                        layers={
+                          stage.key === "dispensing_coating"
+                            ? document?.coating_types ?? []
+                            : document?.layers ?? []
+                        }
+                        onToggle={() => {
+                          toggleStage(stage.key);
+                          if (!ui[stage.key]?.checked) void ensureStageLoaded(stage.key).catch(() => undefined);
+                        }}
+                        onExpand={() => {
+                          expand(stage.key);
+                          if (!ui[stage.key]?.open) void ensureStageLoaded(stage.key).catch(() => undefined);
+                        }}
                         onFieldChange={(fieldKey, value) => setFieldValue(stage.key, fieldKey, value)}
-                        onUnitFieldChange={(valueKey, unitKey, fieldKey, value) =>
-                          setUnitFieldValue(stage.key, valueKey, unitKey, fieldKey, value)
-                        }
-                        onCopyUnit={(valueKey, fromKey, toKey) =>
-                          copyUnit(stage.key, valueKey, fromKey, toKey)
-                        }
                         onContinue={() => void continueStage(stage.key)}
                         onCancel={() => expand(stage.key)}
                       />
                     ))}
                   </div>
 
-                  {advisories.text ? (
-                    <div className="m-4 flex items-center gap-3 rounded-control border border-border bg-sunken p-3">
-                      <Info className="size-4 shrink-0 text-subdued" aria-hidden="true" />
-                      <span className="flex-1 text-small text-subdued">{advisories.text}</span>
-                      <button
-                        type="button"
-                        onClick={addImplied}
-                        className="inline-flex items-center gap-1.5 rounded-control border border-border-strong bg-surface px-3 py-1.5 text-small font-semibold transition hover:bg-sunken"
-                      >
-                        <Plus className="size-4" aria-hidden="true" />
-                        Add {advisories.impliedKeys.length > 1 ? "both stages" : "stage"}
-                      </button>
-                    </div>
-                  ) : null}
-
-                  {batchYieldForm && reference ? (
-                    <div className="border-t border-border">
-                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 py-3">
-                        <span className="text-small font-semibold">Batch yield reconciliation</span>
-                      </div>
-                      <div className="border-t border-dashed border-border-strong bg-background px-5 py-4">
-                        <StageParamPanel
-                          fields={batchYieldForm.fields}
-                          values={values[BATCH_YIELD_KEY] ?? {}}
-                          reference={reference}
-                          onChange={(fieldKey, value) =>
-                            setFieldValue(BATCH_YIELD_KEY, fieldKey, value)
-                          }
-                        />
-                      </div>
-                    </div>
-                  ) : null}
                 </div>
 
                 {/* Sticky Footer moved outside the card to match Cover + BOM page */}
@@ -375,16 +348,14 @@ function StageRow({
   index,
   s,
   form,
-  reference,
   values,
   busy,
+  loading,
+  loadError,
+  layers,
   onToggle,
   onExpand,
   onFieldChange,
-  allValues,
-  stageOrder,
-  onUnitFieldChange,
-  onCopyUnit,
   onContinue,
   onCancel,
 }: {
@@ -392,29 +363,17 @@ function StageRow({
   index: number;
   s: StageUi;
   form: StageForm | undefined;
-  reference: StageInputsResponse | null;
   values: Record<string, unknown>;
   busy: boolean;
+  loading: boolean;
+  loadError?: string;
+  layers: string[];
   onToggle: () => void;
   onExpand: () => void;
   onFieldChange: (fieldKey: string, value: unknown) => void;
-  allValues: StageValues;
-  stageOrder: string[];
-  onUnitFieldChange: (valueKey: RepeatValueKey, unit: string, field: string, value: unknown) => void;
-  onCopyUnit: (valueKey: RepeatValueKey, from: string, to: string) => void;
   onContinue: () => void;
   onCancel: () => void;
 }) {
-  const repeat = reference ? repeatFor(stage.key, reference, allValues) : null;
-  const byUnit =
-    (repeat && (values[repeat.valueKey] as Record<string, Record<string, unknown>>)) || {};
-
-  const conditionSources = useMemo(
-    () =>
-      reference && s.open ? conditionSourcesFor(stage.key, reference, allValues, stageOrder) : {},
-    [reference, s.open, stage.key, allValues, stageOrder],
-  );
-
   return (
     <div className={`border-b border-sunken last:border-b-0 ${s.open ? "bg-accent-soft/50" : ""}`}>
       <div className="relative flex items-center gap-3 px-5">
@@ -487,31 +446,22 @@ function StageRow({
 
       {s.checked && s.open ? (
         <div className="border-t border-dashed border-border-strong bg-background px-5 py-4">
-          {form && reference && form.fields.length > 0 ? (
-            repeat ? (
-              <RepeatStagePanel
-                axis={repeat.axis}
-                slots={repeat.slots}
-                fields={form.fields}
-                reference={reference}
-                byUnit={byUnit}
-                conditionSources={conditionSources}
-                onUnitFieldChange={(unitKey, fieldKey, value) =>
-                  onUnitFieldChange(repeat.valueKey, unitKey, fieldKey, value)
-                }
-                onCopyUnit={(fromKey, toKey) => onCopyUnit(repeat.valueKey, fromKey, toKey)}
-              />
-            ) : (
-              <StageParamPanel
-                fields={form.fields}
-                values={values}
-                reference={reference}
-                conditionSources={conditionSources}
-                onChange={onFieldChange}
-              />
-            )
+          {loading ? (
+            <div className="flex items-center gap-2 py-4 text-small text-subdued"><Loader2 className="size-4 animate-spin" />Loading stage schema and saved values…</div>
+          ) : loadError ? (
+            <div className="flex items-start gap-2 rounded-control border border-danger/30 bg-danger-soft p-3 text-small text-danger"><AlertCircle className="mt-0.5 size-4 shrink-0" />{loadError}</div>
+          ) : form?.schema ? (
+            <SchemaStagePanel
+              schema={form.schema}
+              values={values}
+              layers={layers}
+              stageKey={stage.key}
+              scopeLabel={stage.key === "dispensing_coating" ? "Coating type" : "Layer"}
+              showScopeSelection={false}
+              onChange={onFieldChange}
+            />
           ) : (
-            <p className="text-small text-subdued">No parameters for this stage.</p>
+            <p className="text-small text-subdued">Open this stage again to load its inputs.</p>
           )}
 
           <div className="mt-4 flex items-center gap-3">
@@ -526,7 +476,7 @@ function StageRow({
               <button
                 type="button"
                 onClick={onContinue}
-                disabled={busy}
+                disabled={busy || loading || Boolean(loadError) || !form?.schema}
                 className="inline-flex h-8 items-center gap-1.5 rounded-control bg-primary px-3 text-small font-semibold text-white transition hover:bg-primary-dark disabled:opacity-60"
               >
                 {busy ? (

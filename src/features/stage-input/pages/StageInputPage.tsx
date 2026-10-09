@@ -10,14 +10,24 @@ import { useDocument } from "../../new-document/hooks/useDocument";
 import { useStepNavigation } from "../../new-document/hooks/useStepNavigation";
 import {
   cppMeta,
-  getEquipmentInputs,
   getMasterData,
-  setEquipmentInputs,
   type EquipmentEntry,
   type EquipmentMaster,
   type InstrumentMaster,
   type MasterData,
 } from "../api/masterData";
+import { getStageForm, saveStageInputs } from "../api/stageInputs.api";
+import type { StageForm } from "../api/stageInputs.types";
+import {
+  collectStageAssetScopes,
+  resolveSchema,
+  type StageAssetScope,
+} from "../model/schemaForm";
+import {
+  areCppValuesComplete,
+  areScopedCppValuesComplete,
+} from "../model/cppValidation";
+import { filterByStage } from "../model/stageMatch";
 
 type Mode = "equipment" | "instrument";
 
@@ -25,12 +35,15 @@ export function StageInputPage() {
   const { documentId = "" } = useParams();
   const [searchParams] = useSearchParams();
   const forStage = searchParams.get("stage") ?? "";
+  const stageLabel = searchParams.get("label") ?? forStage.replace(/_/g, " ");
   const user = useAuthStore((state) => state.user);
   const { goToStep } = useStepNavigation(documentId);
   const { document: documentState } = useDocument(documentId);
 
   const [master, setMaster] = useState<MasterData | null>(null);
+  const [stageForm, setStageForm] = useState<StageForm | null>(null);
   const [entries, setEntries] = useState<EquipmentEntry[]>([]);
+  const [activeScopeKey, setActiveScopeKey] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,18 +55,84 @@ export function StageInputPage() {
   // The processing sub-stage chosen for the machine (equipment only), e.g. "Wet Granulation".
   const [procStage, setProcStage] = useState("");
   const [cpp, setCpp] = useState<Record<string, string>>({});
+  const [cppByScope, setCppByScope] = useState<Record<string, Record<string, string>>>({});
+  const [activeCppScopeKey, setActiveCppScopeKey] = useState("");
+  const [layer, setLayer] = useState("");
+
+  const assetScopes = useMemo(
+    () => stageForm?.schema
+      ? collectStageAssetScopes(stageForm.schema, stageForm.values)
+      : [],
+    [stageForm],
+  );
+  const coatingScopes = useMemo(
+    () => assetScopes.filter((scope) => scope.key.startsWith("coat:")),
+    [assetScopes],
+  );
+  const isCoatingScoped = coatingScopes.length > 0;
+  const activeScope = assetScopes.find((scope) => scope.key === activeScopeKey) ?? assetScopes[0];
+  const activeCppScope = coatingScopes.find((scope) => scope.key === activeCppScopeKey)
+    ?? coatingScopes[0];
+  const supportsEquipment = Boolean(activeScope?.schema.properties?.equipment_list);
+  const supportsInstrument = Boolean(activeScope?.schema.properties?.instrument_list);
+  const equipmentItemSchema = stageForm?.schema && activeScope?.schema.properties?.equipment_list?.items
+    ? resolveSchema(stageForm.schema, activeScope.schema.properties.equipment_list.items)
+    : null;
+  const instrumentItemSchema = stageForm?.schema && activeScope?.schema.properties?.instrument_list?.items
+    ? resolveSchema(stageForm.schema, activeScope.schema.properties.instrument_list.items)
+    : null;
+  const equipmentHasProcessing = Boolean(
+    equipmentItemSchema?.properties?.processing_step || equipmentItemSchema?.properties?.cpp_values,
+  );
+  const supportsLayer = Boolean((mode === "equipment" ? equipmentItemSchema : instrumentItemSchema)?.properties?.layer);
 
   useEffect(() => {
     let cancelled = false;
+    if (!documentState?.dosage_form || !documentState.doc_type || !forStage) return;
+    const productType = documentState.dosage_form;
+    const docType = documentState.doc_type;
+    setIsLoading(true);
+    setError(null);
+    setMaster(null);
+    setStageForm(null);
+    setEntries([]);
+    setActiveScopeKey("");
+    setName("");
+    setId("");
+    setProcStage("");
+    setCpp({});
+    setCppByScope({});
+    setActiveCppScopeKey("");
+    setLayer("");
     void (async () => {
       try {
-        const [md, existing] = await Promise.all([
+        const [md, form] = await Promise.all([
           getMasterData(),
-          getEquipmentInputs(documentId).catch(() => []),
+          getStageForm(documentId, forStage, stageLabel, productType, docType, {
+            layers: documentState.layers,
+            coatingTypes: documentState.coating_types,
+          }),
         ]);
         if (cancelled) return;
         setMaster(md);
-        setEntries(existing);
+        setStageForm(form);
+        const masterErrors = [
+          md.errors.equipments
+            ? getApiErrorMessage(md.errors.equipments, "Could not load equipment master data.")
+            : "",
+          md.errors.instruments
+            ? getApiErrorMessage(md.errors.instruments, "Could not load instrument master data.")
+            : "",
+        ].filter(Boolean);
+        setError(masterErrors.length ? masterErrors.join(" ") : null);
+        const scopes = form.schema ? collectStageAssetScopes(form.schema, form.values) : [];
+        const selectionScope = scopes.find((scope) => scope.key === "stage") ?? scopes[0];
+        const firstCoatingScope = scopes.find((scope) => scope.key.startsWith("coat:"));
+        setActiveScopeKey(selectionScope?.key || "");
+        setActiveCppScopeKey(firstCoatingScope?.key || "");
+        setEntries(scopes.flatMap((scope) => entriesFromScope(scope, form.values, forStage)));
+        const firstMode = selectionScope?.schema.properties?.equipment_list ? "equipment" : "instrument";
+        setMode(firstMode);
       } catch (caught) {
         if (!cancelled) setError(getApiErrorMessage(caught, "Could not load the master data."));
       } finally {
@@ -63,51 +142,71 @@ export function StageInputPage() {
     return () => {
       cancelled = true;
     };
-  }, [documentId]);
+  }, [documentId, documentState?.dosage_form, documentState?.doc_type, forStage, stageLabel]);
 
-  // A machine name can exist under more than one stage (e.g. Stirrer in Granulation and in
-  // Coating), so the lookup is scoped to the selected stage — that fixes the right IDs / CPPs.
+  const filteredEquipment = useMemo(
+    () => filterByStage(master?.equipments ?? [], stageLabel),
+    [master, stageLabel],
+  );
+  const filteredInstruments = useMemo(
+    () => filterByStage(master?.instruments ?? [], stageLabel),
+    [master, stageLabel],
+  );
+
+  // Names can occur in multiple stages and under multiple IDs. Work only with the rows
+  // filtered by the human-readable stage label, then resolve the exact selected ID.
   const equipment = useMemo<EquipmentMaster | null>(
     () =>
       mode === "equipment"
-        ? master?.equipments.find(
-            (e) => e.name === name && (!forStage || stageRelated(e.stage, forStage)),
+        ? filteredEquipment.find(
+            (row) => row.name_of_machine === name && (!id || row.machine_id_no === id),
           ) ?? null
         : null,
-    [master, mode, name, forStage],
+    [filteredEquipment, mode, name, id],
   );
   const instrument = useMemo<InstrumentMaster | null>(
-    () => (mode === "instrument" ? master?.instruments.find((i) => i.name === name) ?? null : null),
-    [master, mode, name],
-  );
-  const instrumentUnit = useMemo(
-    () => instrument?.units.find((u) => u.id === id) ?? null,
-    [instrument, id],
+    () =>
+      mode === "instrument"
+        ? filteredInstruments.find(
+            (row) => row.name_of_instrument === name && (!id || row.instrument_id_no === id),
+          ) ?? null
+        : null,
+    [filteredInstruments, mode, name, id],
   );
 
-  // Stage-specific list. Equipment is filtered by its manufacturing stage; an instrument
-  // shows if any of its units serves this stage. Matching is tolerant (freeform names) with
-  // a fall back to the full list so a naming mismatch never hides everything.
+  // Both selectors use only rows whose backend `stage` contains the current stage label.
   const nameOptions = useMemo(() => {
     if (mode === "equipment") {
-      const all = master?.equipments ?? [];
-      const related = forStage ? all.filter((e) => stageRelated(e.stage, forStage)) : all;
-      return [...new Set((related.length > 0 ? related : all).map((e) => e.name))];
+      return [...new Set(filteredEquipment.map((row) => row.name_of_machine))];
     }
-    const all = master?.instruments ?? [];
-    const related = forStage
-      ? all.filter((i) => i.units.some((u) => stageRelated(u.stage, forStage)))
-      : all;
-    return (related.length > 0 ? related : all).map((i) => i.name);
-  }, [master, mode, forStage]);
-  // Equipment ID shows every M/C ID for the chosen (stage-scoped) name.
-  const idOptions = useMemo(() => {
-    if (mode === "equipment") return equipment?.ids ?? [];
-    return instrument?.units.map((u) => u.id) ?? [];
-  }, [mode, equipment, instrument]);
+    return [...new Set(filteredInstruments.map((row) => row.name_of_instrument))];
+  }, [filteredEquipment, filteredInstruments, mode]);
 
-  const stages = equipment?.stages ?? [];
+  const idOptions = useMemo(() => {
+    if (mode === "equipment") {
+      return filteredEquipment
+        .filter((row) => row.name_of_machine === name)
+        .map((row) => row.machine_id_no)
+        .filter((value, index, values) => values.indexOf(value) === index);
+    }
+    return filteredInstruments
+      .filter((row) => row.name_of_instrument === name)
+      .map((row) => row.instrument_id_no)
+      .filter((value, index, values) => values.indexOf(value) === index);
+  }, [filteredEquipment, filteredInstruments, mode, name]);
+
+  const stages = equipment?.steps.map((item) => ({ stage: item.step, cpps: item.cpp })) ?? [];
   const cpps = stages.find((s) => s.stage === procStage)?.cpps ?? [];
+  const currentCpp = isCoatingScoped
+    ? cppByScope[activeCppScope?.key || ""] ?? {}
+    : cpp;
+  const cppComplete = isCoatingScoped
+    ? areScopedCppValuesComplete(
+        cpps,
+        coatingScopes.map((scope) => scope.key),
+        cppByScope,
+      )
+    : areCppValuesComplete(cpps, cpp);
 
   const resetForm = useCallback((keepMode = true) => {
     if (!keepMode) setMode("equipment");
@@ -115,6 +214,8 @@ export function StageInputPage() {
     setId("");
     setProcStage("");
     setCpp({});
+    setCppByScope({});
+    setLayer("");
   }, []);
 
   const switchMode = useCallback((next: Mode) => {
@@ -123,6 +224,19 @@ export function StageInputPage() {
     setId("");
     setProcStage("");
     setCpp({});
+    setCppByScope({});
+    setLayer("");
+  }, []);
+
+  const switchScope = useCallback((scope: StageAssetScope) => {
+    setActiveScopeKey(scope.key);
+    setMode(scope.schema.properties?.equipment_list ? "equipment" : "instrument");
+    setName("");
+    setId("");
+    setProcStage("");
+    setCpp({});
+    setCppByScope({});
+    setLayer("");
   }, []);
 
   const chooseName = useCallback((value: string) => {
@@ -130,44 +244,145 @@ export function StageInputPage() {
     setId("");
     setProcStage("");
     setCpp({});
+    setCppByScope({});
   }, []);
 
-  const chooseId = useCallback((value: string) => setId(value), []);
+  const chooseId = useCallback((value: string) => {
+    setId(value);
+    setProcStage("");
+    setCpp({});
+    setCppByScope({});
+  }, []);
 
-  const canAdd = mode === "equipment" ? Boolean(name && id && procStage) : Boolean(name && id);
+  const canAdd = mode === "equipment"
+    ? Boolean(name && id && (!equipmentHasProcessing || procStage) && cppComplete)
+    : Boolean(name && id);
+  const hasDraftValues = Boolean(
+    name
+      || id
+      || procStage
+      || layer
+      || Object.values(cpp).some((value) => value.trim())
+      || Object.values(cppByScope).some((values) =>
+        Object.values(values).some((value) => value.trim()),
+      ),
+  );
+  const hasIncompleteDraft = hasDraftValues && !canAdd;
 
-  // The "Added" list mirrors the active tab: on Equipment it shows only equipment, on
-  // Instrument only instruments. Real indices are kept so removal targets the right entry.
-  const visibleEntries = useMemo(
-    () => entries.map((entry, index) => ({ entry, index })).filter(({ entry }) => entry.mode === mode),
-    [entries, mode],
+  // Coating stores one schema row per coating type, but presents the shared selection once.
+  const visibleEntries = useMemo(() => {
+    const candidates = entries.map((entry, index) => ({ entry, index })).filter(
+      ({ entry }) => entry.mode === mode
+        && (isCoatingScoped ? entry.scope?.startsWith("coat:") : entry.scope === activeScope?.key),
+    );
+    if (!isCoatingScoped) return candidates;
+    const seen = new Set<string>();
+    return candidates.filter(({ entry }) => {
+      const key = entryIdentity(entry);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [entries, mode, isCoatingScoped, activeScope?.key]);
+  const recordedCount = useMemo(
+    () => isCoatingScoped
+      ? new Set(entries.map(entryIdentity)).size
+      : entries.length,
+    [entries, isCoatingScoped],
   );
 
-  const buildDraftEntry = useCallback(
-    (): EquipmentEntry =>
-      mode === "equipment"
-        ? { mode, name, id, stage: forStage, proc_stage: procStage, cpp }
-        : { mode, name, id, stage: forStage, proc_stage: "", cpp: {} },
-    [mode, name, id, forStage, procStage, cpp],
+  const buildDraftEntries = useCallback(
+    (): EquipmentEntry[] => {
+      const scopes = isCoatingScoped
+        ? assetScopes
+        : activeScope
+          ? [activeScope]
+          : [];
+      return scopes.map((scope) => mode === "equipment"
+        ? {
+            mode,
+            name,
+            id,
+            layer,
+            stage: forStage,
+            proc_stage: procStage,
+            cpp: isCoatingScoped ? cppByScope[scope.key] ?? {} : cpp,
+            scope: scope.key,
+          }
+        : {
+            mode,
+            name,
+            id,
+            layer,
+            stage: forStage,
+            proc_stage: "",
+            cpp: {},
+            scope: scope.key,
+          });
+    }, [
+      activeScope,
+      assetScopes,
+      cpp,
+      cppByScope,
+      forStage,
+      id,
+      isCoatingScoped,
+      layer,
+      mode,
+      name,
+      procStage,
+    ],
   );
 
   const addEntry = useCallback(() => {
     if (!canAdd) return;
-    setEntries((cur) => [...cur, buildDraftEntry()]);
+    setEntries((cur) => [...cur, ...buildDraftEntries()]);
     resetForm();
-  }, [canAdd, buildDraftEntry, resetForm]);
+  }, [canAdd, buildDraftEntries, resetForm]);
 
   const removeEntry = useCallback((index: number) => {
-    setEntries((cur) => cur.filter((_, i) => i !== index));
-  }, []);
+    setEntries((cur) => {
+      const target = cur[index];
+      if (!target || !isCoatingScoped) return cur.filter((_, i) => i !== index);
+      const identity = entryIdentity(target);
+      return cur.filter((entry) => entryIdentity(entry) !== identity);
+    });
+  }, [isCoatingScoped]);
 
   // Persist everything recorded so far, folding an unsaved-but-complete draft in so
   // nothing is silently lost. Returns the full saved list.
   const persistAll = useCallback(async (): Promise<EquipmentEntry[]> => {
-    const all = [...entries, ...(canAdd ? [buildDraftEntry()] : [])];
-    await setEquipmentInputs(documentId, all);
+    if (hasIncompleteDraft) {
+      throw new Error("Complete every required equipment, processing stage, and CPP value before saving.");
+    }
+    const all = [...entries, ...(canAdd ? buildDraftEntries() : [])];
+    if (!stageForm?.schema) throw new Error("Stage schema is not loaded.");
+    const toPayloadRow = (entry: EquipmentEntry) => ({
+      name: entry.name,
+      id: entry.id,
+      layer: entry.layer || "",
+      stage: entry.stage,
+      processing_step: entry.proc_stage,
+      cpp_values: entry.cpp,
+    });
+    const nextValues = structuredClone(stageForm.values);
+    for (const scope of assetScopes) {
+      const target = objectAtPath(nextValues, scope.path);
+      if (scope.schema.properties?.equipment_list) {
+        target.equipment_list = all
+          .filter((entry) => entry.scope === scope.key && entry.mode === "equipment")
+          .map(toPayloadRow);
+      }
+      if (scope.schema.properties?.instrument_list) {
+        target.instrument_list = all
+          .filter((entry) => entry.scope === scope.key && entry.mode === "instrument")
+          .map(toPayloadRow);
+      }
+    }
+    await saveStageInputs(documentId, forStage, nextValues, stageForm.schema);
+    setStageForm({ ...stageForm, values: nextValues, has_saved_values: true });
     return all;
-  }, [entries, canAdd, buildDraftEntry, documentId]);
+  }, [entries, canAdd, hasIncompleteDraft, buildDraftEntries, documentId, forStage, stageForm, assetScopes]);
 
   // Save and STAY — persist, keep the saved list, and clear the form so the user can
   // record another equipment / instrument for this stage.
@@ -217,10 +432,10 @@ export function StageInputPage() {
                 </button>
                 <h1 className="text-h1 font-semibold">
                   Equipment &amp; instruments
-                  {forStage ? <span className="text-subdued"> — {forStage}</span> : null}
+                  {forStage ? <span className="text-subdued"> — {stageLabel}</span> : null}
                 </h1>
                 <p className="mt-1 max-w-xl text-small text-subdued">
-                  Record the equipment and instruments used{forStage ? ` for ${forStage}` : ""}. Pick
+                  Record the equipment and instruments used{forStage ? ` for ${stageLabel}` : ""}. Pick
                   one, load its details and CPP values from the master, and add it — repeat for each,
                   then go back to select stages.
                 </p>
@@ -246,6 +461,30 @@ export function StageInputPage() {
               </div>
             ) : (
               <>
+                {assetScopes.length > 1 && !isCoatingScoped ? (
+                  <section className="rounded-card border border-border bg-surface p-4">
+                    <p className="mb-2 text-micro font-bold uppercase tracking-wide text-subdued">
+                      Applies to
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {assetScopes.map((scope) => (
+                        <button
+                          key={scope.key}
+                          type="button"
+                          onClick={() => switchScope(scope)}
+                          className={`rounded-pill border px-4 py-1.5 text-small font-semibold capitalize transition ${
+                            activeScope?.key === scope.key
+                              ? "border-primary bg-primary text-white"
+                              : "border-border-strong bg-surface text-subdued hover:border-primary hover:text-primary-dark"
+                          }`}
+                        >
+                          {scope.label}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+
                 {visibleEntries.length > 0 ? (
                   <section className="overflow-hidden rounded-card border border-border bg-surface">
                     <div className="border-b border-border px-5 py-3 text-small font-semibold capitalize">
@@ -265,7 +504,9 @@ export function StageInputPage() {
                                 ? `${entry.stage}${
                                     entry.proc_stage ? ` · ${cleanStageName(entry.proc_stage)}` : ""
                                   }${
-                                    Object.keys(entry.cpp).length
+                                    isCoatingScoped
+                                      ? ` · ${coatingScopes.length} coating type${coatingScopes.length === 1 ? "" : "s"}`
+                                      : Object.keys(entry.cpp).length
                                       ? ` · ${Object.keys(entry.cpp).length} CPP`
                                       : ""
                                   }`
@@ -286,9 +527,15 @@ export function StageInputPage() {
                   </section>
                 ) : null}
 
+                {assetScopes.length === 0 ? (
+                  <div className="rounded-card border border-border bg-surface p-5 text-small text-subdued">
+                    This stage does not define equipment or instrument inputs.
+                  </div>
+                ) : null}
+
                 {/* type toggle */}
-                <div className="inline-flex rounded-pill border border-border bg-sunken p-0.5">
-                  {(["equipment", "instrument"] as Mode[]).map((m) => (
+                {supportsEquipment || supportsInstrument ? <div className="inline-flex rounded-pill border border-border bg-sunken p-0.5">
+                  {(["equipment", "instrument"] as Mode[]).filter((m) => m === "equipment" ? supportsEquipment : supportsInstrument).map((m) => (
                     <button
                       key={m}
                       type="button"
@@ -300,10 +547,10 @@ export function StageInputPage() {
                       {m}
                     </button>
                   ))}
-                </div>
+                </div> : null}
 
                 {/* selection */}
-                <section className="rounded-card border border-border bg-surface p-5">
+                {supportsEquipment || supportsInstrument ? <section className="rounded-card border border-border bg-surface p-5">
                   <h2 className="mb-4 text-micro font-bold uppercase tracking-wide text-subdued">
                     {mode === "equipment" ? "Equipment" : "Instrument"} selection
                   </h2>
@@ -313,6 +560,11 @@ export function StageInputPage() {
                       value={name}
                       options={nameOptions}
                       onChange={chooseName}
+                      emptyText={
+                        mode === "equipment"
+                          ? "No equipment available for this stage"
+                          : "No instruments available for this stage"
+                      }
                     />
                     <Combo
                       label={`${mode === "equipment" ? "Equipment" : "Instrument"} ID`}
@@ -321,6 +573,11 @@ export function StageInputPage() {
                       onChange={chooseId}
                     />
                   </div>
+                  {supportsLayer && (documentState?.layers?.length || 0) > 1 ? (
+                    <div className="mt-4 max-w-sm">
+                      <Combo label="Layer (optional — blank applies to all)" value={layer} options={["", ...(documentState?.layers || [])]} onChange={setLayer} />
+                    </div>
+                  ) : null}
 
                   {mode === "equipment" && equipment ? (
                     <DetailBox
@@ -331,15 +588,15 @@ export function StageInputPage() {
                       ]}
                     />
                   ) : null}
-                  {mode === "instrument" && instrumentUnit ? (
+                  {mode === "instrument" && instrument ? (
                     <DetailBox
-                      items={[["Stage", instrumentUnit.stage || "—"]]}
+                      items={[["Stage", instrument.stage || "—"]]}
                     />
                   ) : null}
-                </section>
+                </section> : null}
 
                 {/* processing stage (equipment only) */}
-                {mode === "equipment" ? (
+                {mode === "equipment" && equipmentHasProcessing ? (
                   <section className="rounded-card border border-border bg-surface p-5">
                     <h2 className="mb-3 text-micro font-bold uppercase tracking-wide text-subdued">
                       Processing stage
@@ -357,6 +614,7 @@ export function StageInputPage() {
                             onClick={() => {
                               setProcStage(s.stage);
                               setCpp({});
+                               setCppByScope({});
                             }}
                             className={`rounded-pill border px-4 py-1.5 text-small font-medium transition ${
                               procStage === s.stage
@@ -373,7 +631,7 @@ export function StageInputPage() {
                 ) : null}
 
                 {/* CPP (equipment only) */}
-                {mode === "equipment" ? (
+                {mode === "equipment" && equipmentHasProcessing ? (
                   <section className="rounded-card border border-border bg-surface p-5">
                     <div className="mb-3 flex items-baseline gap-2">
                       <h2 className="text-small font-semibold">Critical process parameters</h2>
@@ -383,6 +641,28 @@ export function StageInputPage() {
                         </span>
                       ) : null}
                     </div>
+                    {isCoatingScoped ? (
+                      <div className="mb-4 border-b border-border">
+                        <div className="flex flex-wrap gap-1" role="tablist" aria-label="Coating type">
+                          {coatingScopes.map((scope) => (
+                            <button
+                              key={scope.key}
+                              type="button"
+                              role="tab"
+                              aria-selected={activeCppScope?.key === scope.key}
+                              onClick={() => setActiveCppScopeKey(scope.key)}
+                              className={`border-b-2 px-4 py-2 text-small font-semibold capitalize transition ${
+                                activeCppScope?.key === scope.key
+                                  ? "border-primary text-primary-dark"
+                                  : "border-transparent text-subdued hover:border-border-strong hover:text-text"
+                              }`}
+                            >
+                              {scope.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                     {!equipment ? (
                       <p className="text-small italic text-subdued">
                         Select equipment, then a stage, to record CPP values.
@@ -404,6 +684,7 @@ export function StageInputPage() {
                             >
                               <span className="flex flex-wrap items-center gap-2 text-small">
                                 {param}
+                                <span className="text-danger" aria-hidden="true">*</span>
                                 {meta.unit ? (
                                   <span className="rounded-sm bg-sunken px-1.5 py-0.5 font-mono text-micro text-subdued">
                                     {meta.unit}
@@ -413,9 +694,24 @@ export function StageInputPage() {
                               <input
                                 type="text"
                                 inputMode="decimal"
-                                value={cpp[param] ?? ""}
+                                required
+                                aria-required="true"
+                                value={currentCpp[param] ?? ""}
                                 placeholder={meta.ex ? `EX: ${meta.ex}` : "Enter value"}
-                                onChange={(e) => setCpp((c) => ({ ...c, [param]: e.target.value }))}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  if (isCoatingScoped && activeCppScope) {
+                                    setCppByScope((current) => ({
+                                      ...current,
+                                      [activeCppScope.key]: {
+                                        ...(current[activeCppScope.key] ?? {}),
+                                        [param]: value,
+                                      },
+                                    }));
+                                  } else {
+                                    setCpp((current) => ({ ...current, [param]: value }));
+                                  }
+                                }}
                                 className="h-[38px] w-full rounded-control border border-border-strong bg-surface px-3 font-mono text-small tabular-nums placeholder:font-sans placeholder:italic placeholder:text-subdued focus:border-primary focus:outline-none focus:ring-2 focus:ring-accent-soft"
                               />
                             </div>
@@ -423,14 +719,20 @@ export function StageInputPage() {
                         })}
                       </div>
                     )}
+                    {equipment && procStage && cpps.length > 0 && !cppComplete ? (
+                      <p className="mt-3 text-micro font-medium text-danger">
+                        Complete every CPP value{isCoatingScoped ? " in every coating-type tab" : ""} before adding this equipment.
+                      </p>
+                    ) : null}
                   </section>
                 ) : null}
 
-                <div className="flex flex-wrap justify-end gap-2.5">
+                {supportsEquipment || supportsInstrument ? <div className="flex flex-wrap justify-end gap-2.5">
                   <button
                     type="button"
                     onClick={addEntry}
                     disabled={!canAdd}
+                    title={hasIncompleteDraft ? "Complete all required fields and CPP values" : undefined}
                     className="inline-flex h-9 items-center gap-1.5 rounded-control border border-border-strong bg-surface px-4 text-small font-semibold transition hover:bg-sunken disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Plus className="size-4" aria-hidden="true" />
@@ -439,7 +741,7 @@ export function StageInputPage() {
                   <button
                     type="button"
                     onClick={() => void saveStay()}
-                    disabled={isSaving || (entries.length === 0 && !canAdd)}
+                    disabled={isSaving || hasIncompleteDraft || (recordedCount === 0 && !canAdd)}
                     title="Save what you've recorded and add another equipment or instrument"
                     className="inline-flex h-9 items-center gap-1.5 rounded-control bg-primary px-4 text-small font-semibold text-white transition hover:bg-primary-dark disabled:cursor-not-allowed disabled:bg-border-strong"
                   >
@@ -450,7 +752,7 @@ export function StageInputPage() {
                     )}
                     Save &amp; add another
                   </button>
-                </div>
+                </div> : null}
 
                 <WizardFooter
                   onBack={() => goToStep("stages")}
@@ -458,12 +760,14 @@ export function StageInputPage() {
                   onNext={() => void save()}
                   nextLabel="Save & back to stages"
                   isBusy={isSaving}
-                  isNextDisabled={entries.length === 0 && !canAdd}
+                  isNextDisabled={hasIncompleteDraft || ((supportsEquipment || supportsInstrument) && recordedCount === 0 && !canAdd)}
                   hint={
-                    entries.length === 0 && !canAdd
+                    hasIncompleteDraft
+                      ? "Complete all required fields and CPP values"
+                      : recordedCount === 0 && !canAdd
                       ? "Add at least one equipment or instrument"
-                      : `${entries.length + (canAdd ? 1 : 0)} item${
-                          entries.length + (canAdd ? 1 : 0) === 1 ? "" : "s"
+                      : `${recordedCount + (canAdd ? 1 : 0)} item${
+                          recordedCount + (canAdd ? 1 : 0) === 1 ? "" : "s"
                         } recorded`
                   }
                 />
@@ -476,6 +780,68 @@ export function StageInputPage() {
   );
 }
 
+function valueAtPath(root: Record<string, unknown>, path: (string | number)[]): unknown {
+  return path.reduce<unknown>((current, segment) => {
+    if (typeof segment === "number") return Array.isArray(current) ? current[segment] : undefined;
+    return current && typeof current === "object"
+      ? (current as Record<string, unknown>)[segment]
+      : undefined;
+  }, root);
+}
+
+function objectAtPath(root: Record<string, unknown>, path: (string | number)[]): Record<string, unknown> {
+  const value = valueAtPath(root, path);
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("The selected stage section is unavailable.");
+  }
+  return value as Record<string, unknown>;
+}
+
+function entryIdentity(entry: EquipmentEntry): string {
+  return [entry.mode, entry.name, entry.id, entry.layer || "", entry.proc_stage].join("\u0000");
+}
+
+function entriesFromScope(
+  scope: StageAssetScope,
+  values: Record<string, unknown>,
+  stageKey: string,
+): EquipmentEntry[] {
+  const container = valueAtPath(values, scope.path);
+  const object = container && typeof container === "object" && !Array.isArray(container)
+    ? container as Record<string, unknown>
+    : {};
+  const rows = (key: "equipment_list" | "instrument_list") =>
+    Array.isArray(object[key]) ? object[key] as Record<string, unknown>[] : [];
+  const cppValues = (row: Record<string, unknown>): Record<string, string> => {
+    const raw = row.cpp_values ?? row.cpp;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+    return Object.fromEntries(Object.entries(raw as Record<string, unknown>).map(([key, value]) => [key, String(value ?? "")]));
+  };
+
+  return [
+    ...rows("equipment_list").map((row): EquipmentEntry => ({
+      mode: "equipment",
+      name: String(row.name || ""),
+      id: String(row.id || ""),
+      layer: String(row.layer || ""),
+      stage: String(row.stage || stageKey),
+      proc_stage: String(row.processing_step || row.proc_stage || ""),
+      cpp: cppValues(row),
+      scope: scope.key,
+    })),
+    ...rows("instrument_list").map((row): EquipmentEntry => ({
+      mode: "instrument",
+      name: String(row.name || ""),
+      id: String(row.id || ""),
+      layer: String(row.layer || ""),
+      stage: String(row.stage || stageKey),
+      proc_stage: "",
+      cpp: {},
+      scope: scope.key,
+    })),
+  ];
+}
+
 /**
  * Master-data processing-stage names carry trailing qualifiers in brackets, e.g.
  * "Sifting (If Sieve (#) mentioned in process)" or "Dispensing Booth (RLAF)". Show the
@@ -485,20 +851,6 @@ function cleanStageName(raw: string): string {
   if (!raw) return "";
   const cleaned = raw.split("(")[0].replace(/\s+/g, " ").trim().replace(/[,/]+$/, "").trim();
   return cleaned || raw.replace(/\s+/g, " ").trim();
-}
-
-/**
- * Whether a master-data processing stage belongs to the wizard stage the user is on.
- * Freeform names ("Wet Granulation", "Dry Mixing") don't map 1:1 to the 7 canonical
- * stages, so we match on the significant words of the selected stage.
- */
-function stageRelated(masterStage: string, forStage: string): boolean {
-  const target = cleanStageName(forStage).toLowerCase();
-  if (!target) return true;
-  const words = target.split(/[^a-z0-9]+/).filter((word) => word.length > 3);
-  if (words.length === 0) return true;
-  const master = cleanStageName(masterStage).toLowerCase();
-  return words.some((word) => master.includes(word));
 }
 
 function DetailBox({ items }: { items: [string, string][] }) {
@@ -521,11 +873,13 @@ function Combo({
   value,
   options,
   onChange,
+  emptyText = "No options",
 }: {
   label: string;
   value: string;
   options: string[];
   onChange: (value: string) => void;
+  emptyText?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -594,7 +948,7 @@ function Combo({
                     Use custom value “<b className="text-primary-dark">{query}</b>”
                   </>
                 ) : (
-                  "No options"
+                  emptyText
                 )}
               </div>
             ) : (

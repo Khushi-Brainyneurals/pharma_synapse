@@ -1,32 +1,48 @@
 import { httpClient } from "../../../shared/api/httpClient";
 
-/** A processing sub-stage of a machine (e.g. "Dry Mixing", "Wet Granulation") + its CPPs. */
-export interface EquipmentStage {
-  stage: string;
-  cpps: string[];
+export interface EquipmentStep {
+  step: string;
+  cpp: string[];
 }
+
 export interface EquipmentMaster {
-  name: string;
-  ids: string[];
+  sr_no: number | null;
+  name_of_machine: string;
   capacity: string;
   working_capacity: string;
-  /** The manufacturing stage this machine belongs to (Dispensing / Granulation / …). */
+  machine_id_no: string;
   stage: string;
-  stages: EquipmentStage[];
+  processing_stage: string;
+  steps: EquipmentStep[];
+  _row_id: number;
+  _is_active: boolean;
+  _created_by: string | null;
+  _created_at: string;
 }
-export interface InstrumentUnit {
-  id: string;
-  location: string;
-  /** The manufacturing stage(s) this unit serves, joined (e.g. "Compression & Coating"). */
-  stage: string;
-}
+
 export interface InstrumentMaster {
-  name: string;
-  units: InstrumentUnit[];
+  sr_no: number | null;
+  name_of_instrument: string;
+  instrument_id_no: string;
+  location: string;
+  stage: string;
+  _row_id: number;
+  _is_active: boolean;
+  _created_by: string | null;
+  _created_at: string;
 }
+
 export interface MasterData {
   equipments: EquipmentMaster[];
   instruments: InstrumentMaster[];
+  errors: {
+    equipments?: unknown;
+    instruments?: unknown;
+  };
+}
+
+interface MasterRowsResponse<T> {
+  rows?: T[];
 }
 
 export interface EquipmentEntry {
@@ -38,12 +54,61 @@ export interface EquipmentEntry {
   /** The processing sub-stage chosen for the machine (equipment only). */
   proc_stage: string;
   cpp: Record<string, string>;
+  layer?: string;
+  /** The schema-owned container: stage, a granulation layer, or a coating pass. */
+  scope?: string;
 }
 
+let equipmentRequest: Promise<EquipmentMaster[]> | null = null;
+let instrumentRequest: Promise<InstrumentMaster[]> | null = null;
+
+function activeRows<T extends { _is_active: boolean }>(response: MasterRowsResponse<T>): T[] {
+  return Array.isArray(response.rows) ? response.rows.filter((row) => row._is_active === true) : [];
+}
+
+async function getEquipmentMasterData(): Promise<EquipmentMaster[]> {
+  if (!equipmentRequest) {
+    equipmentRequest = httpClient
+      .get<MasterRowsResponse<EquipmentMaster>>("/api/master-data/equipments")
+      .then((response) => activeRows(response.data))
+      .catch((error) => {
+        equipmentRequest = null;
+        throw error;
+      });
+  }
+  return equipmentRequest;
+}
+
+async function getInstrumentMasterData(): Promise<InstrumentMaster[]> {
+  if (!instrumentRequest) {
+    instrumentRequest = httpClient
+      .get<MasterRowsResponse<InstrumentMaster>>("/api/master-data/instruments")
+      .then((response) => activeRows(response.data))
+      .catch((error) => {
+        instrumentRequest = null;
+        throw error;
+      });
+  }
+  return instrumentRequest;
+}
+
+/**
+ * Load both global masters once. A failure in one optional master does not discard the
+ * other, and failed requests are left retryable on the next page load.
+ */
 export async function getMasterData(): Promise<MasterData> {
+  const [equipments, instruments] = await Promise.allSettled([
+    getEquipmentMasterData(),
+    getInstrumentMasterData(),
+  ]);
+
   return {
-    equipments: [],
-    instruments: [],
+    equipments: equipments.status === "fulfilled" ? equipments.value : [],
+    instruments: instruments.status === "fulfilled" ? instruments.value : [],
+    errors: {
+      ...(equipments.status === "rejected" ? { equipments: equipments.reason } : {}),
+      ...(instruments.status === "rejected" ? { instruments: instruments.reason } : {}),
+    },
   };
 }
 

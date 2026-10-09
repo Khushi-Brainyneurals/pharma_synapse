@@ -336,6 +336,385 @@ test('format preview rejects an unsupported response before rendering', async ()
   await assert.rejects(() => api.getFormatPreview('doc-1'), /unsupported or corrupted/);
 });
 
+test('stage schema defaults are merged under saved values and refs are resolved', () => {
+  const schemaTools = loader()('src/features/stage-input/model/schemaForm.ts');
+  const schema = {
+    type: 'object',
+    $defs: {
+      Param: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'temperature | relative_humidity | differential_pressure' },
+          enabled: { type: 'boolean', default: true },
+          mode: { type: 'string', default: 'record_only' },
+        },
+        required: ['name'],
+      },
+    },
+    properties: {
+      parameters: { type: 'array', items: { $ref: '#/$defs/Param' } },
+      lot_size: { type: 'string', default: '1' },
+    },
+  };
+  const defaults = schemaTools.buildSchemaDefaults(schema);
+  const merged = schemaTools.mergeSchemaValues(defaults, {
+    parameters: [{ name: 'temperature', enabled: false }],
+    lot_size: '3',
+  }, schema);
+  assert.deepEqual(plain(merged), {
+    parameters: [{ name: 'temperature', enabled: false, mode: 'record_only' }],
+    lot_size: '3',
+  });
+  const seeded = schemaTools.seedSchemaParameterRows(schema, defaults);
+  assert.deepEqual(plain(seeded.parameters.map(row => row.name)), ['temperature', 'relative_humidity', 'differential_pressure']);
+  assert.ok(seeded.parameters.every(row => row.enabled === true && row.mode === 'record_only'));
+});
+
+test('dispensing raw material requires one comma-separated lot size per document layer', () => {
+  const schemaTools = loader()('src/features/stage-input/model/schemaForm.ts');
+  const schema = {
+    type: 'object',
+    properties: { lot_size: { type: 'string', title: 'Lot size' } },
+    required: ['lot_size'],
+  };
+  const context = {
+    stageKey: 'dispensing_rm',
+    layers: ['Immediate release', 'Sustained release', 'Barrier layer'],
+  };
+
+  assert.deepEqual(
+    plain(schemaTools.validateSchema(schema, { lot_size: '10,,30' }, context)),
+    ['Lot size for Sustained release is required.'],
+  );
+  assert.deepEqual(
+    plain(schemaTools.validateSchema(schema, { lot_size: '10,20,30' }, context)),
+    [],
+  );
+});
+
+test('granulation schema initializes and scopes parameters and assets per document layer', () => {
+  const schemaTools = loader()('src/features/stage-input/model/schemaForm.ts');
+  const schema = {
+    type: 'object',
+    $defs: {
+      Param: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'temperature | relative_humidity' },
+          enabled: { type: 'boolean', default: true },
+          mode: { type: 'string', default: 'record_only' },
+        },
+      },
+      Layer: {
+        type: 'object',
+        properties: {
+          layer: { type: 'string' },
+          parameters: { type: 'array', items: { $ref: '#/$defs/Param' } },
+          equipment_list: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, processing_step: { type: 'string' }, cpp_values: { type: 'object', additionalProperties: { type: 'string' } } } } },
+          instrument_list: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' } } } },
+        },
+      },
+    },
+    properties: { layers: { type: 'array', items: { $ref: '#/$defs/Layer' } } },
+  };
+  const values = schemaTools.initializeStageSchemaValues(schema, schemaTools.buildSchemaDefaults(schema), {
+    layers: ['Active layer', 'Sustained layer'],
+  });
+  assert.equal(values.layers.length, 2);
+  assert.deepEqual(plain(values.layers.map(layer => layer.layer)), ['Active layer', 'Sustained layer']);
+  assert.deepEqual(plain(values.layers[0].parameters.map(row => row.name)), ['temperature', 'relative_humidity']);
+  assert.equal(schemaTools.schemaHasAssetInputs(schema), true);
+  assert.deepEqual(
+    plain(schemaTools.collectStageAssetScopes(schema, values).map(scope => [scope.key, scope.label, scope.path])),
+    [['layer:0', 'Active layer', ['layers', 0]], ['layer:1', 'Sustained layer', ['layers', 1]]],
+  );
+});
+
+test('stage parameter policy removes reusable-schema rows unsupported by the selected stage', () => {
+  const schemaTools = loader()('src/features/stage-input/model/schemaForm.ts');
+  const schema = {
+    type: 'object',
+    $defs: {
+      Param: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'temperature | relative_humidity | differential_pressure | holding_period | yield' },
+          enabled: { type: 'boolean', default: true },
+          mode: { type: 'string', default: 'record_only' },
+        },
+      },
+    },
+    properties: { parameters: { type: 'array', items: { $ref: '#/$defs/Param' } } },
+  };
+  const dispensing = schemaTools.initializeStageSchemaValues(
+    schema,
+    schemaTools.buildSchemaDefaults(schema),
+    { stageKey: 'dispensing_rm' },
+  );
+  assert.deepEqual(plain(dispensing.parameters.map(row => row.name)), [
+    'temperature', 'relative_humidity', 'differential_pressure',
+  ]);
+
+  const staleValues = {
+    parameters: [
+      ...dispensing.parameters,
+      { name: 'holding_period', enabled: true, mode: 'record_only' },
+      { name: 'yield', enabled: true, mode: 'limit' },
+    ],
+  };
+  const payload = schemaTools.sanitizeStageValues('dispensing_rm', schema, staleValues);
+  assert.deepEqual(plain(payload.parameters.map(row => row.name)), [
+    'temperature', 'relative_humidity', 'differential_pressure',
+  ]);
+
+  const compression = schemaTools.initializeStageSchemaValues(
+    schema,
+    schemaTools.buildSchemaDefaults(schema),
+    { stageKey: 'compression' },
+  );
+  assert.deepEqual(plain(compression.parameters.map(row => row.name)), [
+    'temperature', 'relative_humidity', 'differential_pressure', 'holding_period', 'yield',
+  ]);
+});
+
+test('dynamic coating passes and nested CPP maps survive schema initialization and sanitizing', () => {
+  const schemaTools = loader()('src/features/stage-input/model/schemaForm.ts');
+  const schema = {
+    type: 'object',
+    $defs: {
+      Pass: {
+        type: 'object',
+        properties: {
+          equipment_list: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                name: { type: 'string' },
+                processing_step: { type: 'string' },
+                cpp_values: { type: 'object', additionalProperties: { type: 'string' } },
+              },
+            },
+          },
+          weight_gain: { type: 'number' },
+        },
+      },
+    },
+    properties: {
+      coat_passes: { type: 'object', additionalProperties: { $ref: '#/$defs/Pass' } },
+    },
+  };
+  const initialized = schemaTools.initializeStageSchemaValues(schema, schemaTools.buildSchemaDefaults(schema), {
+    coatingTypes: ['seal_coat', 'film_coat'],
+  });
+  const restored = schemaTools.initializeStageSchemaValues(schema, {
+    coat_passes: {
+      seal_coat: { weight_gain: '1.5', equipment_list: [] },
+      obsolete_coat: { weight_gain: '9', equipment_list: [] },
+    },
+  }, {
+    coatingTypes: ['seal_coat', 'film_coat'],
+  });
+  assert.deepEqual(plain(Object.keys(restored.coat_passes)), ['seal_coat', 'film_coat']);
+  assert.equal(restored.coat_passes.seal_coat.weight_gain, '1.5');
+  initialized.coat_passes.seal_coat = {
+    weight_gain: '2.5',
+    equipment_list: [{ name: 'Coater', processing_step: 'Spraying', cpp_values: { spray_rate: '40' }, ignored: true }],
+  };
+  const sanitized = schemaTools.sanitizeForSchema(schema, initialized);
+  assert.deepEqual(plain(Object.keys(sanitized.coat_passes)), ['seal_coat', 'film_coat']);
+  assert.deepEqual(plain(sanitized.coat_passes.seal_coat), {
+    equipment_list: [{ name: 'Coater', processing_step: 'Spraying', cpp_values: { spray_rate: '40' } }],
+    weight_gain: 2.5,
+  });
+  assert.deepEqual(plain(schemaTools.collectStageAssetScopes(schema, initialized).map(scope => scope.key)), ['coat:seal_coat', 'coat:film_coat']);
+});
+
+test('coating UI references provide frequency choices and an editable process-hours default', () => {
+  const schemaTools = loader()('src/features/stage-input/model/schemaForm.ts');
+  const schema = {
+    type: 'object',
+    properties: {
+      in_process_checks_frequency: { type: 'string', title: 'In Process Checks Frequency' },
+      coating_process_hours: { type: 'integer', title: 'Coating Process Hours', default: 4 },
+    },
+    required: ['in_process_checks_frequency', 'coating_process_hours'],
+    x_ui_reference: {
+      in_process_checks_frequency_options: ['15 min', '30 min', '60 min'],
+      coating_process_hours: 6,
+    },
+  };
+  const initialized = schemaTools.initializeStageSchemaValues(
+    schema,
+    schemaTools.buildSchemaDefaults(schema),
+  );
+  assert.equal(initialized.coating_process_hours, 6);
+  assert.equal(schemaTools.initializeStageSchemaValues(schema, {
+    coating_process_hours: 8,
+    in_process_checks_frequency: '30 min',
+  }).coating_process_hours, 8);
+  assert.deepEqual(plain(schemaTools.sanitizeForSchema(schema, {
+    coating_process_hours: '7',
+    in_process_checks_frequency: '60 min',
+  })), {
+    in_process_checks_frequency: '60 min',
+    coating_process_hours: 7,
+  });
+
+  const { SchemaStagePanel } = loader()('src/features/stage-input/components/SchemaStagePanel.tsx');
+  const html = renderToStaticMarkup(React.createElement(SchemaStagePanel, {
+    schema,
+    values: initialized,
+    layers: [],
+    onChange() {},
+  }));
+  assert.match(html, /<select/);
+  for (const option of ['15 min', '30 min', '60 min']) {
+    assert.match(html, new RegExp(`value="${option}"`));
+  }
+  assert.match(html, /type="number"[^>]*value="6"/);
+});
+
+test('dispensing coating parameters show coating types instead of tablet layers', () => {
+  const { SchemaStagePanel } = loader()('src/features/stage-input/components/SchemaStagePanel.tsx');
+  const schema = {
+    type: 'object',
+    properties: {
+      parameters: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'temperature' },
+            enabled: { type: 'boolean' },
+            mode: { type: 'string' },
+            layer: { type: 'string' },
+          },
+        },
+      },
+    },
+  };
+  const html = renderToStaticMarkup(React.createElement(SchemaStagePanel, {
+    schema,
+    values: { parameters: [{ name: 'temperature', enabled: true, mode: 'record_only', layer: '' }] },
+    layers: ['Seal coating', 'Film coating'],
+    scopeLabel: 'Coating type',
+    onChange() {},
+  }));
+  assert.match(html, /Coating types/);
+  assert.match(html, /2 coating types/);
+  assert.match(html, /Seal coating/);
+  assert.match(html, /Film coating/);
+  assert.doesNotMatch(html, />Layers</);
+  assert.doesNotMatch(html, /All coating types/);
+  assert.doesNotMatch(html, /All layers/);
+});
+
+test('stage params API uses combo-scoped schema, document-scoped saved values, and schema-filtered POST', async () => {
+  const calls = [];
+  const schema = {
+    type: 'object',
+    $defs: {
+      Param: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'temperature | relative_humidity | differential_pressure | holding_period | yield' },
+          enabled: { type: 'boolean', default: true },
+          mode: { type: 'string', default: 'record_only' },
+        },
+      },
+    },
+    properties: {
+      parameters: { type: 'array', items: { $ref: '#/$defs/Param' } },
+      lot_size: { type: 'string', default: '1' },
+      equipment_list: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, id: { type: 'string' } } } },
+    },
+  };
+  const httpClient = {
+    get: async (url, config) => {
+      calls.push(['get', url, config]);
+      return { data: url.endsWith('/params-schema') ? schema : { lot_size: '2', equipment_list: [] } };
+    },
+    post: async (...args) => { calls.push(['post', ...args]); return { data: {} }; },
+  };
+  const api = loader({ '../../../shared/api/httpClient': { httpClient } })('src/features/stage-input/api/stageInputs.api.ts');
+  const form = await api.getStageForm('doc/1', 'dispensing_rm', 'Dispensing', 'tablet', 'bmr');
+  assert.equal(calls[0][1], '/api/documents/stages/dispensing_rm/params-schema');
+  assert.deepEqual(plain(calls[0][2].params), { product_type: 'tablet', doc_type: 'bmr' });
+  assert.equal(calls[1][1], '/api/documents/doc%2F1/stages/dispensing_rm/params');
+  assert.equal(form.values.lot_size, '2');
+  assert.deepEqual(plain(form.values.parameters.map(row => row.name)), ['temperature', 'relative_humidity', 'differential_pressure']);
+  await api.saveStageInputs('doc/1', 'dispensing_rm', {
+    parameters: [{ name: 'temperature', enabled: true, mode: 'limit' }, { name: 'holding_period', enabled: true, mode: 'record_only' }],
+    lot_size: '4',
+    equipment_list: [{ name: 'Booth', id: 'E-1', obsolete: 'drop' }],
+    ui_only: true,
+  }, schema);
+  assert.deepEqual(plain(calls.at(-1)[2]), {
+    parameters: [{ name: 'temperature', enabled: true, mode: 'limit' }],
+    lot_size: '4',
+    equipment_list: [{ name: 'Booth', id: 'E-1' }],
+  });
+});
+
+test('stage selection PUT sends the backend stage_keys contract', async () => {
+  const calls = [];
+  const httpClient = {
+    put: async (...args) => {
+      calls.push(args);
+      return { data: { document_id: 'doc/1', stages: ['dispensing_rm'] } };
+    },
+  };
+  const api = loader({ '../../../shared/api/httpClient': { httpClient } })('src/features/new-document/api/document.api.ts');
+  const result = await api.setStages('doc/1', ['dispensing_rm']);
+  assert.deepEqual(plain(calls), [[
+    '/api/documents/doc%2F1/stages',
+    { stage_keys: ['dispensing_rm'] },
+  ]]);
+  assert.deepEqual(plain(result), { document_id: 'doc/1', stages: ['dispensing_rm'] });
+});
+
+test('every stage key loads through the same schema and saved-params pipeline', async () => {
+  const calls = [];
+  const httpClient = {
+    get: async (url) => {
+      calls.push(url);
+      if (url.endsWith('/params-schema')) {
+        const field = url.includes('/granulation/') ? 'mixing_time' : 'lot_size';
+        return { data: { type: 'object', properties: { [field]: { type: 'string', default: '' } } } };
+      }
+      return { data: {} };
+    },
+  };
+  const api = loader({ '../../../shared/api/httpClient': { httpClient } })('src/features/stage-input/api/stageInputs.api.ts');
+  const dispensing = await api.getStageForm('doc-1', 'dispensing_rm', 'Dispensing', 'tablet', 'bmr');
+  const granulation = await api.getStageForm('doc-1', 'granulation', 'Granulation', 'tablet', 'bmr');
+  assert.ok(dispensing.schema.properties.lot_size);
+  assert.ok(granulation.schema.properties.mixing_time);
+  assert.ok(calls.includes('/api/documents/stages/dispensing_rm/params-schema'));
+  assert.ok(calls.includes('/api/documents/stages/granulation/params-schema'));
+  assert.ok(calls.includes('/api/documents/doc-1/stages/dispensing_rm/params'));
+  assert.ok(calls.includes('/api/documents/doc-1/stages/granulation/params'));
+});
+
+test('new-document choices are enabled from backend options without changing card metadata', async () => {
+  const service = loader({
+    '../api/document.api': {
+      getOptions: async () => ({
+        supported_dosage_forms: ['tablet', 'oral_liquid'],
+        supported_doc_types: ['bmr', 'pvp'],
+        batch_types: [],
+        commercial_modes: [],
+      }),
+    },
+  })('src/features/new-document/services/documentSelector.service.ts');
+  const context = await service.loadDocumentSelectorContext({ username: 'alice', unitId: 'UNIT-1' }, 'default');
+  assert.deepEqual(context.config.dosageForms.map(option => option.backendValue), ['tablet', 'oral_liquid']);
+  assert.ok(context.config.dosageForms.every(option => option.available));
+  assert.deepEqual(context.config.documentTypes.map(option => option.backendValue), ['bmr', 'pvp']);
+  assert.equal(context.config.documentTypes[1].shortLabel, 'PVP');
+});
+
 test('already-running generation is recognized by error code for both response envelopes', () => {
   const { getApiErrorCode } = loader({ axios: { isAxiosError: error => error.isAxiosError === true } })('src/shared/api/apiError.ts');
   for (const data of [{ code: 'GENERATION_IN_PROGRESS' }, { detail: { code: 'GENERATION_IN_PROGRESS' } }]) {
@@ -378,26 +757,34 @@ function stageSaveHarness() {
     batch_yield: { actual_yield: { min: '97' }, batch_yield: { min: '98' } },
   };
   const options = keys.map(key => ({ key, label: key, implies: [] }));
-  const schema = { ...reference, stages: [...keys, 'batch_yield'].map(key => ({ key, fields: [], values: values[key] })) };
-  const states = [options, schema, Object.fromEntries(keys.map(key => [key, { checked: true, saved: true, open: false }])), values, true, false, null, null];
+  const forms = Object.fromEntries(keys.map(key => [key, {
+    key, label: key, fields: [], values: values[key],
+    schema: { type: 'object', properties: key === 'coating' ? { equipment_list: { type: 'array', items: { type: 'object', properties: {} } } } : {} },
+  }]));
+  const states = [options, forms, Object.fromEntries(keys.map(key => [key, { checked: true, saved: true, open: false }])), values, true, false, null, {}, {}, null];
   let stateIndex = 0;
   const mocks = {
-    react: { ...React, useState: () => [states[stateIndex++], () => {}], useEffect() {}, useCallback: fn => fn, useMemo: fn => fn() },
+    react: { ...React, useState: () => [states[stateIndex++], () => {}], useRef: value => ({ current: value }), useEffect() {}, useCallback: fn => fn, useMemo: fn => fn() },
     'react-router-dom': { useParams: () => ({ documentId: 'doc-1' }), useNavigate: () => route => calls.push(['navigate', route]) },
     '../../auth/state/auth.store': { useAuthStore: selector => selector({ user: { username: 'alice' } }) },
     '../../new-document/components/AppHeader': { AppHeader: () => null },
     '../../new-document/components/AppSidebar': { AppSidebar: () => null },
     '../../new-document/components/WizardHeader': { WizardHeader: () => null },
-    '../../new-document/hooks/useDocument': { useDocument: () => ({ document: { stages: keys }, isLoading: false, reload: async () => {} }) },
+    '../../new-document/hooks/useDocument': { useDocument: () => ({ document: { stages: keys, dosage_form: 'tablet', doc_type: 'bmr', layers: [] }, isLoading: false, reload: async () => {} }) },
     '../../new-document/hooks/useStepNavigation': { useStepNavigation: () => ({ goToStep: step => calls.push(['step', step]) }) },
-    '../../new-document/api/document.api': { getOptions: async () => ({}), setStages: async (...args) => calls.push(['selection', ...args]) },
-    '../../stage-input/api/stageInputs.api': { getStageSchema: async () => schema, saveStageInputs: async (...args) => calls.push(['save', ...args]) },
+    '../../new-document/api/document.api': { getStages: async () => ({ stages: options, supported: true }), setStages: async (...args) => calls.push(['selection', ...args]) },
+    '../../stage-input/api/stageInputs.api': { getStageForm: async (_id, key) => forms[key], saveStageInputs: async (...args) => calls.push(['save', ...args]) },
+    '../../stage-input/components/SchemaStagePanel': { SchemaStagePanel: () => null },
+    '../../stage-input/model/schemaForm': {
+      validateSchema: () => [],
+      schemaHasAssetInputs: schema => Boolean(schema?.properties?.equipment_list || schema?.properties?.instrument_list),
+    },
   };
   const { SelectStagesPage } = loader(mocks)('src/features/stages/pages/SelectStagesPage.tsx');
   return { tree: SelectStagesPage(), calls, values };
 }
 
-test('final stage save retains repeat values and saves batch yield outside stage selection', async () => {
+test('final stage save posts only selected schema-backed stages without an invented stage', async () => {
   const { tree, calls, values } = stageSaveHarness();
   const button = findElement(tree, element => element.type === 'button' && React.Children.toArray(element.props.children).includes('Continue to review & generate'));
   assert.ok(button);
@@ -406,20 +793,19 @@ test('final stage save retains repeat values and saves batch yield outside stage
   const selected = calls.find(call => call[0] === 'selection')[2];
   assert.ok(!selected.includes('batch_yield'));
   const saves = calls.filter(call => call[0] === 'save');
-  assert.deepEqual(saves.map(call => call[2]), ['dispensing_rm', 'granulation', 'dispensing_coating', 'coating', 'batch_yield']);
+  assert.deepEqual(saves.map(call => call[2]), ['dispensing_rm', 'granulation', 'dispensing_coating', 'coating']);
   assert.deepEqual(plain(saves.find(call => call[2] === 'granulation')[3]), values.granulation);
   assert.deepEqual(plain(saves.find(call => call[2] === 'coating')[3]), values.coating);
-  assert.deepEqual(plain(saves.find(call => call[2] === 'batch_yield')[3]), values.batch_yield);
 });
 
-test('per-stage Continue saves its declarations and batch yield before navigating away', async () => {
+test('per-stage Continue saves only the canonical stage and navigates with its key', async () => {
   const { tree, calls } = stageSaveHarness();
   const row = findElement(tree, element => element.type?.name === 'StageRow' && element.props.stage.key === 'coating');
   assert.ok(row);
   row.props.onContinue();
   await new Promise(setImmediate);
-  assert.deepEqual(calls.filter(call => call[0] === 'save').map(call => call[2]), ['dispensing_rm', 'dispensing_coating', 'coating', 'batch_yield']);
-  assert.match(calls.at(-1)[1], /stage-input\?stage=coating$/);
+  assert.deepEqual(calls.filter(call => call[0] === 'save').map(call => call[2]), ['coating']);
+  assert.match(calls.at(-1)[1], /stage-input\?stage=coating&label=coating$/);
 });
 
 test('an already-running generation starts polling instead of showing a failure', async () => {

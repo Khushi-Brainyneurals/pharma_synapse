@@ -8,9 +8,17 @@ export interface UploadedFile {
 export interface StageOption {
   key: string;
   label: string;
-  description: string;
-  required: boolean;
-  implies: string[];
+  description?: string;
+  required?: boolean;
+  implies?: string[];
+}
+
+export interface StagesResponse {
+  product_type: string;
+  doc_type: string;
+  stages: StageOption[];
+  supported: boolean;
+  message: string;
 }
 
 /** Everything a step needs to repopulate itself when the user navigates back. */
@@ -29,6 +37,8 @@ export interface DocumentDetail {
   footer_size: number | null;
   footer_template_no: string | null;
   files: UploadedFile[];
+  layers: string[];
+  coating_types: string[];
   stages: string[];
   /** Per-stage in-process parameters, so the Select-stages panels repopulate on back-nav. */
   stage_params: StageParamsMap;
@@ -38,8 +48,6 @@ export interface DocumentDetail {
 }
 
 export interface OptionsResponse {
-  stages: StageOption[];
-  default_stages: string[];
   batch_types: string[];
   commercial_modes: string[];
   supported_dosage_forms: string[];

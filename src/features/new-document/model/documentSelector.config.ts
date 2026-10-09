@@ -71,7 +71,7 @@ export const DOSAGE_FORM_OPTIONS: DocumentOption[] = [
   },
   {
     id: "oral-liquid",
-    backendValue: "oral-liquid",
+    backendValue: "oral_liquid",
     label: "Oral Liquid",
     description: "",
     available: false,

@@ -49,6 +49,32 @@ export interface StageForm {
   per_layer?: boolean;
   per_type?: boolean;
   layer_scoped?: boolean;
+  schema?: JsonSchema;
+  has_saved_values?: boolean;
+}
+
+export interface JsonSchema {
+  $ref?: string;
+  $defs?: Record<string, JsonSchema>;
+  title?: string;
+  description?: string;
+  type?: string | string[];
+  default?: unknown;
+  enum?: unknown[];
+  anyOf?: JsonSchema[];
+  oneOf?: JsonSchema[];
+  properties?: Record<string, JsonSchema>;
+  required?: string[];
+  items?: JsonSchema;
+  additionalProperties?: boolean | JsonSchema;
+  minimum?: number;
+  examples?: unknown[];
+  x_ui_reference?: {
+    fixed_ipqc_parameters?: string[];
+    frequency_options?: string[];
+    in_process_checks_frequency_options?: string[];
+    coating_process_hours?: number;
+  };
 }
 
 export interface RepeatSlot {

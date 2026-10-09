@@ -30,6 +30,7 @@ import {
   getGenerateProgress,
   getDocumentPdf,
   submitDocument,
+  type GenerateProgress,
   type GenerationStatus,
 } from "../api/generate.api";
 
@@ -43,6 +44,7 @@ export function GenerateSubmitPage() {
   const { document: documentState, reload: reloadDocument } = useDocument(documentId);
 
   const [state, setState] = useState<GenerationStatus | null>(null);
+  const [generationProgress, setGenerationProgress] = useState<GenerateProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [showShare, setShowShare] = useState(false);
@@ -69,6 +71,7 @@ export function GenerateSubmitPage() {
   const loadStatus = useCallback(async () => {
     try {
       const progress = await getGenerateProgress(documentId);
+      setGenerationProgress(progress);
 
       const isDone = Boolean(
         progress.status === "done" ||
@@ -111,6 +114,22 @@ export function GenerateSubmitPage() {
   const generate = useCallback(async () => {
     setIsBusy(true);
     setError(null);
+    setPreviewBlob(null);
+    setGenerationProgress({
+      document_id: documentId,
+      status: "running",
+      percent: 0,
+      step: "Starting document generation…",
+      result: null,
+      error: null,
+    });
+    setState({
+      document_id: documentId,
+      status: "generating",
+      has_artifact: false,
+      artifact_size: null,
+      error_message: null,
+    });
     try {
       await generateDocument(documentId);
       await startPolling();
@@ -137,21 +156,11 @@ export function GenerateSubmitPage() {
   }, [documentId, startPolling]);
 
   useEffect(() => {
-    void (async () => {
-      const current = await loadStatus();
-      if (current?.status === "running" && !(current.percent === 0 && current.step === "Starting…")) {
-        pollRef.current = window.setInterval(() => void loadStatus(), POLL_INTERVAL_MS);
-      } else if (current?.status === "running") {
-        // Arriving from Select Stages with everything reviewed but nothing built —
-        // start the build immediately so the user lands on the real document, not an
-        // empty page waiting for a button press. (No AI spend: generation reuses the
-        // stored extraction; only the .docx build runs.) Failed builds are NOT
-        // auto-retried — the error banner shows and the toolbar button retries.
-        void generate();
-      }
-    })();
+    // Select Stages has already started the build with POST /generate. This page only
+    // observes that build; when progress reports `done`, the preview effect below runs.
+    void startPolling();
     return stopPolling;
-  }, [documentId, loadStatus, stopPolling, generate]);
+  }, [startPolling, stopPolling]);
 
   const submit = useCallback(async () => {
     setIsBusy(true);
@@ -280,7 +289,10 @@ export function GenerateSubmitPage() {
                 </div>
               ) : previewBlob ? (
                 isBlobDocx ? (
-                  <DocxViewer file={{ blob: previewBlob, filename, format: "docx" }} />
+                  <DocxViewer
+                    file={{ blob: previewBlob, filename, format: "docx" }}
+                    reserveBottomActionsSpace
+                  />
                 ) : (
                   <DocumentViewer
                     docKey={`${documentId}:${state.artifact_size ?? 0}`}
@@ -292,12 +304,7 @@ export function GenerateSubmitPage() {
                 )
               ) : null
             ) : status === "generating" ? (
-              <div className="mx-8 flex items-center justify-center gap-2 rounded-panel border border-border bg-surface p-16 text-subdued">
-                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                <span className="text-small">
-                  Building the document — this usually takes a minute or two…
-                </span>
-              </div>
+              <GenerationProgressPanel progress={generationProgress} />
             ) : (
               <div className="mx-8 flex flex-col items-center justify-center gap-3 rounded-panel border border-dashed border-border-strong bg-surface p-16 text-center">
                 <FileText className="size-8 text-subdued" aria-hidden="true" />
@@ -313,7 +320,7 @@ export function GenerateSubmitPage() {
             )}
 
             {/* Sticky Footer matching Cover + BOM Page */}
-            <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t bg-surface p-3.5 shadow-auth">
+            <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t bg-surface p-3.5 shadow-auth">
               <button
                 type="button"
                 onClick={() => goToStep("stages")}
@@ -372,6 +379,34 @@ export function GenerateSubmitPage() {
           onCancel={() => setConfirmSubmit(false)}
         />
       ) : null}
+    </div>
+  );
+}
+
+function GenerationProgressPanel({ progress }: { progress: GenerateProgress | null }) {
+  const percent = Math.min(100, Math.max(0, Math.round(progress?.percent ?? 0)));
+  return (
+    <div className="mx-8 rounded-panel border border-border bg-surface p-10 text-center">
+      <Loader2 className="mx-auto size-6 animate-spin text-primary" aria-hidden="true" />
+      <p className="mt-3 text-small font-semibold">
+        {progress?.step || "Building the document…"}
+      </p>
+      <div className="mx-auto mt-4 flex max-w-xl items-center gap-3">
+        <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full rounded-full bg-primary transition-[width] duration-300"
+            style={{ width: `${percent}%` }}
+            role="progressbar"
+            aria-label="Document generation progress"
+            aria-valuenow={percent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          />
+        </div>
+        <span className="whitespace-nowrap text-small font-semibold text-subdued">
+          {percent}%
+        </span>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,5 @@
 import { httpClient } from "../../../shared/api/httpClient";
-import type { StageParamsMap } from "../../stages/model/stageParams";
-import type { DocumentDetail, OptionsResponse } from "./document.types";
+import type { DocumentDetail, OptionsResponse, StagesResponse } from "./document.types";
 
 export async function getDocument(documentId: string): Promise<DocumentDetail> {
   const response = await httpClient.get<any>(
@@ -44,6 +43,8 @@ export async function getDocument(documentId: string): Promise<DocumentDetail> {
     footer_size: data.footer_size ?? null,
     footer_template_no: data.footer_template_no ?? null,
     files: data.files || [],
+    layers: data.layers || [],
+    coating_types: data.coating_types || [],
     stages: data.stages || [],
     stage_params: data.stage_params || {},
     completed_steps: completedSteps,
@@ -55,23 +56,27 @@ export async function getOptions(): Promise<OptionsResponse> {
   const response = await httpClient.get<any>("/api/documents/options");
   const data = response.data;
   return {
-    stages: data.stages || [],
-    default_stages: data.default_stages || [],
-    batch_types: data.batch_types || ["commercial", "exhibit", "scale_up"],
-    commercial_modes: data.commercial_modes || ["revision", "validation"],
-    supported_dosage_forms: data.supported_dosage_forms || data.product_types || ["tablet"],
-    supported_doc_types: data.supported_doc_types || data.doc_types || ["bmr", "bpr"],
+    batch_types: data.batch_types || [],
+    commercial_modes: data.commercial_modes || [],
+    supported_dosage_forms: data.product_types || [],
+    supported_doc_types: data.doc_types || [],
   };
+}
+
+export async function getStages(productType: string, docType: string): Promise<StagesResponse> {
+  const response = await httpClient.get<StagesResponse>("/api/documents/stages", {
+    params: { product_type: productType, doc_type: docType },
+  });
+  return response.data;
 }
 
 export async function setStages(
   documentId: string,
   stages: string[],
-  params: StageParamsMap = {},
-): Promise<{ document_id: string; status: string; stages: string[]; params: StageParamsMap }> {
+): Promise<{ document_id: string; stages: string[] }> {
   const response = await httpClient.put(
     `/api/documents/${encodeURIComponent(documentId)}/stages`,
-    { stages, params },
+    { stage_keys: stages },
   );
 
   return response.data;
