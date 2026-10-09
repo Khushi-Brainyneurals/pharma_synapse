@@ -25,7 +25,9 @@ export interface BackendEquipmentRow {
   machine_id_no?: string;
   stage?: string;
   processing_stage?: string;
-  steps?: { step: string; cpp: string[] }[];
+  cpp?: string;
+  cqa?: string;
+  steps?: { step: string; cpp: string[]; cqa?: string[] }[];
 }
 
 export interface BackendInstrumentRow {
@@ -69,10 +71,14 @@ export function backendEquipmentToEquipmentRow(
   const steps: MasterDataStep[] = (row.steps ?? []).map((s) => ({
     step: s.step || "",
     cpp: Array.isArray(s.cpp) ? s.cpp : [],
+    cqa: Array.isArray(s.cqa) ? s.cqa : [],
   }));
 
   const allCpps = steps.flatMap((s) => s.cpp).filter(Boolean);
-  const cppString = allCpps.length > 0 ? allCpps.join(", ") : "N/A";
+  const cppString = allCpps.length > 0 ? allCpps.join(", ") : (row.cpp || "N/A");
+
+  const allCqas = steps.flatMap((s) => s.cqa ?? []).filter(Boolean);
+  const cqaString = allCqas.length > 0 ? allCqas.join(", ") : (row.cqa || "N/A");
 
   return {
     sr: row.sr_no ?? row._row_id ?? index + 1,
@@ -83,6 +89,7 @@ export function backendEquipmentToEquipmentRow(
     stage: row.stage || "",
     procStage: row.processing_stage || row.stage || "",
     cpp: cppString,
+    cqa: cqaString,
     steps: steps.length > 0 ? steps : undefined,
     _row_id: row._row_id,
   };
@@ -94,8 +101,9 @@ export function toEquipmentPayload(row: EquipmentRow, index: number): BackendEqu
       .map((item) => ({
         step: item.step?.trim() ?? "",
         cpp: (item.cpp ?? []).map((v) => v.trim()).filter(Boolean),
+        cqa: (item.cqa ?? []).map((v) => v.trim()).filter(Boolean),
       }))
-      .filter((item) => item.step || item.cpp.length > 0);
+      .filter((item) => item.step || item.cpp.length > 0 || (item.cqa && item.cqa.length > 0));
   };
 
   return {
@@ -107,6 +115,8 @@ export function toEquipmentPayload(row: EquipmentRow, index: number): BackendEqu
     machine_id_no: row.mcId.trim(),
     stage: row.stage.trim(),
     processing_stage: row.procStage.trim(),
+    cpp: row.cpp === "N/A" ? "" : row.cpp,
+    cqa: row.cqa === "N/A" ? "" : row.cqa,
     steps: sanitizeSteps(row.steps),
   };
 }

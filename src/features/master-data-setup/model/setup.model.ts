@@ -123,6 +123,7 @@ export const BATCH_DOCS: DocDef[] = [
 export interface MasterDataStep {
   step: string;
   cpp: string[];
+  cqa?: string[];
 }
 
 export interface EquipmentRow {
@@ -136,6 +137,7 @@ export interface EquipmentRow {
   /** Processing sub-stage(s) for this machine, comma-separated. */
   procStage: string;
   cpp: string;
+  cqa?: string;
   steps?: MasterDataStep[];
   isNew?: boolean;
   _row_id?: number;

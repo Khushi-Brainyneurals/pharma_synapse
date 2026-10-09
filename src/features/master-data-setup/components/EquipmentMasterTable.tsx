@@ -30,10 +30,14 @@ function deriveStepsFromProcessingStage(
     names.push(trimmed);
   }
 
-  return names.map((name) => ({
-    step: name,
-    cpp: existingSteps.find((item) => item.step === name)?.cpp ?? [],
-  }));
+  return names.map((name) => {
+    const existing = existingSteps.find((item) => item.step === name);
+    return {
+      step: name,
+      cpp: existing?.cpp ?? [],
+      cqa: existing?.cqa ?? [],
+    };
+  });
 }
 
 function getRowSteps(row: EquipmentRow): MasterDataStep[] {
@@ -50,21 +54,32 @@ function getRowSteps(row: EquipmentRow): MasterDataStep[] {
     return [];
   }
 
-  const cpps = row.cpp
-    ? row.cpp
-        .split(",")
-        .map((c) => c.trim())
-        .filter(Boolean)
-    : [];
+  const cpps =
+    row.cpp && row.cpp !== "N/A"
+      ? row.cpp
+          .split(",")
+          .map((c) => c.trim())
+          .filter(Boolean)
+      : [];
+
+  const cqas =
+    row.cqa && row.cqa !== "N/A"
+      ? row.cqa
+          .split(",")
+          .map((c) => c.trim())
+          .filter(Boolean)
+      : [];
 
   if (parts.length === 1) {
-    return [{ step: parts[0], cpp: cpps }];
+    return [{ step: parts[0], cpp: cpps, cqa: cqas }];
   }
 
   const cppPerPart = Math.ceil(cpps.length / parts.length);
+  const cqaPerPart = Math.ceil(cqas.length / parts.length);
   return parts.map((name, idx) => ({
     step: name,
     cpp: cpps.slice(idx * cppPerPart, (idx + 1) * cppPerPart),
+    cqa: cqas.slice(idx * cqaPerPart, (idx + 1) * cqaPerPart),
   }));
 }
 
@@ -74,7 +89,13 @@ function summarizeSteps(steps: MasterDataStep[]): string {
   }
 
   const cppCount = steps.reduce((sum, item) => sum + item.cpp.length, 0);
-  return `${steps.length} step${steps.length === 1 ? "" : "s"} · ${cppCount} CPP${cppCount === 1 ? "" : "s"}`;
+  const cqaCount = steps.reduce((sum, item) => sum + (item.cqa?.length ?? 0), 0);
+  const parts = [`${steps.length} step${steps.length === 1 ? "" : "s"}`];
+  parts.push(`${cppCount} CPP${cppCount === 1 ? "" : "s"}`);
+  if (cqaCount > 0) {
+    parts.push(`${cqaCount} CQA${cqaCount === 1 ? "" : "s"}`);
+  }
+  return parts.join(" · ");
 }
 
 export function EquipmentMasterTable({
@@ -99,7 +120,9 @@ export function EquipmentMasterTable({
     onUpdate(rowSr, "procStage", newProcStage);
     onUpdate(rowSr, "steps", nextSteps);
     const nextCpp = nextSteps.flatMap((s) => s.cpp).join(", ");
+    const nextCqa = nextSteps.flatMap((s) => s.cqa ?? []).join(", ");
     onUpdate(rowSr, "cpp", nextCpp);
+    onUpdate(rowSr, "cqa", nextCqa);
   }
 
   function openStepsEditor(row: EquipmentRow) {
@@ -116,7 +139,9 @@ export function EquipmentMasterTable({
     const rowSr = stepsDialog.rowSr;
     onUpdate(rowSr, "steps", newSteps);
     const nextCpp = newSteps.flatMap((s) => s.cpp).join(", ");
+    const nextCqa = newSteps.flatMap((s) => s.cqa ?? []).join(", ");
     onUpdate(rowSr, "cpp", nextCpp);
+    onUpdate(rowSr, "cqa", nextCqa);
     setStepsDialog(null);
   }
 
@@ -164,8 +189,8 @@ export function EquipmentMasterTable({
               <th scope="col" className="min-w-44 px-2 py-3 font-semibold">
                 Processing stage
               </th>
-              <th scope="col" className="min-w-40 px-2 py-3 font-semibold">
-                Process steps &amp; CPPs
+              <th scope="col" className="min-w-44 px-2 py-3 font-semibold">
+                Process steps, CPPs &amp; CQAs
               </th>
               {canEdit ? (
                 <th scope="col" className="w-16 px-2 py-3 font-semibold">
@@ -285,11 +310,11 @@ export function EquipmentMasterTable({
                       />
                     </td>
 
-                    {/* Process steps & CPPs */}
-                    <td className="min-w-40 px-2 py-2">
+                    {/* Process steps, CPPs & CQAs */}
+                    <td className="min-w-44 px-2 py-2">
                       <button
                         type="button"
-                        aria-label={`Process steps & CPPs, row ${index + 1}`}
+                        aria-label={`Process steps, CPPs & CQAs, row ${index + 1}`}
                         className="min-h-9 w-full rounded-control border border-border bg-surface px-2.5 py-1.5 text-left text-sm text-text transition hover:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                         onClick={() => openStepsEditor(row)}
                       >

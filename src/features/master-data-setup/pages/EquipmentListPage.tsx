@@ -138,6 +138,16 @@ export function EquipmentListPage() {
           proposed: r.stage || "—",
         });
       }
+      const existingCqa = (base as any).cqa || "—";
+      const proposedCqa = r.cqa && r.cqa !== "N/A" ? r.cqa : "—";
+      if (existingCqa !== proposedCqa) {
+        diffs.push({
+          key: r.mcId || `Row ${r.sr}`,
+          field: "CQA",
+          existing: existingCqa,
+          proposed: proposedCqa,
+        });
+      }
     });
     return diffs;
   }, [rows, serverBaseline]);
@@ -177,6 +187,7 @@ export function EquipmentListPage() {
         "Stage",
         "Processing Stage",
         "CPP",
+        "CQA",
       ],
       rows: rows.map((r) => [
         String(r.sr),
@@ -187,6 +198,7 @@ export function EquipmentListPage() {
         r.stage,
         r.procStage,
         r.cpp,
+        r.cqa || "—",
       ]),
       by: user ? `${user.username} (${USER_ROLE_LABELS[user.role]})` : "—",
       landscape: true,
