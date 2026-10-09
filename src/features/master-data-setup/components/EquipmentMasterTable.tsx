@@ -90,11 +90,11 @@ function summarizeSteps(steps: MasterDataStep[]): string {
 
   const cppCount = steps.reduce((sum, item) => sum + item.cpp.length, 0);
   const cqaCount = steps.reduce((sum, item) => sum + (item.cqa?.length ?? 0), 0);
-  const parts = [`${steps.length} step${steps.length === 1 ? "" : "s"}`];
-  parts.push(`${cppCount} CPP${cppCount === 1 ? "" : "s"}`);
-  if (cqaCount > 0) {
-    parts.push(`${cqaCount} CQA${cqaCount === 1 ? "" : "s"}`);
-  }
+  const parts = [
+    `${steps.length} step${steps.length === 1 ? "" : "s"}`,
+    `${cppCount} CPP${cppCount === 1 ? "" : "s"}`,
+    `${cqaCount} CQA${cqaCount === 1 ? "" : "s"}`,
+  ];
   return parts.join(" · ");
 }
 
