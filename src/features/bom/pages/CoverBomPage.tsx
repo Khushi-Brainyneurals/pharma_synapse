@@ -28,7 +28,7 @@ import type { BomResponse, CoverPreviewFile, GenerateCoverProgress } from "../ap
 import { BomEditTable, type BomFieldChange } from "../components/BomEditTable";
 import { CoverBomDocument } from "../components/CoverBomDocument";
 
-const POLL_INTERVAL_MS = 1500;
+const POLL_INTERVAL_MS = 4000;
 
 export function CoverBomPage() {
   const { documentId = "" } = useParams();

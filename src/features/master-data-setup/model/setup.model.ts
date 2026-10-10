@@ -25,6 +25,9 @@ export interface UploadedFile {
   by: string;
   at: string;
   format: "PDF" | "DOCX";
+  blobUrl?: string;
+  stageKey?: string;
+  rawFile?: File;
 }
 
 export const DOCUMENT_TYPE = { dosage: "Tablet", doc: "BMR", label: "Tablet · BMR" };
@@ -117,6 +120,12 @@ export const BATCH_DOCS: DocDef[] = [
   doc("BAT-04", "Change History"),
 ];
 
+export interface MasterDataStep {
+  step: string;
+  cpp: string[];
+  cqa?: string[];
+}
+
 export interface EquipmentRow {
   sr: number;
   name: string;
@@ -128,6 +137,10 @@ export interface EquipmentRow {
   /** Processing sub-stage(s) for this machine, comma-separated. */
   procStage: string;
   cpp: string;
+  cqa?: string;
+  steps?: MasterDataStep[];
+  isNew?: boolean;
+  _row_id?: number;
 }
 
 export const EQUIPMENT_SEED: EquipmentRow[] = [
@@ -215,6 +228,7 @@ export interface InstrumentRow {
   stages: string[];
   /** Marks a just-added row (the "NEW" chip in the design). */
   isNew?: boolean;
+  _row_id?: number;
 }
 
 export const INSTRUMENT_SEED: InstrumentRow[] = [
@@ -229,7 +243,7 @@ export const INSTRUMENT_SEED: InstrumentRow[] = [
   { sr: 9, name: "Weighing Balance", instrumentId: "PR/03", location: "Granulation area -1", stages: ["Granulation"] },
   { sr: 10, name: "Weighing Balance", instrumentId: "PR/04", location: "Granulation area -2", stages: ["Granulation"] },
   { sr: 11, name: "Weighing Balance", instrumentId: "PR/05", location: "Granulation area -3", stages: ["Granulation"] },
-  { sr: 12, name: "IPQC General Instrument", instrumentId: "PR/06", location: "IPQC room", stages: ["Granulation", "Compression", "Coating"] },
+  { sr: 12, name: "General Instrument", instrumentId: "PR/06", location: "IPQC room", stages: ["Granulation", "Compression", "Coating"] },
   { sr: 13, name: "IPQC General Instrument", instrumentId: "PR/07", location: "IPQC room", stages: ["Granulation"] },
   { sr: 14, name: "IPQC General Instrument", instrumentId: "PR/08", location: "IPQC room", stages: ["Compression", "Coating", "Capsule"] },
   { sr: 15, name: "IPQC General Instrument", instrumentId: "PR/09", location: "IPQC room", stages: ["Compression"] },

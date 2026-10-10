@@ -72,9 +72,12 @@ export function AppSidebar({ user }: AppSidebarProps) {
   }
 
   return (
-    <aside className="hidden border-r border-border bg-surface lg:flex lg:h-full lg:w-sidebar-w lg:flex-col">
-      <nav className="flex-1 px-3 py-4" aria-label="Primary">
-        <Link to="/" className="mb-3 flex items-center gap-2 rounded-control px-3 py-2 text-small font-semibold hover:bg-muted" aria-current={location.pathname === "/" ? "page" : undefined}>
+    <aside className="hidden shrink-0 border-r border-border bg-surface lg:flex lg:h-full lg:w-sidebar-w lg:flex-col">
+      <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-4" aria-label="Primary">
+        <Link 
+          to="/" 
+          aria-current={location.pathname === "/" ? "page" : undefined} 
+          className={`flex min-h-row-h items-center gap-3 rounded-control mb-1 px-3 text-small font-medium transition ${ location.pathname === "/" ? "border border-primary/25 bg-accent-soft text-primary-dark" : "text-subdued hover:bg-muted hover:text-text" }`} >
           <LayoutDashboard className="size-4" aria-hidden="true" /> Dashboard
         </Link>
         <ul className="space-y-1">
@@ -137,7 +140,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
         </ul>
       </nav>
 
-      <div className="border-t border-border px-4 py-3">
+      <div className="shrink-0 border-t border-border px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-micro font-medium uppercase tracking-overline text-subdued">
@@ -153,7 +156,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
             aria-label="Log out"
             title="Log out"
             disabled={isLoggingOut}
-            className="inline-flex size-9 shrink-0 items-center justify-center rounded-control border border-border text-subdued transition hover:bg-muted hover:text-text focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-control border border-border text-subdued transition hover:bg-muted hover:text-text disabled:cursor-not-allowed disabled:opacity-60"
             onClick={handleLogout}
           >
             {isLoggingOut ? (

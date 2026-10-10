@@ -7,6 +7,7 @@ interface WizardFooterProps {
   nextLabel?: string;
   isNextDisabled?: boolean;
   isBusy?: boolean;
+  className?: string;
   /** Shown next to the buttons — why Next is unavailable, or what happens next. */
   hint?: string;
 }
@@ -19,10 +20,11 @@ export function WizardFooter({
   nextLabel = "Continue",
   isNextDisabled = false,
   isBusy = false,
+  className = "",
   hint,
 }: WizardFooterProps) {
   return (
-    <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t bg-surface p-3.5 shadow-auth">
+    <div className={`sticky bottom-0 z-10 mt-auto flex flex-wrap items-center justify-between gap-3 border-t bg-surface p-3.5 shadow-auth ${className}`}>
       {onBack ? (
         <button
           type="button"

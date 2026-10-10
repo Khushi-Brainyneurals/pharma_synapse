@@ -1,9 +1,10 @@
-import { Check, FileText, Upload } from "lucide-react";
+import { Check, Eye, FileText, RefreshCw, Trash2, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { Identifier } from "../../../shared/ui/Identifier";
 import { USER_ROLE_LABELS } from "../../auth/model/roles";
 import { useAuthStore } from "../../auth/state/auth.store";
 import type { DocDef, UploadedFile } from "../model/setup.model";
+import { DocumentPreviewDialog } from "./DocumentPreviewDialog";
 
 /**
  * One "upload the blank approved master format for this document" row. Clicking the drop
@@ -31,10 +32,19 @@ export function UploadRow({
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const user = useAuthStore((s) => s.user);
   const byLabel = user ? `${user.username} (${USER_ROLE_LABELS[user.role]})` : "You";
 
   const openPicker = () => inputRef.current?.click();
+
+  const handlePreview = () => {
+    if (onPreview) {
+      onPreview();
+    } else {
+      setIsPreviewOpen(true);
+    }
+  };
 
   function accept(picked: File | undefined) {
     if (!picked) return;
@@ -48,12 +58,15 @@ export function UploadRow({
       return;
     }
     setError(null);
+    const blobUrl = URL.createObjectURL(picked);
     onUpload({
       filename: picked.name,
       sizeKB: Math.max(1, Math.round(picked.size / 1024)),
       by: byLabel,
       at: nowStamp(),
       format,
+      blobUrl,
+      rawFile: picked,
     });
   }
 
@@ -102,17 +115,35 @@ export function UploadRow({
               </p>
               <p className="text-micro text-subdued">{file.by} · {file.at}</p>
             </div>
-            <div className="flex items-center gap-2 text-small font-semibold">
-              <button type="button" onClick={onPreview} className="text-primary hover:underline">
-                Preview
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={handlePreview}
+                className="inline-flex size-8 items-center justify-center rounded-control text-primary transition hover:bg-accent-soft focus:outline-none focus:ring-2 focus:ring-primary/20"
+                title="Preview"
+                aria-label="Preview"
+              >
+                <Eye className="size-4" />
               </button>
               {canEdit ? (
                 <>
-                  <button type="button" onClick={openPicker} className="text-primary hover:underline">
-                    Replace
+                  <button
+                    type="button"
+                    onClick={openPicker}
+                    className="inline-flex size-8 items-center justify-center rounded-control text-primary transition hover:bg-accent-soft focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    title="Replace"
+                    aria-label="Replace"
+                  >
+                    <RefreshCw className="size-4" />
                   </button>
-                  <button type="button" onClick={onRemove} className="text-danger-ink hover:underline">
-                    Remove
+                  <button
+                    type="button"
+                    onClick={onRemove}
+                    className="inline-flex size-8 items-center justify-center rounded-control text-danger-ink transition hover:bg-danger-soft focus:outline-none focus:ring-2 focus:ring-danger/20"
+                    title="Remove"
+                    aria-label="Remove"
+                  >
+                    <Trash2 className="size-4" />
                   </button>
                 </>
               ) : null}
@@ -154,6 +185,14 @@ export function UploadRow({
           </div>
         )}
       </div>
+
+      {isPreviewOpen && file ? (
+        <DocumentPreviewDialog
+          doc={doc}
+          file={file}
+          onClose={() => setIsPreviewOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

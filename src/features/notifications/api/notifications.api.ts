@@ -25,12 +25,42 @@ interface ApiNotif {
 /** Fetch the signed-in user's feed. Read/unread is tracked client-side, so this returns
  *  events without `unread` — the store fills it in from the local read-set. */
 export async function getNotifications(): Promise<Omit<Notification, "unread">[]> {
-  const response = await httpClient.get<{ items?: any[] }>("/notifications");
-  const rawItems = Array.isArray(response.data?.items) ? response.data.items : [];
+  let resData: any = null;
+  try {
+    const response = await httpClient.get<any>("/notifications");
+    resData = response.data;
+  } catch (err: any) {
+    if (err?.response?.status === 404) {
+      try {
+        const response = await httpClient.get<any>("/api/notifications");
+        resData = response.data;
+      } catch (err2: any) {
+        if (err2?.response?.status === 404) {
+          try {
+            const response = await httpClient.get<any>("/api/bmr/notifications");
+            resData = response.data;
+          } catch {
+            return [];
+          }
+        } else {
+          return [];
+        }
+      }
+    } else {
+      return [];
+    }
+  }
+
+  const rawItems = Array.isArray(resData?.items)
+    ? resData.items
+    : Array.isArray(resData)
+      ? resData
+      : [];
+
   return rawItems.map((n: any) => {
     const createdAt = n.created_at ? new Date(n.created_at) : new Date();
     return {
-      id: String(n.id),
+      id: String(n.id ?? n._id ?? Math.random().toString(36).slice(2)),
       category: (n.category as NotifCategory) ?? (n.job_id ? "doc" : "sys"),
       doc: n.doc
         ? { id: n.doc.id, name: n.doc.name ?? "", version: n.doc.version ?? undefined }

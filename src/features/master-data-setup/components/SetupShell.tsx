@@ -4,6 +4,7 @@ import { useAuthStore } from "../../auth/state/auth.store";
 import { AppHeader } from "../../new-document/components/AppHeader";
 import { AppSidebar } from "../../new-document/components/AppSidebar";
 import { masterDataAccess } from "../access";
+import { MasterDataZipButton } from "./MasterDataZipButton";
 import {
   BATCH_DOCS,
   DOCUMENT_TYPE,
@@ -42,9 +43,9 @@ export function SetupShell({
   return (
     <div className="min-h-screen bg-background text-text">
       <AppHeader user={user} unit={user?.unitId ? { id: user.unitId } : null} title="Master data" />
-      <div className="flex">
+      <div className="lg:grid lg:h-[calc(100vh-var(--topbar-h))] lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden">
         <AppSidebar user={user} />
-        <main className="min-w-0 flex-1 p-4 lg:p-6">
+        <main className="min-w-0 min-h-0 p-4 lg:p-6 lg:h-full lg:overflow-y-auto">
           {!access.canView ? (
             <AccessDenied />
           ) : (
@@ -129,9 +130,12 @@ function Stepper({ current }: { current: StepKey }) {
           key={group.key}
           className={`flex-1 ${gi > 0 ? "border-t border-border pt-3 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0" : ""}`}
         >
-          <p className="mb-2 px-1.5 text-micro font-bold uppercase tracking-overline text-subdued">
-            {group.label}
-          </p>
+          <div className="mb-2 flex items-center justify-between px-1.5">
+            <p className="text-micro font-bold uppercase tracking-overline text-subdued">
+              {group.label}
+            </p>
+            {group.key === "static" ? <MasterDataZipButton /> : null}
+          </div>
           <ol className="flex flex-wrap items-center gap-1">
             {group.steps.map((key, i) => {
               const s = STEPS.find((x) => x.key === key);

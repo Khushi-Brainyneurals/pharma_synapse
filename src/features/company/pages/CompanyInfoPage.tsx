@@ -10,11 +10,14 @@ import { canEditCompanyInfo } from "../access";
 import {
   FONT_STACKS,
   fetchLogoObjectUrl,
+  getCompanyApproval,
   getCompanyInfo,
   updateCompanyInfo,
   uploadLogo,
+  type CompanyApprovalState,
   type CompanyInfo,
 } from "../api/company.api";
+import { CompanyApprovalPanel } from "../components/CompanyApprovalPanel";
 import { LetterheadPreview } from "../components/LetterheadPreview";
 import { LogoDropzone } from "../components/LogoDropzone";
 import { ReasonForChangeModal, type FieldChange } from "../components/ReasonForChangeModal";
@@ -56,6 +59,20 @@ export function CompanyInfoPage() {
   const [saved, setSaved] = useState(false);
   const [reasonModal, setReasonModal] = useState<FieldChange[] | null>(null);
   const [reasonError, setReasonError] = useState<string | null>(null);
+  const [approval, setApproval] = useState<CompanyApprovalState | null>(null);
+  const [isApprovalLoading, setIsApprovalLoading] = useState(true);
+
+  const loadApproval = useCallback(async () => {
+    setIsApprovalLoading(true);
+    try {
+      const nextAppr = await getCompanyApproval();
+      setApproval(nextAppr);
+    } catch {
+      // Non-blocking fallback
+    } finally {
+      setIsApprovalLoading(false);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -77,9 +94,14 @@ export function CompanyInfoPage() {
     }
   }, []);
 
+  const reloadAll = useCallback(async () => {
+    await Promise.all([load(), loadApproval()]);
+  }, [load, loadApproval]);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadApproval();
+  }, [load, loadApproval]);
 
   useEffect(() => {
     if (!info?.has_logo) {
@@ -112,12 +134,13 @@ export function CompanyInfoPage() {
     try {
       setInfo(await uploadLogo(file));
       setLogoNonce((n) => n + 1);
+      void loadApproval();
     } catch (caught) {
       setError(getApiErrorMessage(caught, "Could not upload the logo."));
     } finally {
       setIsUploading(false);
     }
-  }, [canEdit]);
+  }, [canEdit, loadApproval]);
 
   // What changed vs what's saved — drives the reason-for-change diff.
   const changes = useMemo<FieldChange[]>(() => {
@@ -156,6 +179,7 @@ export function CompanyInfoPage() {
         setInfo(next);
         setReasonModal(null);
         setSaved(true);
+        void loadApproval();
       } catch (caught) {
         const message = getApiErrorMessage(caught, "Could not save company info.");
         if (reason !== undefined) {
@@ -167,7 +191,7 @@ export function CompanyInfoPage() {
         setIsSaving(false);
       }
     },
-    [canEdit, form],
+    [canEdit, form, loadApproval],
   );
 
   function onSave() {
@@ -182,17 +206,23 @@ export function CompanyInfoPage() {
     }
   }
 
+  const isLocked =
+    approval?.status?.toLowerCase() === "pending" ||
+    approval?.status?.toLowerCase() === "submitted" ||
+    approval?.status?.toLowerCase() === "in_review";
+  const canEditForm = canEdit && !isLocked;
+
   const nameMissing = !form.company_name.trim();
-  const canSave = canEdit && !nameMissing && !isUploading && !isSaving;
+  const canSave = canEditForm && !nameMissing && !isUploading && !isSaving;
 
   return (
     <div className="min-h-screen bg-background text-text">
       <AppHeader user={user} unit={user?.unitId ? { id: user.unitId } : null} />
 
-      <div className="flex">
+      <div className="lg:grid lg:h-[calc(100vh-var(--topbar-h))] lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden">
         <AppSidebar user={user} />
 
-        <main className="min-w-0 flex-1 p-4 lg:p-6">
+        <main className="min-w-0 min-h-0 p-4 lg:p-6 lg:h-full lg:overflow-y-auto">
           <div className="mx-auto max-w-4xl space-y-5">
             <header>
               <button
@@ -253,7 +283,7 @@ export function CompanyInfoPage() {
                     <input
                       type="text"
                       value={form.company_name}
-                      disabled={!canEdit}
+                      disabled={!canEditForm || isSaving}
                       onChange={(event) => set("company_name", event.target.value)}
                       placeholder="Acme Pharmaceuticals Pvt. Ltd."
                       className={controlClass}
@@ -265,7 +295,7 @@ export function CompanyInfoPage() {
                     <textarea
                       rows={2}
                       value={form.address}
-                      disabled={!canEdit}
+                      disabled={!canEditForm || isSaving}
                       onChange={(event) => set("address", event.target.value)}
                       className={controlClass}
                     />
@@ -276,7 +306,7 @@ export function CompanyInfoPage() {
                       hasLogo={info.has_logo}
                       logoUrl={logoUrl}
                       isUploading={isUploading}
-                      disabled={!canEdit}
+                      disabled={!canEditForm}
                       onFile={(file) => void onLogo(file)}
                     />
                   </Field>
@@ -285,7 +315,7 @@ export function CompanyInfoPage() {
                     <Field label="Font">
                       <select
                         value={form.font_name}
-                        disabled={!canEdit}
+                        disabled={!canEditForm || isSaving}
                         onChange={(event) => set("font_name", event.target.value)}
                         className={controlClass}
                       >
@@ -305,7 +335,7 @@ export function CompanyInfoPage() {
                         max={14}
                         step={0.5}
                         value={form.font_size}
-                        disabled={!canEdit}
+                        disabled={!canEditForm || isSaving}
                         onChange={(event) => set("font_size", event.target.value)}
                         placeholder="11"
                         className={controlClass}
@@ -319,7 +349,7 @@ export function CompanyInfoPage() {
                         max={2}
                         step={0.05}
                         value={form.line_spacing}
-                        disabled={!canEdit}
+                        disabled={!canEditForm || isSaving}
                         onChange={(event) => set("line_spacing", event.target.value)}
                         placeholder="1.5"
                         className={controlClass}
@@ -348,44 +378,58 @@ export function CompanyInfoPage() {
                     />
                   </div>
 
-                  {info.updated_by ? (
-                    <p className="text-micro text-subdued">
-                      Last updated by <Identifier>{info.updated_by}</Identifier>
-                      {info.updated_at
-                        ? ` · ${new Date(info.updated_at).toLocaleString()}`
-                        : null}
-                    </p>
-                  ) : null}
-
                   {canEdit ? (
-                    <div className="flex items-center justify-end gap-3">
-                      {saved ? (
-                        <span className="inline-flex items-center gap-1 text-small text-approved-fg">
-                          <CheckCircle2 className="size-4" aria-hidden="true" />
-                          Saved
-                        </span>
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={onSave}
-                        disabled={!canSave}
-                        className="inline-flex h-[36px] items-center gap-2 rounded-control bg-primary px-4 text-small font-semibold text-white transition hover:bg-primary-dark disabled:opacity-50"
-                      >
-                        {isSaving ? (
-                          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                    <div className="flex items-center justify-between gap-3 rounded-card border border-border bg-surface p-4">
+                      <div>
+                        {info.updated_by ? (
+                          <p className="text-micro text-subdued">
+                            Last updated by <Identifier>{info.updated_by}</Identifier>
+                            {info.updated_at
+                              ? ` · ${new Date(info.updated_at).toLocaleString()}`
+                              : null}
+                          </p>
                         ) : (
-                          <Save className="size-4" aria-hidden="true" />
+                          <p className="text-micro text-subdued">No updates yet</p>
                         )}
-                        Save
-                      </button>
+                        {nameMissing ? (
+                          <p className="text-micro text-draft-fg mt-0.5">
+                            Add a company name to save.
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        {saved ? (
+                          <span className="inline-flex items-center gap-1 text-small text-approved-fg font-medium">
+                            <CheckCircle2 className="size-4" aria-hidden="true" />
+                            Saved
+                          </span>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={onSave}
+                          disabled={!canSave}
+                          className="inline-flex h-[36px] items-center gap-2 rounded-control bg-primary px-4 text-small font-semibold text-white transition hover:bg-primary-dark disabled:opacity-50"
+                        >
+                          {isSaving ? (
+                            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                          ) : (
+                            <Save className="size-4" aria-hidden="true" />
+                          )}
+                          Save
+                        </button>
+                      </div>
                     </div>
                   ) : null}
 
-                  {nameMissing && canEdit ? (
-                    <p className="text-right text-micro text-subdued">
-                      Add a company name to save.
-                    </p>
-                  ) : null}
+                  {/* Approval section matching reference Pharma 1 */}
+                  <CompanyApprovalPanel
+                    approval={approval}
+                    isLoading={isApprovalLoading}
+                    isComplete={Boolean(info.is_complete)}
+                    userRole={user?.role}
+                    onReload={reloadAll}
+                  />
                 </section>
               </div>
             )}

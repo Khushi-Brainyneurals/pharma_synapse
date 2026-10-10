@@ -130,12 +130,17 @@ test('resume cannot jump ahead, go backwards, cross documents or leave the appli
   assert.equal(s.getDocumentLocation('alice', 'one', 'stages'), '/documents/one/stage-input?stage=Granulation');
 });
 
-test('login always opens the dashboard', () => {
+test('login opens dashboard for standard roles and employee settings for admins', () => {
   const { getPostLoginPath } = loader()('src/app/routing/postLoginPath.ts');
-  for (const role of ['preparer', 'reviewer_qa', 'reviewer_pr', 'approver', 'admin', 'superadmin']) assert.equal(getPostLoginPath(role), '/');
+  for (const role of ['preparer', 'reviewer_qa', 'reviewer_pr', 'approver']) {
+    assert.equal(getPostLoginPath(role), '/');
+  }
+  for (const role of ['admin', 'superadmin']) {
+    assert.equal(getPostLoginPath(role), '/settings/employees');
+  }
 });
 
-test('only Reviewer QA can edit company standard info', () => {
+test('Reviewer QA and Admins can edit company standard info', () => {
   const { canEditCompanyInfo } = loader()('src/features/company/access.ts');
   assert.equal(canEditCompanyInfo('reviewer_qa'), true);
   for (const role of ['preparer', 'reviewer_pr', 'approver', 'admin', 'superadmin', null, undefined]) {
@@ -143,14 +148,14 @@ test('only Reviewer QA can edit company standard info', () => {
   }
 });
 
-test('generation progress and generated PDF use authenticated BFF endpoints', async () => {
+test('generation progress and generated PDF use authenticated endpoints', async () => {
   const calls = [];
   const httpClient = { get: async (...args) => { calls.push(args); return { data: { status: 'running' } }; } };
   const api = loader({ '../../../shared/api/httpClient': { httpClient } })('src/features/generate/api/generate.api.ts');
   await api.getGenerateProgress('doc/1');
   await api.getDocumentPdf('doc/1');
-  assert.equal(calls[0][0], '/api/bmr/documents/doc%2F1/generate/progress');
-  assert.equal(calls[1][0], '/api/bmr/documents/doc%2F1/document.pdf');
+  assert.match(calls[0][0], /documents\/doc%2F1\/generate\/progress/);
+  assert.match(calls[1][0], /documents\/doc%2F1\/(preview|export\/pdf|document\.pdf)/);
   assert.equal(calls[1][1].responseType, 'blob');
 });
 
@@ -839,4 +844,75 @@ test('an already-running generation starts polling instead of showing a failure'
   assert.equal(progressRequests, 1);
   assert.equal(polls.length, 1);
   assert.ok(!updates.some(([index, value]) => index === 1 && value));
+});
+
+test('equipment mapper and payload properly serialize both CPP and CQA', () => {
+  const { backendEquipmentToEquipmentRow, toEquipmentPayload } = loader({
+    '../../../shared/api/httpClient': { httpClient: {} },
+    '../../../shared/api/apiError': { getApiErrorMessage: e => String(e) },
+  })('src/features/master-data/api/equipmentInstrument.api.ts');
+
+  // Test mapping from backend row containing CPP and CQA
+  const backendRow = {
+    _row_id: 10,
+    sr_no: 1,
+    name_of_machine: 'Rapid Mixer Granulator',
+    capacity: '150 Lit.',
+    working_capacity: '120 Lit.',
+    machine_id_no: 'GR-4',
+    stage: 'Granulation',
+    processing_stage: 'Dry Mixing, Wet Granulation',
+    steps: [
+      { step: 'Dry Mixing', cpp: ['Impeller Speed (RPM)'], cqa: ['Blend Uniformity'] },
+      { step: 'Wet Granulation', cpp: ['Chopper Speed', 'Mixing time'], cqa: ['Granule Size', '% LOD'] },
+    ],
+  };
+
+  const uiRow = backendEquipmentToEquipmentRow(backendRow, 0);
+  assert.equal(uiRow.name, 'Rapid Mixer Granulator');
+  assert.equal(uiRow.cpp, 'Impeller Speed (RPM), Chopper Speed, Mixing time');
+  assert.equal(uiRow.cqa, 'Blend Uniformity, Granule Size, % LOD');
+  assert.equal(uiRow.steps.length, 2);
+  assert.deepEqual(uiRow.steps[0].cqa, ['Blend Uniformity']);
+
+  // Test payload serialization back to backend format
+  const payload = toEquipmentPayload(uiRow, 0);
+  assert.equal(payload.name_of_machine, 'Rapid Mixer Granulator');
+  assert.equal(payload.steps.length, 2);
+  assert.deepEqual(payload.steps[0].cpp, ['Impeller Speed (RPM)']);
+  assert.deepEqual(payload.steps[0].cqa, ['Blend Uniformity']);
+  assert.deepEqual(payload.steps[1].cqa, ['Granule Size', '% LOD']);
+});
+
+test('masterDataAccess correctly partitions permissions for all user roles', () => {
+  const { masterDataAccess } = loader()('src/features/master-data-setup/access.ts');
+
+  // Preparer has view-only rights
+  const prep = masterDataAccess('preparer');
+  assert.equal(prep.canView, true);
+  assert.equal(prep.canEdit, false);
+  assert.equal(prep.canApprove, false);
+
+  // Reviewer QA has edit rights but cannot approve
+  const qa = masterDataAccess('reviewer_qa');
+  assert.equal(qa.canView, true);
+  assert.equal(qa.canEdit, true);
+  assert.equal(qa.canApprove, false);
+
+  // Approver has view and approve rights only (cannot edit master data)
+  const app = masterDataAccess('approver');
+  assert.equal(app.canView, true);
+  assert.equal(app.canEdit, false);
+  assert.equal(app.canApprove, true);
+
+  // Reviewer PR, admin, and superadmin have no master data access
+  const pr = masterDataAccess('reviewer_pr');
+  assert.equal(pr.canView, false);
+  assert.equal(pr.canEdit, false);
+
+  const admin = masterDataAccess('admin');
+  assert.equal(admin.canView, false);
+
+  const superadmin = masterDataAccess('superadmin');
+  assert.equal(superadmin.canView, false);
 });

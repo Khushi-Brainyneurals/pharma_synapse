@@ -94,10 +94,24 @@ export function GenerateSubmitPage() {
       };
 
       setState(next);
+      setError(null);
       if (progress.status !== "running") stopPolling();
       return progress;
-    } catch (caught) {
+    } catch (caught: any) {
       stopPolling();
+      const status = caught?.response?.status;
+      const detail = String(caught?.response?.data?.detail ?? caught?.message ?? "");
+      if (status === 404 || detail.toLowerCase().includes("no generate job found")) {
+        setState({
+          document_id: documentId,
+          status: "not_started",
+          has_artifact: false,
+          artifact_size: null,
+          error_message: null,
+        });
+        setError(null);
+        return null;
+      }
       setError(getApiErrorMessage(caught, "Could not read the generation status."));
       return null;
     }
@@ -291,7 +305,7 @@ export function GenerateSubmitPage() {
                 isBlobDocx ? (
                   <DocxViewer
                     file={{ blob: previewBlob, filename, format: "docx" }}
-                    reserveBottomActionsSpace
+                    containerHeightClass="h-[calc(100vh-390px)] min-h-[420px]"
                   />
                 ) : (
                   <DocumentViewer
@@ -316,6 +330,15 @@ export function GenerateSubmitPage() {
                     real file, exactly as it will print.
                   </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => void generate()}
+                  disabled={isBusy}
+                  className="mt-2 inline-flex items-center gap-2 rounded-control bg-primary px-4 py-2 text-small font-semibold text-white transition hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Download className="size-4" aria-hidden="true" />
+                  Build .docx
+                </button>
               </div>
             )}
 

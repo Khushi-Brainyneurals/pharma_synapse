@@ -230,7 +230,7 @@ return (
       <div className="lg:grid lg:h-[calc(100vh-var(--topbar-h))] lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden">
         <AppSidebar user={user} />
         <main className="min-w-0 min-h-0 lg:h-full lg:overflow-y-auto">
-          <div className="mx-auto space-y-5">
+          <div className="mx-auto flex min-h-full flex-col gap-5">
             <WizardHeader
               activeStepId="stages"
               completedStepIds={document?.completed_steps ?? []}
@@ -300,7 +300,7 @@ return (
                 </div>
 
                 {/* Sticky Footer moved outside the card to match Cover + BOM page */}
-                <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t bg-surface p-3.5 shadow-auth">
+                <div className="sticky bottom-0 z-10 mt-auto flex flex-wrap items-center justify-between gap-3 border-t bg-surface p-3.5 shadow-auth">
                   <button
                     type="button"
                     onClick={() => goToStep("cover-bom")}

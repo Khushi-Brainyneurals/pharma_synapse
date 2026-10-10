@@ -32,11 +32,15 @@ function ownerRoute(item: BoardItem): string {
     case "approved":
     case "rejected":
       return `/documents/${id}/review`;
-    default:
+    default: {
+      const s = (item.status || "").toLowerCase();
       // in-progress drafts open where their next input lives
-      if (["extracted", "stages_set"].includes(item.status)) return `/documents/${id}/cover-bom`;
-      if (["generating", "generated"].includes(item.status)) return `/documents/${id}/generate`;
+      if (["cover_review", "review_cover", "extracted", "stages_set", "cover_bom", "cover-bom"].includes(s)) return `/documents/${id}/cover-bom`;
+      if (["format_preview", "preview"].includes(s)) return `/documents/${id}/preview`;
+      if (["stage_params", "stages", "stage-input"].includes(s)) return `/documents/${id}/stages`;
+      if (["generating", "generated"].includes(s)) return `/documents/${id}/generate`;
       return `/documents/${id}/inputs`;
+    }
   }
 }
 
@@ -67,7 +71,7 @@ export function StatusBoardPage() {
   const load = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await getBoard();
+      const response = await getBoard(user?.role);
       setItems(response.items);
       setLoadedAt(Date.now());
       setError(null);
@@ -76,7 +80,7 @@ export function StatusBoardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [user?.role]);
 
   useEffect(() => {
     void load();
@@ -140,10 +144,10 @@ export function StatusBoardPage() {
     <div className="min-h-screen bg-background text-text">
       <AppHeader user={user} unit={user?.unitId ? { id: user.unitId } : null} title="Status board" />
 
-      <div className="flex">
+      <div className="lg:grid lg:h-[calc(100vh-var(--topbar-h))] lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden">
         <AppSidebar user={user} />
 
-        <main className="min-w-0 flex-1 p-4 lg:p-6">
+        <main className="min-w-0 min-h-0 p-4 lg:p-6 lg:h-full lg:overflow-y-auto">
           <div className="mx-auto max-w-6xl space-y-5">
             {/* Title + refresh */}
             <header className="flex flex-wrap items-start justify-between gap-3">

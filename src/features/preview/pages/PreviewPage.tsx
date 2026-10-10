@@ -149,7 +149,10 @@ export function PreviewPage() {
                     errorTitle="Could not render the format preview"
                   />
                 ) : (
-                  <DocxViewer file={formatPreview} reserveBottomActionsSpace />
+                  <DocxViewer
+                    file={formatPreview}
+                    containerHeightClass="h-[calc(100vh-390px)] min-h-[420px]"
+                  />
                 )}
 
                 {/* Sticky Footer matching Cover + BOM Page */}

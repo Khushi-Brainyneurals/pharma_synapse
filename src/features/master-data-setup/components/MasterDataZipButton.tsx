@@ -1,36 +1,76 @@
 import { Download, Loader2 } from "lucide-react";
 import { useState } from "react";
-import { getApiErrorMessage } from "../../../shared/api/apiError";
-import { downloadMasterDataZip } from "../../master-data/api/masterDataAdmin";
+import JSZip from "jszip";
+import { useSetupStore } from "../state/setupStore";
 
 /**
- * Downloads the full master data (equipment + instrument + company info) as a ZIP, with a
- * real progress bar driven by the download's Content-Length.
+ * Downloads the full master data (equipment + instrument + setup draft) as a ZIP client-side.
+ * Works seamlessly whether online or offline without relying on a missing backend zip endpoint.
  */
 export function MasterDataZipButton() {
   const [busy, setBusy] = useState(false);
-  const [pct, setPct] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const download = async () => {
     setBusy(true);
-    setPct(0);
     setError(null);
     try {
-      const blob = await downloadMasterDataZip(setPct);
+      const state = useSetupStore.getState();
+      const zip = new JSZip();
+
+      // 1. Equipment CSV
+      const equipHeaders = "Sr,Name of Machine,Capacity,Working Capacity,M/C ID No,Stage,Processing Stage,CPP\n";
+      const equipLines = state.equipment
+        .map(
+          (e) =>
+            `"${e.sr}","${e.name.replace(/"/g, '""')}","${e.capacity}","${e.workingCap}","${e.mcId}","${e.stage}","${e.procStage}","${(e.cpp || "").replace(/"/g, '""')}"`,
+        )
+        .join("\n");
+      zip.file("equipment-master.csv", equipHeaders + equipLines);
+
+      // 2. Instrument CSV
+      const instrHeaders = "Sr,Name of Instrument,Instrument ID No,Location,Stages\n";
+      const instrLines = state.instrument
+        .map(
+          (i) =>
+            `"${i.sr}","${i.name.replace(/"/g, '""')}","${i.instrumentId}","${i.location}","${Array.isArray(i.stages) ? i.stages.join(", ") : i.stages}"`,
+        )
+        .join("\n");
+      zip.file("instrument-master.csv", instrHeaders + instrLines);
+
+      // 3. Complete Master Data JSON
+      const fullJson = JSON.stringify(
+        {
+          exported_at: new Date().toISOString(),
+          equipment: state.equipment,
+          instrument: state.instrument,
+          batch_uploads: state.batchUploads,
+          stage_uploads: state.uploads,
+        },
+        null,
+        2,
+      );
+      zip.file("master-data.json", fullJson);
+
+      // 4. Readme text
+      zip.file(
+        "README.txt",
+        `Pharma Synapse Master Data Export\nExported: ${new Date().toLocaleString()}\nEquipment count: ${state.equipment.length}\nInstrument count: ${state.instrument.length}\n`,
+      );
+
+      const blob = await zip.generateAsync({ type: "blob" });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = "pharma-master-data.zip";
+      anchor.download = `pharma-master-data-${new Date().toISOString().slice(0, 10)}.zip`;
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(url);
-    } catch (caught) {
-      setError(getApiErrorMessage(caught, "Could not download the master data ZIP."));
+    } catch (caught: any) {
+      setError(caught?.message || "Could not generate master data ZIP.");
     } finally {
       setBusy(false);
-      setPct(0);
     }
   };
 
@@ -47,13 +87,8 @@ export function MasterDataZipButton() {
         ) : (
           <Download className="size-4" aria-hidden="true" />
         )}
-        {busy ? `Preparing ZIP… ${pct}%` : "Download ZIP"}
+        {busy ? "Creating ZIP…" : "Download ZIP"}
       </button>
-      {busy ? (
-        <div className="h-1 w-40 overflow-hidden rounded-full bg-sunken" aria-hidden="true">
-          <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
-        </div>
-      ) : null}
       {error ? <span className="text-micro text-danger">{error}</span> : null}
     </div>
   );

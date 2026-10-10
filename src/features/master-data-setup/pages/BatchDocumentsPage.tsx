@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { masterDataAccess } from "../access";
+import { getOtherDocumentsChecklist, removeOtherDocument, uploadOtherDocument } from "../api/masterDataDocuments.api";
 import { HowThisWorks } from "../components/HowThisWorks";
 import { SetupShell } from "../components/SetupShell";
 import { StepFooter } from "../components/StepFooter";
@@ -15,6 +17,32 @@ export function BatchDocumentsPage() {
   const uploads = useSetupStore((s) => s.batchUploads);
   const setUpload = useSetupStore((s) => s.setBatchUpload);
   const removeUpload = useSetupStore((s) => s.removeBatchUpload);
+
+  useEffect(() => {
+    let cancelled = false;
+    getOtherDocumentsChecklist("tablet", "bmr")
+      .then((res) => {
+        if (cancelled) return;
+        res.slots.forEach((slot) => {
+          if (slot.uploaded) {
+            const format: "PDF" | "DOCX" = (slot.file_name || "").toLowerCase().endsWith(".docx") ? "DOCX" : "PDF";
+            setUpload(slot.code, {
+              filename: slot.file_name || `${slot.code}.docx`,
+              sizeKB: 24,
+              by: slot.uploaded_by || "Master Data",
+              at: slot.uploaded_at ? new Date(slot.uploaded_at).toLocaleDateString() : "Uploaded",
+              format,
+            });
+          }
+        });
+      })
+      .catch(() => {
+        /* fallback to store */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [setUpload]);
 
   const done = BATCH_DOCS.filter((d) => uploads[d.code]).length;
   const total = BATCH_DOCS.length;
@@ -57,8 +85,16 @@ export function BatchDocumentsPage() {
             letter={LETTERS[i]}
             file={uploads[d.code] ?? null}
             canEdit={canEdit}
-            onUpload={(f) => setUpload(d.code, f)}
-            onRemove={() => removeUpload(d.code)}
+            onUpload={(f) => {
+              setUpload(d.code, f);
+              if (f.rawFile) {
+                void uploadOtherDocument("tablet", "bmr", d.code, f.rawFile).catch(() => {});
+              }
+            }}
+            onRemove={() => {
+              removeUpload(d.code);
+              void removeOtherDocument("tablet", "bmr", d.code).catch(() => {});
+            }}
           />
         ))}
       </section>

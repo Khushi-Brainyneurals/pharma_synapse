@@ -416,10 +416,10 @@ export function StageInputPage() {
   return (
     <div className="min-h-screen bg-background text-text">
       <AppHeader user={user} unit={user?.unitId ? { id: user.unitId } : null} />
-      <div className="flex">
+      <div className="lg:grid lg:h-[calc(100vh-var(--topbar-h))] lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden">
         <AppSidebar user={user} />
-        <main className="min-w-0 flex-1 p-4 lg:p-6">
-          <div className="mx-auto max-w-3xl space-y-5">
+        <main className="min-w-0 min-h-0 px-6 pt-4 lg:h-full lg:overflow-y-auto lg:px-6 lg:pt-6">
+          <div className="flex min-h-full w-full flex-col gap-5">
             <header className="flex flex-wrap items-end justify-between gap-3">
               <div>
                 <button
@@ -534,13 +534,13 @@ export function StageInputPage() {
                 ) : null}
 
                 {/* type toggle */}
-                {supportsEquipment || supportsInstrument ? <div className="inline-flex rounded-pill border border-border bg-sunken p-0.5">
+                {supportsEquipment || supportsInstrument ? <div className="inline-flex w-[210px] max-w-full self-start rounded-pill border border-border bg-sunken p-0.5">
                   {(["equipment", "instrument"] as Mode[]).filter((m) => m === "equipment" ? supportsEquipment : supportsInstrument).map((m) => (
                     <button
                       key={m}
                       type="button"
                       onClick={() => switchMode(m)}
-                      className={`rounded-pill px-5 py-1.5 text-small font-semibold capitalize transition ${
+                      className={`min-w-0 flex-1 rounded-pill px-4 py-1.5 text-small font-semibold capitalize transition ${
                         mode === m ? "bg-primary text-white shadow-sm" : "text-subdued"
                       }`}
                     >
@@ -755,6 +755,7 @@ export function StageInputPage() {
                 </div> : null}
 
                 <WizardFooter
+                  className="-mx-4 lg:-mx-6"
                   onBack={() => goToStep("stages")}
                   backLabel="Back without saving"
                   onNext={() => void save()}

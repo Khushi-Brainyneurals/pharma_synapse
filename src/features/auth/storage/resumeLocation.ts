@@ -2,8 +2,25 @@
 const PREFIX = "bmr.client.document-location";
 const LEGACY_KEY = "bmr.client.resume";
 const STEP_PATHS: Record<string, string> = {
-  type: "inputs", inputs: "inputs", preview: "preview", "cover-bom": "cover-bom",
-  stages: "stages", "stage-input": "stage-input", "generate-submit": "generate",
+  type: "inputs",
+  inputs: "inputs",
+  core_inputs: "inputs",
+  core_input: "inputs",
+  preview: "preview",
+  format_preview: "preview",
+  "cover-bom": "cover-bom",
+  cover_bom: "cover-bom",
+  cover_review: "cover-bom",
+  review_cover: "cover-bom",
+  cover: "cover-bom",
+  bom: "cover-bom",
+  stages: "stages",
+  select_stages: "stages",
+  stage_params: "stages",
+  "stage-input": "stage-input",
+  "generate-submit": "generate",
+  generate: "generate",
+  submit: "generate",
 };
 const ORDER = ["inputs", "preview", "cover-bom", "stages", "stage-input", "generate"];
 const keyFor = (username: string, documentId: string) => `${PREFIX}:${encodeURIComponent(username)}:${encodeURIComponent(documentId)}`;
@@ -30,7 +47,8 @@ export function getDocumentLocation(username: string, documentId: string, resume
     }
     if (!path || !wizardPath(documentId, path)) return null;
     const savedStep = path.split("/")[3].split(/[?#]/)[0];
-    const furthest = STEP_PATHS[resumeStep];
+    const key = (resumeStep || "").toLowerCase().trim();
+    const furthest = STEP_PATHS[key] ?? STEP_PATHS[resumeStep];
     // Refine the server's current step; never jump forward or resume an earlier state.
     if (savedStep === furthest || (furthest === "stages" && savedStep === "stage-input")) return path;
   } catch { /* unavailable storage or an invalid legacy entry */ }

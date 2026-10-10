@@ -1,6 +1,7 @@
 import { ChevronDown } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { masterDataAccess } from "../access";
+import { getStageChecklist, removeStageDocument, uploadStageDocument } from "../api/masterDataDocuments.api";
 import { HowThisWorks } from "../components/HowThisWorks";
 import { SetupShell } from "../components/SetupShell";
 import { StepFooter } from "../components/StepFooter";
@@ -10,6 +11,17 @@ import { useSetupStore } from "../state/setupStore";
 import { useAuthStore } from "../../auth/state/auth.store";
 
 const LETTERS = "abcdefghij";
+
+const STAGE_KEY_MAP: Record<string, string> = {
+  dispensing: "dispensing_rm",
+  granulation: "granulation",
+  compression: "compression",
+  inspection_uncoated: "uncoated_inspection",
+  dispensing_coating: "dispensing_coating",
+  coating: "coating",
+  inspection_coated: "coated_inspection",
+  reconciliation: "batch_yield_reconciliation",
+};
 
 export function StageDocumentsPage() {
   const user = useAuthStore((s) => s.user);
@@ -25,6 +37,36 @@ export function StageDocumentsPage() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
     firstIncomplete ? { [firstIncomplete]: true } : {},
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    getStageChecklist("tablet", "bmr")
+      .then((res) => {
+        if (cancelled) return;
+        res.stages.forEach((stage) => {
+          stage.slots.forEach((slot) => {
+            if (slot.uploaded) {
+              const format: "PDF" | "DOCX" = (slot.file_name || "").toLowerCase().endsWith(".docx") ? "DOCX" : "PDF";
+              setUpload(slot.code, {
+                filename: slot.file_name || `${slot.code}.docx`,
+                sizeKB: 24,
+                by: slot.uploaded_by || "Master Data",
+                at: slot.uploaded_at ? new Date(slot.uploaded_at).toLocaleDateString() : "Uploaded",
+                format,
+                stageKey: stage.stage_key,
+              });
+            }
+          });
+        });
+      })
+      .catch(() => {
+        /* fallback to existing store */
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [setUpload]);
 
   const setAll = (open: boolean) =>
     setExpanded(Object.fromEntries(STAGE_SECTIONS.map((s) => [s.key, open])));
@@ -101,8 +143,18 @@ export function StageDocumentsPage() {
                       letter={LETTERS[i]}
                       file={uploads[d.code] ?? null}
                       canEdit={access.canEdit}
-                      onUpload={(f) => setUpload(d.code, f)}
-                      onRemove={() => removeUpload(d.code)}
+                      onUpload={(f) => {
+                        const stageKey = STAGE_KEY_MAP[sec.key] || sec.key;
+                        setUpload(d.code, { ...f, stageKey });
+                        if (f.rawFile) {
+                          void uploadStageDocument("tablet", "bmr", stageKey, d.code, f.rawFile).catch(() => {});
+                        }
+                      }}
+                      onRemove={() => {
+                        const stageKey = STAGE_KEY_MAP[sec.key] || sec.key;
+                        removeUpload(d.code);
+                        void removeStageDocument("tablet", "bmr", stageKey, d.code).catch(() => {});
+                      }}
                     />
                   ))}
                   {access.canEdit ? (

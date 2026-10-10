@@ -11,12 +11,10 @@ interface LetterheadPreviewProps {
 }
 
 /**
- * Live letterhead preview — screen #10.
+ * Live letterhead preview — aligned with Document Preview format (Page 15 of UI spec).
  *
- * Shows exactly what will print at the top of every generated document, in the chosen
- * font. The point of the screen is that the QA reviewer sees the header before it becomes the
- * header on a controlled record, so this renders with the real font stack, not a
- * placeholder.
+ * Shows exactly what prints at the top of every generated document:
+ * Logo on the left, centered Company name, divider rule, and BMR title.
  */
 export function LetterheadPreview({
   companyName,
@@ -39,24 +37,29 @@ export function LetterheadPreview({
 
   return (
     <div
-      className="rounded-card border border-border bg-white p-6 text-black"
+      className="rounded-card border border-black/80 bg-white p-5 text-black shadow-sm"
       style={{
         fontFamily: FONT_STACKS[fontName] ?? "serif",
         fontSize: fontSize ? `${fontSize}pt` : undefined,
         lineHeight: lineSpacing ?? undefined,
       }}
     >
-      <div className="flex items-start gap-4 border-b-2 border-black pb-3">
+      {/* Top row: Logo on left, Centered Company Name & details in center */}
+      <div className="relative flex min-h-[56px] items-center justify-center pb-3">
         {logoUrl ? (
-          <img src={logoUrl} alt="" className="h-12 shrink-0 object-contain" />
+          <img
+            src={logoUrl}
+            alt=""
+            className="absolute left-0 top-1/2 h-11 max-w-[100px] -translate-y-1/2 object-contain"
+          />
         ) : (
-          <span className="inline-flex size-12 shrink-0 items-center justify-center rounded border border-black/20 bg-black/5 text-micro font-bold">
+          <span className="absolute left-0 top-1/2 inline-flex size-10 -translate-y-1/2 items-center justify-center rounded border border-black/20 bg-black/5 text-micro font-bold">
             LOGO
           </span>
         )}
 
-        <div className="min-w-0">
-          <p className="truncate font-bold">
+        <div className="text-center">
+          <p className="text-base font-bold tracking-tight">
             {companyName.trim() || "Company name"}
           </p>
           {address.trim() ? (
@@ -67,9 +70,18 @@ export function LetterheadPreview({
         </div>
       </div>
 
-      <p className="mt-3 text-center text-[0.75em] uppercase tracking-wide text-black/60">
-        Batch Manufacturing Record
-      </p>
+      {/* Horizontal divider rule */}
+      <div className="border-b-2 border-black" />
+
+      {/* Document title subtitle below rule */}
+      <div className="pt-2 text-center">
+        <p className="text-[0.82em] font-bold uppercase tracking-wider text-black">
+          BATCH MANUFACTURING RECORD
+        </p>
+        <p className="mt-0.5 text-[0.75em] text-black/75">
+          <span className="font-semibold">Department:</span> Production
+        </p>
+      </div>
     </div>
   );
 }

@@ -169,8 +169,12 @@ export function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    if (user?.role === "admin" || user?.role === "superadmin") {
+      navigate(ROUTES.employees, { replace: true });
+      return;
+    }
     void load();
-  }, [load]);
+  }, [user?.role, navigate, load]);
 
   useEffect(() => {
     if (!toast) return;
@@ -296,7 +300,7 @@ export function DashboardPage() {
         <AppSidebar user={user} />
 
         <main className="px-6 py-6 lg:px-8 min-w-0 min-h-0 lg:h-full lg:overflow-y-auto">
-          <div className="mx-auto max-w-[1280px]">
+          <div className="mx-auto">
             <div className="mb-5 flex flex-wrap items-end gap-4">
               <h1 className="text-h1 font-semibold tracking-tight">
                 {user?.role === "preparer" ? "Your documents" : "Documents"}

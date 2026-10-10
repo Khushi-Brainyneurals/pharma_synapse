@@ -44,10 +44,10 @@ export function ReviewQueuePage() {
         title={isPreparer ? "My documents" : "Review document"}
       />
 
-      <div className="flex">
+      <div className="lg:grid lg:h-[calc(100vh-var(--topbar-h))] lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden">
         <AppSidebar user={user} />
 
-        <main className="min-w-0 flex-1 p-4 lg:p-6">
+        <main className="min-w-0 min-h-0 p-4 lg:p-6 lg:h-full lg:overflow-y-auto">
           <div className="mx-auto max-w-5xl space-y-5">
             <header>
               <h1 className="text-h1 font-semibold">

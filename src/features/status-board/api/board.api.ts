@@ -1,4 +1,5 @@
 import { httpClient } from "../../../shared/api/httpClient";
+import { useAuthStore } from "../../auth/state/auth.store";
 
 /** One document as it sits on the read-only status board. */
 export interface BoardItem {
@@ -23,17 +24,38 @@ export interface BoardResponse {
   items: BoardItem[];
 }
 
-export async function getBoard(): Promise<BoardResponse> {
+export async function getBoard(role?: string): Promise<BoardResponse> {
+  const currentRole = role || useAuthStore.getState().user?.role;
+  const isOverviewRole =
+    currentRole === "approver" || currentRole === "admin" || currentRole === "superadmin";
+  const endpoint = isOverviewRole
+    ? "/api/documents/dashboard/overview"
+    : "/api/documents/dashboard/me";
+
   let res: any;
   try {
-    res = await httpClient.get<any>("/api/documents/dashboard/overview");
-  } catch {
-    res = await httpClient.get<any>("/api/documents/dashboard/me");
+    res = await httpClient.get<any>(endpoint);
+  } catch (err: any) {
+    if (isOverviewRole) {
+      try {
+        res = await httpClient.get<any>("/api/documents/dashboard/me");
+      } catch (err2: any) {
+        if (err2?.response?.status === 403) {
+          return { role: currentRole || "admin", items: [] };
+        }
+        throw err2;
+      }
+    } else {
+      if (err?.response?.status === 403) {
+        return { role: currentRole || "preparer", items: [] };
+      }
+      throw err;
+    }
   }
-  const data = res.data;
+  const data = res?.data ?? {};
   const docs = Array.isArray(data.documents) ? data.documents : [];
   return {
-    role: data.role || "preparer",
+    role: data.role || currentRole || "preparer",
     items: docs.map((d: any) => ({
       document_id: d.job_id || d.document_id,
       bmr_number: d.document_no || null,
