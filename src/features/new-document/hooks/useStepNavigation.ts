@@ -6,7 +6,6 @@ import { ROUTES } from "../../../app/routing/routes";
 const STEP_ROUTES: Record<string, (documentId: string) => string> = {
   type: () => ROUTES.newDocument,
   inputs: (id) => `/documents/${encodeURIComponent(id)}/inputs`,
-  preview: (id) => `/documents/${encodeURIComponent(id)}/preview`,
   "cover-bom": (id) => `/documents/${encodeURIComponent(id)}/cover-bom`,
   stages: (id) => `/documents/${encodeURIComponent(id)}/stages`,
   "stage-input": (id) => `/documents/${encodeURIComponent(id)}/stage-input`,

@@ -8,8 +8,8 @@ const STEP_ALIASES: Record<string, string> = {
   inputs: "inputs",
   core_inputs: "inputs",
   core_input: "inputs",
-  preview: "preview",
-  format_preview: "preview",
+  preview: "cover-bom",
+  format_preview: "cover-bom",
   "cover-bom": "cover-bom",
   cover_bom: "cover-bom",
   cover_review: "cover-bom",
@@ -34,7 +34,7 @@ export function resolveDocumentRoute(item: DashboardItem): string {
 
   const label = (item.state_label || item.state || "").toLowerCase();
   if (label.includes("cover") || label.includes("bom")) return "cover-bom";
-  if (label.includes("preview")) return "preview";
+  if (label.includes("preview")) return "cover-bom";
   if (label.includes("stage")) return "stages";
   if (label.includes("generate") || label.includes("submit")) return "generate";
   if (label.includes("review") || label.includes("approval")) return "review";

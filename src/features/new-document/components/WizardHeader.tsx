@@ -18,7 +18,7 @@ interface WizardHeaderProps {
 }
 
 /**
- * The top band every wizard step shares: the clickable stepper, then a "STEP n OF 7"
+ * The top band every wizard step shares: the clickable stepper, then a "STEP n OF total"
  * overline + title + description on the left and the document's reference/status badges
  * on the right — one panel, matching the designed screens.
  */

@@ -10,7 +10,10 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
-import { getApiErrorMessage } from "../../../shared/api/apiError";
+import {
+  getApiErrorMessage,
+  isGenerationInProgressError,
+} from "../../../shared/api/apiError";
 import { useAuthStore } from "../../auth/state/auth.store";
 import { AppHeader } from "../../new-document/components/AppHeader";
 import { AppSidebar } from "../../new-document/components/AppSidebar";
@@ -48,7 +51,12 @@ export function CoverBomPage() {
   const [downloading, setDownloading] = useState(false);
   const generationControllerRef = useRef<AbortController | null>(null);
   const generationInFlightRef = useRef(false);
-  const resumeGeneration = Boolean((location.state as { coverGenerationStarted?: boolean } | null)?.coverGenerationStarted);
+  const generationNavigationState = location.state as {
+    coverGenerationStarted?: boolean;
+    startCoverGeneration?: boolean;
+  } | null;
+  const resumeGeneration = Boolean(generationNavigationState?.coverGenerationStarted);
+  const startCoverGeneration = Boolean(generationNavigationState?.startCoverGeneration);
   const isBmr = bom?.doc_type === "bmr";
 
   // The reference pill: the BMR number once assigned (at submission), otherwise the
@@ -137,7 +145,15 @@ export function CoverBomPage() {
     generationControllerRef.current = controller;
 
     try {
-      if (startGeneration) await generateBom(documentId, controller.signal);
+      if (startGeneration) {
+        try {
+          await generateBom(documentId, controller.signal);
+        } catch (caught) {
+          // The requested cover job already exists. This is a successful handoff:
+          // observe that attempt through the normal progress endpoint.
+          if (!isGenerationInProgressError(caught)) throw caught;
+        }
+      }
       while (!controller.signal.aborted) {
         const progress = await getCoverGenerationProgress(documentId, controller.signal);
         setGenerationProgress(progress);
@@ -171,7 +187,8 @@ export function CoverBomPage() {
 
   useEffect(() => {
     const loadController = new AbortController();
-    if (resumeGeneration) void runGeneration(false);
+    if (startCoverGeneration) void runGeneration(true);
+    else if (resumeGeneration) void runGeneration(false);
     else {
       void (async () => {
         const current = await load(loadController.signal);
@@ -181,9 +198,13 @@ export function CoverBomPage() {
           if (progress.status === "started" || progress.status === "running" || progress.status === "done") {
             setGenerationProgress(progress);
             void runGeneration(false);
+          } else {
+            void runGeneration(true);
           }
         } catch {
-          // No generation exists yet. Stay in the explicit "not generated" state.
+          // No generation exists yet: Core Inputs now flows directly into this page,
+          // so start the normal cover job instead of waiting for a separate preview step.
+          if (!loadController.signal.aborted) void runGeneration(true);
         }
       })();
     }
@@ -194,7 +215,7 @@ export function CoverBomPage() {
       generationInFlightRef.current = false;
       controller?.abort();
     };
-  }, [load, resumeGeneration, runGeneration]);
+  }, [load, resumeGeneration, runGeneration, startCoverGeneration]);
 
   const accept = useCallback(() => goToStep("stages"), [goToStep]);
 
@@ -379,21 +400,43 @@ function ErrorPanel({ message, onRetry }: { message: string; onRetry: () => void
 }
 
 function buildIngredientEdits(bom: BomResponse, changes: BomFieldChange[]) {
-  const rows = new Map<number, { ingredient_name: string; sr_no: number; uom: string }>();
+  const rows = new Map<number, {
+    ingredient_name: string;
+    material_code: string | null;
+    sr_no: number;
+    qty_per_mfc_batch: number | null;
+    qty_required_production: number | null;
+    uom: string;
+  }>();
   for (const change of changes) {
     const ingredient = bom.ingredients[change.row_index];
     if (!ingredient) continue;
     const edit = rows.get(change.row_index) ?? {
       ingredient_name: ingredient.name,
+      material_code: ingredient.material_code,
       sr_no: ingredient.sr_no ?? 0,
+      qty_per_mfc_batch: ingredient.qty_per_mfc_batch,
+      qty_required_production: ingredient.qty_required_production,
       uom: ingredient.uom ?? "kg",
     };
     if (change.field === "name") edit.ingredient_name = change.to.trim();
+    if (change.field === "material_code") edit.material_code = change.to.trim() || null;
     if (change.field === "sr_no") edit.sr_no = Number(change.to);
+    if (change.field === "qty_per_mfc_batch") {
+      edit.qty_per_mfc_batch = nullableNumber(change.to);
+    }
+    if (change.field === "qty_required_production") {
+      edit.qty_required_production = nullableNumber(change.to);
+    }
     if (change.field === "uom") edit.uom = change.to.trim();
     rows.set(change.row_index, edit);
   }
   return [...rows.values()];
+}
+
+function nullableNumber(value: string): number | null {
+  const trimmed = value.trim();
+  return trimmed === "" ? null : Number(trimmed);
 }
 
 function delay(ms: number, signal: AbortSignal) {

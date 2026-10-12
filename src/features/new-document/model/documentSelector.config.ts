@@ -18,7 +18,6 @@ export const RELEASE_TOOLTIP =
 export const DOCUMENT_SELECTOR_STEPS: DocumentStep[] = [
   { id: "type", label: "Type" },
   { id: "inputs", label: "Core inputs" },
-  { id: "preview", label: "Preview" },
   { id: "cover-bom", label: "Cover + BOM" },
   { id: "stages", label: "Select stage & stage inputs" },
   { id: "generate-submit", label: "Generate & submit" },

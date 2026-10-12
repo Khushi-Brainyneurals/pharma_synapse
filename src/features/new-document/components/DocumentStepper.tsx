@@ -28,9 +28,8 @@ export function DocumentStepper({
         {steps.map((step, index) => {
           const isActive = step.id === activeStepId;
           // Green = you've walked past it. In a linear wizard every step BEFORE the
-          // current one is done, regardless of the coarse document status — Preview,
-          // for instance, has no status of its own, so a status-only check left it
-          // white even after you'd moved on. Position is the source of truth here; the
+          // current one is done, regardless of the coarse document status. Position
+          // is the source of truth here; the
           // server's completed_steps is kept as an extra allow-list for direct links.
           const isComplete =
             !isActive && (index < activeIndex || completed.has(step.id));

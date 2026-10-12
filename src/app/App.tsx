@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { env } from "../shared/config/env";
 import { DashboardPage } from "../features/dashboard/pages/DashboardPage";
 import { CoreInputsPage } from "../features/core-inputs/pages/CoreInputsPage";
@@ -18,7 +18,6 @@ import { EquipmentListPage as MdEquipmentPage } from "../features/master-data-se
 import { InstrumentListPage as MdInstrumentPage } from "../features/master-data-setup/pages/InstrumentListPage";
 import { BatchDocumentsPage as MdBatchDocsPage } from "../features/master-data-setup/pages/BatchDocumentsPage";
 import { PreviewPage as MdPreviewPage } from "../features/master-data-setup/pages/PreviewPage";
-import { PreviewPage } from "../features/preview/pages/PreviewPage";
 import { GenerateSubmitPage } from "../features/generate/pages/GenerateSubmitPage";
 import { StageInputPage } from "../features/stage-input/pages/StageInputPage";
 import { SelectStagesPage } from "../features/stages/pages/SelectStagesPage";
@@ -79,7 +78,7 @@ export function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path={ROUTES.newDocument} element={<NewDocumentSelectorPage />} />
           <Route path={ROUTES.documentInputs} element={<CoreInputsPage />} />
-          <Route path={ROUTES.documentPreview} element={<PreviewPage />} />
+          <Route path={ROUTES.documentPreview} element={<LegacyPreviewRedirect />} />
           <Route path={ROUTES.documentCoverBom} element={<CoverBomPage />} />
           <Route path={ROUTES.documentStages} element={<SelectStagesPage />} />
           <Route path={ROUTES.documentStageInput} element={<StageInputPage />} />
@@ -104,4 +103,10 @@ export function App() {
       </Routes>
     </ErrorBoundary>
   );
+}
+
+/** Old saved/bookmarked preview URLs now skip directly to Cover + BOM. */
+function LegacyPreviewRedirect() {
+  const { documentId = "" } = useParams();
+  return <Navigate to={`/documents/${encodeURIComponent(documentId)}/cover-bom`} replace />;
 }

@@ -24,10 +24,6 @@ export function getDocumentInputsRoute(documentId: string) {
   return `/documents/${encodeURIComponent(documentId)}/inputs`;
 }
 
-export function getDocumentPreviewRoute(documentId: string) {
-  return `/documents/${encodeURIComponent(documentId)}/preview`;
-}
-
 export function getDocumentCoverBomRoute(documentId: string) {
   return `/documents/${encodeURIComponent(documentId)}/cover-bom`;
 }

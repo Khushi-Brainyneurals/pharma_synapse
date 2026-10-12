@@ -1,9 +1,14 @@
 import { AlertCircle, Download, FileText, Loader2, Minus, Plus, StretchHorizontal } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { FormatPreviewFile } from "../api/preview.api";
+
+interface DocxPreviewFile {
+  blob: Blob;
+  filename: string;
+  format?: "docx";
+}
 
 export interface DocxViewerProps {
-  file: FormatPreviewFile;
+  file: DocxPreviewFile;
   hideHeader?: boolean;
   borderless?: boolean;
   containerHeightClass?: string;

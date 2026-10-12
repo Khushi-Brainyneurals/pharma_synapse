@@ -6,8 +6,8 @@ const STEP_PATHS: Record<string, string> = {
   inputs: "inputs",
   core_inputs: "inputs",
   core_input: "inputs",
-  preview: "preview",
-  format_preview: "preview",
+  preview: "cover-bom",
+  format_preview: "cover-bom",
   "cover-bom": "cover-bom",
   cover_bom: "cover-bom",
   cover_review: "cover-bom",
@@ -22,7 +22,7 @@ const STEP_PATHS: Record<string, string> = {
   generate: "generate",
   submit: "generate",
 };
-const ORDER = ["inputs", "preview", "cover-bom", "stages", "stage-input", "generate"];
+const ORDER = ["inputs", "cover-bom", "stages", "stage-input", "generate"];
 const keyFor = (username: string, documentId: string) => `${PREFIX}:${encodeURIComponent(username)}:${encodeURIComponent(documentId)}`;
 
 function wizardPath(documentId: string, path: string): boolean {

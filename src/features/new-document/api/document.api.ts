@@ -7,27 +7,29 @@ export async function getDocument(documentId: string): Promise<DocumentDetail> {
   );
   const data = response.data;
   const resumeStep = data.resume_step || data.state || "inputs";
-  const stepOrder = ["type", "inputs", "preview", "cover-bom", "stages", "generate-submit"];
+  const stepOrder = ["type", "inputs", "cover-bom", "stages", "generate-submit"];
   const stepMap: Record<string, number> = {
     type: 0,
     inputs: 1,
     core_inputs: 1,
     core_input: 1,
+    // Older backend states may still mention the removed format-preview step.
+    // Resume those documents at Cover + BOM.
     preview: 2,
     format_preview: 2,
-    "cover-bom": 3,
-    cover_bom: 3,
-    cover_review: 3,
-    review_cover: 3,
-    cover: 3,
-    bom: 3,
-    stages: 4,
-    stage_params: 4,
-    "stage-input": 4,
-    select_stages: 4,
-    submit: 5,
-    generate: 5,
-    "generate-submit": 5,
+    "cover-bom": 2,
+    cover_bom: 2,
+    cover_review: 2,
+    review_cover: 2,
+    cover: 2,
+    bom: 2,
+    stages: 3,
+    stage_params: 3,
+    "stage-input": 3,
+    select_stages: 3,
+    submit: 4,
+    generate: 4,
+    "generate-submit": 4,
   };
   const stepKey = String(resumeStep).toLowerCase().trim();
   const activeIdx = stepMap[stepKey] ?? stepMap[resumeStep] ?? 1;

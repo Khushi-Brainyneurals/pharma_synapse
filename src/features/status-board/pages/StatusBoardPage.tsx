@@ -36,7 +36,7 @@ function ownerRoute(item: BoardItem): string {
       const s = (item.status || "").toLowerCase();
       // in-progress drafts open where their next input lives
       if (["cover_review", "review_cover", "extracted", "stages_set", "cover_bom", "cover-bom"].includes(s)) return `/documents/${id}/cover-bom`;
-      if (["format_preview", "preview"].includes(s)) return `/documents/${id}/preview`;
+      if (["format_preview", "preview"].includes(s)) return `/documents/${id}/cover-bom`;
       if (["stage_params", "stages", "stage-input"].includes(s)) return `/documents/${id}/stages`;
       if (["generating", "generated"].includes(s)) return `/documents/${id}/generate`;
       return `/documents/${id}/inputs`;

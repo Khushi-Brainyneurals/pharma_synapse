@@ -16,7 +16,7 @@ import {
   type FormEvent,
 } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { getDocumentPreviewRoute, ROUTES } from "../../../app/routing/routes";
+import { getDocumentCoverBomRoute, ROUTES } from "../../../app/routing/routes";
 import { getApiErrorMessage } from "../../../shared/api/apiError";
 import { useAuthStore } from "../../auth/state/auth.store";
 import {
@@ -455,8 +455,8 @@ export function CoreInputsPage() {
 
       setSuccess(response);
       window.setTimeout(() => {
-        navigate(getDocumentPreviewRoute(response.document_id), {
-          state: { coreInputs: response, document },
+        navigate(getDocumentCoverBomRoute(response.document_id), {
+          state: { coreInputs: response, document, startCoverGeneration: true },
         });
       }, 450);
     } catch (requestError) {

@@ -101,7 +101,10 @@ export interface UpdateBomPayload {
   };
   ingredient_edits?: Array<{
     ingredient_name: string;
+    material_code: string | null;
     sr_no: number;
+    qty_per_mfc_batch: number | null;
+    qty_required_production: number | null;
     uom: string;
   }>;
   user: string;

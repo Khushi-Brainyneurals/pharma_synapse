@@ -107,10 +107,10 @@ function storageHarness() {
 
 test('resume is isolated by user and document, and clearing one preserves others', () => {
   const { storage: s } = storageHarness();
-  s.saveDocumentLocation('alice', 'one', '/documents/one/preview');
+  s.saveDocumentLocation('alice', 'one', '/documents/one/cover-bom');
   s.saveDocumentLocation('alice', 'two', '/documents/two/stages');
   s.saveDocumentLocation('bob', 'one', '/documents/one/inputs');
-  assert.equal(s.getDocumentLocation('alice', 'one', 'preview'), '/documents/one/preview');
+  assert.equal(s.getDocumentLocation('alice', 'one', 'preview'), '/documents/one/cover-bom');
   s.clearDocumentLocation('alice', 'one');
   assert.equal(s.getDocumentLocation('alice', 'one', 'preview'), null);
   assert.equal(s.getDocumentLocation('alice', 'two', 'stages'), '/documents/two/stages');
@@ -273,72 +273,53 @@ test('editing metadata does not re-upload files already stored by the backend', 
   );
 });
 
-test('format preview loads the backend PDF and preserves its filename', async () => {
-  const calls = [];
-  const pdf = new Blob(['%PDF-1.7'], { type: 'application/pdf' });
-  const httpClient = {
-    get: async (...args) => {
-      calls.push(args);
-      return {
-        data: pdf,
-        headers: {
-          'content-disposition': 'attachment; filename="format_preview_doc-1.pdf"',
-          'content-type': 'application/pdf',
-        },
-      };
-    },
-  };
-  const api = loader(
-    { '../../../shared/api/httpClient': { httpClient } },
-  )('src/features/preview/api/preview.api.ts');
+test('document flow skips format preview and starts Cover + BOM generation', () => {
+  const config = fs.readFileSync(path.join(root, 'src/features/new-document/model/documentSelector.config.ts'), 'utf8');
+  const coreInputs = fs.readFileSync(path.join(root, 'src/features/core-inputs/pages/CoreInputsPage.tsx'), 'utf8');
+  const coverBom = fs.readFileSync(path.join(root, 'src/features/bom/pages/CoverBomPage.tsx'), 'utf8');
+  const coverApi = fs.readFileSync(path.join(root, 'src/features/bom/api/bom.api.ts'), 'utf8');
+  const sourceFiles = fs.readdirSync(path.join(root, 'src'), { recursive: true })
+    .filter(file => /\.(ts|tsx)$/.test(file))
+    .map(file => fs.readFileSync(path.join(root, 'src', file), 'utf8'))
+    .join('\n');
 
-  const result = await api.getFormatPreview('doc/1');
-  assert.equal(calls[0][0], '/api/documents/doc%2F1/format-preview');
-  assert.equal(calls[0][1].responseType, 'blob');
-  assert.match(calls[0][1].headers.Accept, /application\/pdf/);
-  assert.equal(result.blob, pdf);
-  assert.equal(result.filename, 'format_preview_doc-1.pdf');
-  assert.equal(result.format, 'pdf');
+  assert.doesNotMatch(config, /id:\s*["']preview["']/);
+  assert.match(coreInputs, /getDocumentCoverBomRoute\(response\.document_id\)/);
+  assert.match(coreInputs, /startCoverGeneration:\s*true/);
+  assert.match(coverBom, /if \(startCoverGeneration\) void runGeneration\(true\)/);
+  assert.match(coverApi, /\/generate-cover`/);
+  assert.match(coverApi, /\/generate-cover\/progress`/);
+  assert.match(coverApi, /\/cover-preview`/);
+  assert.doesNotMatch(sourceFiles, /\/format-preview/);
 });
 
-test('format preview identifies a DOCX response for the Word renderer', async () => {
-  const docx = new Blob(
-    [Uint8Array.from([0x50, 0x4b, 0x03, 0x04, 0x14])],
-    { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
-  );
-  const httpClient = {
-    get: async () => ({
-      data: docx,
-      headers: {
-        'content-type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'content-disposition': 'attachment; filename="format_preview_doc-1.docx"',
-      },
-    }),
-  };
-  const api = loader(
-    { '../../../shared/api/httpClient': { httpClient } },
-    { Blob },
-  )('src/features/preview/api/preview.api.ts');
+test('BOM edit table makes every displayed ingredient column editable', () => {
+  const { BomEditTable } = loader()('src/features/bom/components/BomEditTable.tsx');
+  const html = renderToStaticMarkup(React.createElement(BomEditTable, {
+    ingredients: [{
+      sr_no: 1,
+      material_code: 'RM-1',
+      name: 'Ingredient A',
+      specification: 'IP',
+      label_claim_mg_per_unit: 10,
+      qty_per_mfc_batch: 12.5,
+      qty_required_production: 13,
+      uom: 'kg',
+      layer: null,
+      part: null,
+      is_api: false,
+      is_compensated: false,
+      is_avg_weight: false,
+    }],
+    onSave() {},
+    onCancel() {},
+  }));
 
-  const result = await api.getFormatPreview('doc-1');
-  assert.equal(result.blob, docx);
-  assert.equal(result.format, 'docx');
-  assert.equal(result.filename, 'format_preview_doc-1.docx');
-});
-
-test('format preview rejects an unsupported response before rendering', async () => {
-  const httpClient = {
-    get: async () => ({
-      data: new Blob(['not a document'], { type: 'application/json' }),
-      headers: { 'content-type': 'application/json' },
-    }),
-  };
-  const api = loader(
-    { '../../../shared/api/httpClient': { httpClient } },
-    { Blob },
-  )('src/features/preview/api/preview.api.ts');
-
-  await assert.rejects(() => api.getFormatPreview('doc-1'), /unsupported or corrupted/);
+  assert.match(html, /Qty\. per MFC Batch/);
+  assert.match(html, /value="12\.5"/);
+  assert.doesNotMatch(html, />Spec\.</);
+  assert.doesNotMatch(html, /Label Claim/);
+  assert.equal((html.match(/<input/g) ?? []).length, 6);
 });
 
 test('stage schema defaults are merged under saved values and refs are resolved', () => {
@@ -720,11 +701,26 @@ test('new-document choices are enabled from backend options without changing car
   assert.equal(context.config.documentTypes[1].shortLabel, 'PVP');
 });
 
-test('already-running generation is recognized by error code for both response envelopes', () => {
-  const { getApiErrorCode } = loader({ axios: { isAxiosError: error => error.isAxiosError === true } })('src/shared/api/apiError.ts');
+test('already-running generation is recognized by error code and cover-generation 409 payload', () => {
+  const { getApiErrorCode, isGenerationInProgressError } = loader({ axios: { isAxiosError: error => error.isAxiosError === true } })('src/shared/api/apiError.ts');
   for (const data of [{ code: 'GENERATION_IN_PROGRESS' }, { detail: { code: 'GENERATION_IN_PROGRESS' } }]) {
-    assert.equal(getApiErrorCode({ isAxiosError: true, response: { data } }), 'GENERATION_IN_PROGRESS');
+    const error = { isAxiosError: true, response: { status: 409, data } };
+    assert.equal(getApiErrorCode(error), 'GENERATION_IN_PROGRESS');
+    assert.equal(isGenerationInProgressError(error), true);
   }
+  assert.equal(isGenerationInProgressError({
+    isAxiosError: true,
+    response: {
+      status: 409,
+      data: {
+        detail: {
+          message: 'A generation is already running for this document.',
+          active_attempt: { attempt_id: 'attempt-1', operation: 'generate_cover' },
+        },
+      },
+    },
+  }), true);
+  assert.equal(isGenerationInProgressError({ isAxiosError: true, response: { status: 409, data: { detail: 'Conflict' } } }), false);
   assert.equal(getApiErrorCode(new Error('other error')), null);
 });
 
