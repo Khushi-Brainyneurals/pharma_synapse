@@ -8,7 +8,6 @@ import { CompanyInfoPage } from "../features/company/pages/CompanyInfoPage";
 import { MasterDataPage } from "../features/master-data/pages/MasterDataPage";
 import { DocumentReviewPage } from "../features/review/pages/DocumentReviewPage";
 import { ReviewQueuePage } from "../features/review/pages/ReviewQueuePage";
-import { StatusBoardPage } from "../features/status-board/pages/StatusBoardPage";
 import { VersionHistoryPage } from "../features/version-history/pages/VersionHistoryPage";
 import { NotificationsPage } from "../features/notifications/pages/NotificationsPage";
 import { AuditTrailPage } from "../features/audit-trail/pages/AuditTrailPage";
@@ -24,6 +23,7 @@ import { SelectStagesPage } from "../features/stages/pages/SelectStagesPage";
 import { LoginPage } from "../features/auth/pages/LoginPage";
 import { SetPasswordPage } from "../features/auth/pages/SetPasswordPage";
 import { EmployeesPage } from "../features/employees/pages/EmployeesPage";
+import { EmployeeAdminRoute } from "../features/employees/routing/EmployeeAdminRoute";
 import { LoginStatesPage } from "../features/auth/pages/LoginStatesPage";
 import { ProtectedRoute } from "../features/auth/routing/ProtectedRoute";
 import { ROUTES } from "./routing/routes";
@@ -86,9 +86,11 @@ export function App() {
           <Route path={ROUTES.companyInfo} element={<CompanyInfoPage />} />
           <Route path={ROUTES.masterData} element={<MasterDataPage />} />
           <Route path={ROUTES.queue} element={<ReviewQueuePage />} />
-          <Route path={ROUTES.employees} element={<EmployeesPage />} />
+          <Route element={<EmployeeAdminRoute />}>
+            <Route path={ROUTES.employees} element={<EmployeesPage />} />
+          </Route>
           <Route path={ROUTES.documentReview} element={<DocumentReviewPage />} />
-          <Route path={ROUTES.statusBoard} element={<StatusBoardPage />} />
+          <Route path="/session" element={<Navigate to="/" replace />} />
           <Route path={ROUTES.versionHistory} element={<VersionHistoryPage />} />
           <Route path={ROUTES.notifications} element={<NotificationsPage />} />
           <Route path={ROUTES.auditTrail} element={<AuditTrailPage />} />

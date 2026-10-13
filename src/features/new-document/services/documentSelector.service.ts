@@ -64,7 +64,7 @@ function resolveUnitContext(
   }
 
   return {
-    id: user.unitId ?? "UNIT-03",
+    id: user.unitId ?? "UNIT-01",
     name: user.unitName ?? undefined,
   };
 }

@@ -237,7 +237,7 @@ export function DocumentReviewPage() {
                         <button
                           type="button"
                           onClick={() =>
-                            void downloadDocument(documentId, `BMR_${documentState?.bmr_number ?? documentId.slice(0, 8)}.docx`)
+                            void downloadDocument(documentId, `${documentState?.bmr_number ?? documentId.slice(0)}.docx`)
                           }
                           className="inline-flex items-center justify-center gap-2 rounded-control border border-border px-3 py-2 text-small font-semibold text-subdued transition hover:bg-muted"
                         >

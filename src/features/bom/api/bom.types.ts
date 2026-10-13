@@ -3,7 +3,7 @@ export interface BomIngredient {
   material_code: string | null;
   name: string;
   specification: string | null;
-  label_claim_mg_per_unit: number | null;
+  label_claim_mg_per_tab: number | null;
   qty_per_mfc_batch: number | null;
   /** Derived from the part's overage footnote (e.g. "Coating ##"). null → render "—". */
   overage_pct: number | null;
@@ -102,8 +102,9 @@ export interface UpdateBomPayload {
   ingredient_edits?: Array<{
     ingredient_name: string;
     material_code: string | null;
+    specification: string | null;
     sr_no: number;
-    qty_per_mfc_batch: number | null;
+    label_claim_mg_per_tab: number | null;
     qty_required_production: number | null;
     uom: string;
   }>;

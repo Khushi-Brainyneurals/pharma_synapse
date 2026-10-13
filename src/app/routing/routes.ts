@@ -1,7 +1,6 @@
 export const ROUTES = {
   login: "/login",
   newDocument: "/new",
-  statusBoard: "/session",
   documentInputs: "/documents/:documentId/inputs",
   documentPreview: "/documents/:documentId/preview",
   documentCoverBom: "/documents/:documentId/cover-bom",

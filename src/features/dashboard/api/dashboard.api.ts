@@ -64,7 +64,8 @@ interface CloseResponse { document_id: string; status: string; message: string }
 function normalizeDashboardItem(raw: any): DashboardItem {
   const document_id = String(raw.document_id ?? raw.job_id ?? raw.id ?? "");
   const docNo = (raw.document_no || raw.bmr_number || raw.product_code || "").trim();
-  const display_id = raw.display_id || docNo || (document_id ? `BMR-${document_id.slice(0, 8)}` : "Document");
+  const doc_type = String(raw.doc_type ?? "BMR").toUpperCase();
+  const display_id = raw.display_id || docNo || (document_id ? `${doc_type || ""}_${document_id.slice(0, 8)}` : "Document");
   const status = String(raw.status ?? raw.state ?? "draft");
   const state = String(raw.state ?? raw.status ?? "draft");
   const state_label = String(raw.state_label ?? (status === "draft" ? "Draft" : status));

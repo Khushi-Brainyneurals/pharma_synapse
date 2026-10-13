@@ -200,7 +200,7 @@ export function GenerateSubmitPage() {
   const status = state?.status;
   const isSubmitted = Boolean(status && SUBMITTED_STATUSES.includes(status));
   const isGenerated = status === "generated" || isSubmitted;
-  const filename = `BMR_${documentState?.bmr_number ?? documentId.slice(0, 8)}.docx`;
+  const filename = `${documentState?.bmr_number ?? documentId.slice(0)}.docx`;
 
   useEffect(() => {
     if (!isGenerated || !state?.has_artifact) return;
@@ -233,7 +233,7 @@ export function GenerateSubmitPage() {
         <AppSidebar user={user} />
 
         <main ref={mainRef} className="min-w-0 min-h-0 lg:h-full lg:overflow-y-auto">
-          <div className="mx-auto space-y-5">
+          <div className="mx-auto flex min-h-full flex-col gap-5">
             <WizardHeader
               activeStepId="generate-submit"
               completedStepIds={documentState?.completed_steps ?? []}
@@ -343,7 +343,7 @@ export function GenerateSubmitPage() {
             )}
 
             {/* Sticky Footer matching Cover + BOM Page */}
-            <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t bg-surface p-3.5 shadow-auth">
+            <div className="sticky bottom-0 z-10 mt-auto flex flex-wrap items-center justify-between gap-3 border-t bg-surface p-3.5 shadow-auth">
               <button
                 type="button"
                 onClick={() => goToStep("stages")}

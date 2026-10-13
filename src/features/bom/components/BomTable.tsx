@@ -132,7 +132,7 @@ export function BomTable({
                         <span className="truncate">{row.name}</span>
                         <span />
                         <span className="text-right">
-                          <Num value={row.label_claim_mg_per_unit} />
+                          <Num value={row.label_claim_mg_per_tab} />
                         </span>
                         <span className="text-right">
                           <Num value={row.qty_per_mfc_batch} />
@@ -179,7 +179,7 @@ export function BomTable({
                       </span>
 
                       <span className="text-right">
-                        <Num value={row.label_claim_mg_per_unit} />
+                        <Num value={row.label_claim_mg_per_tab} />
                       </span>
                       <span className="text-right">
                         <Num value={row.qty_per_mfc_batch} />

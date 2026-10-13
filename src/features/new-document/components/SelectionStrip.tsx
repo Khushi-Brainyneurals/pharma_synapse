@@ -42,12 +42,6 @@ export function SelectionStrip({
           {identifier}
         </span>
       ) : null}
-      <span
-        className="inline-flex items-center gap-2 rounded-pill border border-dashed border-border bg-surface px-3 py-1.5 text-micro text-subdued opacity-80"
-        title="Planned for a future release. This version supports Tablet BMR only."
-      >
-        Other dosage forms are not in this release
-      </span>
     </div>
   );
 }

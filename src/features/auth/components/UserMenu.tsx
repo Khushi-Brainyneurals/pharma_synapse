@@ -1,8 +1,9 @@
-import { ChevronDown, LogOut } from "lucide-react";
+import { CheckCircle2, ChevronDown, KeyRound, LogOut } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { AuthenticatedUser } from "../api/auth.types";
 import { USER_ROLE_LABELS } from "../model/roles";
 import { useLogout } from "../hooks/useLogout";
+import { ChangePasswordDialog } from "../../employees/components/ChangePasswordDialog";
 
 interface UserMenuProps {
   user: AuthenticatedUser | null;
@@ -10,6 +11,8 @@ interface UserMenuProps {
 
 export function UserMenu({ user }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordChanged, setPasswordChanged] = useState(false);
   const { logout, isLoggingOut } = useLogout();
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -41,7 +44,14 @@ export function UserMenu({ user }: UserMenuProps) {
     };
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!passwordChanged) return;
+    const timer = window.setTimeout(() => setPasswordChanged(false), 5000);
+    return () => window.clearTimeout(timer);
+  }, [passwordChanged]);
+
   return (
+    <>
     <div className="relative" ref={containerRef}>
       <button
         type="button"
@@ -73,6 +83,19 @@ export function UserMenu({ user }: UserMenuProps) {
           <button
             type="button"
             role="menuitem"
+            onClick={() => {
+              setIsOpen(false);
+              setIsChangingPassword(true);
+            }}
+            className="flex w-full items-center gap-2 border-b border-border px-4 py-3 text-left text-small text-text transition hover:bg-muted focus:bg-muted focus:outline-none"
+          >
+            <KeyRound className="size-4" aria-hidden="true" />
+            Change password
+          </button>
+
+          <button
+            type="button"
+            role="menuitem"
             onClick={logout}
             disabled={isLoggingOut}
             className="flex w-full items-center gap-2 px-4 py-3 text-left text-small text-text transition hover:bg-muted focus:bg-muted focus:outline-none disabled:opacity-60"
@@ -83,6 +106,27 @@ export function UserMenu({ user }: UserMenuProps) {
         </div>
       ) : null}
     </div>
+      {isChangingPassword && user ? (
+        <ChangePasswordDialog
+          employeeId={user.username}
+          employeeLabel={displayName}
+          onClose={() => setIsChangingPassword(false)}
+          onChanged={() => {
+            setIsChangingPassword(false);
+            setPasswordChanged(true);
+          }}
+        />
+      ) : null}
+      {passwordChanged ? (
+        <div
+          role="status"
+          className="fixed right-4 top-20 z-50 flex items-center gap-2 rounded-panel border border-primary/30 bg-surface px-4 py-3 text-small font-medium text-primary-dark shadow-auth"
+        >
+          <CheckCircle2 className="size-4" aria-hidden="true" />
+          Password changed successfully.
+        </div>
+      ) : null}
+    </>
   );
 }
 

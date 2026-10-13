@@ -28,7 +28,7 @@ export const DOSAGE_FORM_OPTIONS: DocumentOption[] = [
     id: "tablet",
     backendValue: "tablet",
     label: "Tablet",
-    description: "Compressed solid dose",
+    description: "",
     available: true,
     icon: Tablets,
   },
@@ -95,8 +95,7 @@ export const DOCUMENT_TYPE_OPTIONS: DocumentOption[] = [
     label: "Batch Packaging Record",
     shortLabel: "BPR",
     description: "",
-    available: false,
-    unavailableReason: RELEASE_TOOLTIP,
+    available: true,
     icon: Package,
   },
   {
@@ -105,8 +104,7 @@ export const DOCUMENT_TYPE_OPTIONS: DocumentOption[] = [
     label: "Process Validation Protocol",
     shortLabel: "PVP",
     description: "",
-    available: false,
-    unavailableReason: RELEASE_TOOLTIP,
+    available: true,
     icon: ClipboardCheck,
   },
   {
@@ -115,15 +113,13 @@ export const DOCUMENT_TYPE_OPTIONS: DocumentOption[] = [
     label: "Process Validation Report",
     shortLabel: "PVR",
     description: "",
-    available: false,
-    unavailableReason: RELEASE_TOOLTIP,
+    available: true,
     icon: FileCheck2,
   },
 ];
 
 export const DOCUMENT_SIDEBAR_ITEMS: SidebarItem[] = [
-  { id: "new-document", label: "New document" },
-  { id: "status-board", label: "Status board" },
+  // { id: "new-document", label: "New document" },
   { id: "version-history", label: "Version history" },
   { id: "notifications", label: "Notifications" },
   { id: "audit-trail", label: "Audit trail" },

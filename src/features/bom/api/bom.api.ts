@@ -68,7 +68,7 @@ export async function getBom(documentId: string, signal?: AbortSignal): Promise<
       material_code: ing.material_code,
       name: ing.ingredient_name || ing.name || "",
       specification: ing.specification || null,
-      label_claim_mg_per_unit: ing.label_claim_mg_per_unit || null,
+      label_claim_mg_per_tab: ing.label_claim_mg_per_tab ?? null,
       qty_per_mfc_batch: ing.qty_per_mfc_batch,
       overage_pct: null,
       qty_required_production: ing.qty_required_production,

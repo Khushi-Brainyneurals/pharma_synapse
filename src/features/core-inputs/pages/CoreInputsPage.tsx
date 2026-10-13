@@ -16,7 +16,7 @@ import {
   type FormEvent,
 } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { getDocumentCoverBomRoute, ROUTES } from "../../../app/routing/routes";
+import { getDocumentCoverBomRoute } from "../../../app/routing/routes";
 import { getApiErrorMessage } from "../../../shared/api/apiError";
 import { useAuthStore } from "../../auth/state/auth.store";
 import {
@@ -736,7 +736,7 @@ export function CoreInputsPage() {
                       </button>
                       <Link
                         className="inline-flex min-h-10 items-center justify-center rounded-control border border-primary bg-white px-5 py-2.5 text-small font-semibold text-primary-dark transition hover:bg-accent-soft focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-                        to={ROUTES.statusBoard}
+                        to="/"
                       >
                         Save & exit
                       </Link>

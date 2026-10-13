@@ -9,8 +9,10 @@ import {
   Loader2,
   LogOut,
   ReceiptText,
+  Users,
 } from "lucide-react";
 import { masterDataAccess } from "../../master-data-setup/access";
+import { canManageEmployees } from "../../employees/access";
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ROUTES } from "../../../app/routing/routes";
@@ -18,7 +20,6 @@ import { ROUTES } from "../../../app/routing/routes";
 /** Sidebar item id → route. Items with no route here are not built yet. */
 const SIDEBAR_ROUTES: Record<string, string | undefined> = {
   "new-document": ROUTES.newDocument,
-  "status-board": ROUTES.statusBoard,
   "version-history": ROUTES.versionHistory,
   notifications: ROUTES.notifications,
   "audit-trail": ROUTES.auditTrail,
@@ -36,7 +37,6 @@ interface AppSidebarProps {
 
 const iconMap = {
   "new-document": FilePlus,
-  "status-board": LayoutDashboard,
   "version-history": History,
   notifications: Bell,
   "audit-trail": ClipboardClock,
@@ -81,6 +81,22 @@ export function AppSidebar({ user }: AppSidebarProps) {
           <LayoutDashboard className="size-4" aria-hidden="true" /> Dashboard
         </Link>
         <ul className="space-y-1">
+          {canManageEmployees(user?.role) ? (
+            <li>
+              <Link
+                to={ROUTES.employees}
+                aria-current={location.pathname === ROUTES.employees ? "page" : undefined}
+                className={`flex min-h-row-h items-center gap-3 rounded-control px-3 text-small font-medium transition focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                  location.pathname === ROUTES.employees
+                    ? "border border-primary/25 bg-accent-soft text-primary-dark"
+                    : "text-subdued hover:bg-muted hover:text-text"
+                }`}
+              >
+                <Users className="size-4 shrink-0" aria-hidden="true" />
+                <span>Employee Management</span>
+              </Link>
+            </li>
+          ) : null}
           {DOCUMENT_SIDEBAR_ITEMS.filter(
             // Master data is only for the roles the rights matrix grants access to.
             (item) => item.id !== "master-data" || mdAccess.canView,

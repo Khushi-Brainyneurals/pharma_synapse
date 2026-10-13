@@ -293,7 +293,7 @@ test('document flow skips format preview and starts Cover + BOM generation', () 
   assert.doesNotMatch(sourceFiles, /\/format-preview/);
 });
 
-test('BOM edit table makes every displayed ingredient column editable', () => {
+test('BOM edit table keeps specification and label claim editable without MFC quantity', () => {
   const { BomEditTable } = loader()('src/features/bom/components/BomEditTable.tsx');
   const html = renderToStaticMarkup(React.createElement(BomEditTable, {
     ingredients: [{
@@ -301,7 +301,7 @@ test('BOM edit table makes every displayed ingredient column editable', () => {
       material_code: 'RM-1',
       name: 'Ingredient A',
       specification: 'IP',
-      label_claim_mg_per_unit: 10,
+      label_claim_mg_per_tab: 10,
       qty_per_mfc_batch: 12.5,
       qty_required_production: 13,
       uom: 'kg',
@@ -315,11 +315,12 @@ test('BOM edit table makes every displayed ingredient column editable', () => {
     onCancel() {},
   }));
 
-  assert.match(html, /Qty\. per MFC Batch/);
-  assert.match(html, /value="12\.5"/);
-  assert.doesNotMatch(html, />Spec\.</);
-  assert.doesNotMatch(html, /Label Claim/);
-  assert.equal((html.match(/<input/g) ?? []).length, 6);
+  assert.match(html, />Spec\.</);
+  assert.match(html, /Label Claim/);
+  assert.match(html, /value="IP"/);
+  assert.match(html, /value="10"/);
+  assert.doesNotMatch(html, /Qty\. per MFC Batch/);
+  assert.equal((html.match(/<input/g) ?? []).length, 7);
 });
 
 test('stage schema defaults are merged under saved values and refs are resolved', () => {

@@ -73,7 +73,7 @@ export function NewDocumentSelectorPage() {
             <button
               type="button"
               className="rounded-control border border-danger/30 bg-white px-4 py-2 text-small font-semibold text-danger-ink transition hover:bg-danger-soft focus:outline-none focus:ring-2 focus:ring-danger focus:ring-offset-2"
-              onClick={() => navigate(ROUTES.statusBoard)}
+              onClick={() => navigate("/")}
             >
               Go to your dashboard
             </button>
@@ -192,7 +192,7 @@ export function NewDocumentSelectorPage() {
             type="button"
             className="inline-flex min-h-10 items-center justify-center rounded-control border border-border bg-white px-5 py-2.5 text-small font-semibold text-subdued transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isCreating}
-            onClick={() => navigate(ROUTES.statusBoard)}
+            onClick={() => navigate("/")}
           >
             Cancel
           </button>
@@ -295,19 +295,8 @@ export function NewDocumentSelectorPage() {
                 <div>
                   <h2 className="text-h1 font-semibold">Start a new document</h2>
                   <p className="mt-2 max-w-2xl text-small leading-6 text-subdued">
-                    Choose the dosage form and document type. Only Tablet · Batch Manufacturing
-                    Record is available in this release.
+                    Choose the dosage form and document type.
                   </p>
-                </div>
-                <div className="shrink-0 rounded-control border border-border bg-muted px-3 py-2 text-small font-semibold text-subdued">
-                  {isLoading ? (
-                    <span className="inline-flex items-center gap-2" aria-live="polite">
-                      <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                      Loading document options…
-                    </span>
-                  ) : (
-                    `Creating in Unit ${context?.unit?.id ?? "—"}`
-                  )}
                 </div>
               </div>
 

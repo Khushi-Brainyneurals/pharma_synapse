@@ -3,6 +3,8 @@ import { httpClient } from "../../../shared/api/httpClient";
 export interface CompanyInfo {
   company_name: string | null;
   address: string | null;
+  addresses: CompanyAddress[];
+  logo_path: string | null;
   mfg_licence_no: string | null;
   font_name: string | null;
   font_size: number | null;
@@ -21,6 +23,15 @@ export interface CompanyInfo {
   /** Saved-before-and-complete → editing it is a controlled change (needs a reason). */
   is_effective: boolean;
 }
+
+export interface CompanyAddress {
+  address_id: number;
+  address: string;
+}
+
+type CompanyInfoResponse = Partial<CompanyInfo> & {
+  approval_status?: string | null;
+};
 
 export type CompanyInfoUpdate = Partial<
   Pick<
@@ -46,21 +57,21 @@ export const FONT_STACKS: Record<string, string> = {
 };
 
 export async function getCompanyInfo(): Promise<CompanyInfo> {
-  const response = await httpClient.get<CompanyInfo>("/api/company-info");
-  return response.data;
+  const response = await httpClient.get<CompanyInfoResponse>("/api/company-info");
+  return normalizeCompanyInfo(response.data);
 }
 
 export async function updateCompanyInfo(payload: CompanyInfoUpdate): Promise<CompanyInfo> {
-  const response = await httpClient.put<CompanyInfo>("/api/company-info", payload);
-  return response.data;
+  const response = await httpClient.put<CompanyInfoResponse>("/api/company-info", payload);
+  return normalizeCompanyInfo(response.data);
 }
 
 export async function uploadLogo(logo: File): Promise<CompanyInfo> {
   const formData = new FormData();
   formData.append("logo", logo);
 
-  const response = await httpClient.post<CompanyInfo>("/api/company-info/logo", formData);
-  return response.data;
+  const response = await httpClient.post<CompanyInfoResponse>("/api/company-info/logo", formData);
+  return normalizeCompanyInfo(response.data);
 }
 
 /**
@@ -75,6 +86,38 @@ export async function fetchLogoObjectUrl(): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+function normalizeCompanyInfo(data: CompanyInfoResponse): CompanyInfo {
+  const addresses = Array.isArray(data.addresses)
+    ? data.addresses.filter(
+        (item): item is CompanyAddress =>
+          typeof item?.address_id === "number" && typeof item.address === "string",
+      )
+    : [];
+  const primaryAddress = data.address ?? addresses[0]?.address ?? null;
+  const logoPath = data.logo_path ?? null;
+  const approvalStatus = data.approval_status?.toLowerCase();
+
+  return {
+    company_name: data.company_name ?? null,
+    address: primaryAddress,
+    addresses,
+    logo_path: logoPath,
+    mfg_licence_no: data.mfg_licence_no ?? null,
+    font_name: data.font_name ?? null,
+    font_size: data.font_size ?? null,
+    line_spacing: data.line_spacing ?? null,
+    header_size: data.header_size ?? null,
+    template_no: data.template_no ?? null,
+    department: data.department ?? null,
+    has_logo: data.has_logo ?? Boolean(logoPath),
+    is_complete: data.is_complete ?? false,
+    missing: Array.isArray(data.missing) ? data.missing : [],
+    updated_by: data.updated_by ?? null,
+    updated_at: data.updated_at ?? null,
+    is_effective: data.is_effective ?? approvalStatus === "approved",
+  };
 }
 
 export interface CompanyApprovalState {

@@ -17,7 +17,8 @@ interface EditableRow {
   sr_no: string;
   material_code: string;
   name: string;
-  qty_per_mfc_batch: string;
+  specification: string;
+  label_claim: string;
   qty_required: string;
   uom: string;
 }
@@ -31,7 +32,8 @@ const COLUMNS: { key: keyof EditableRow; label: string; className?: string; nume
   { key: "sr_no", label: "Sr. No.", className: "w-16", numeric: true, editable: true },
   { key: "material_code", label: "Material Code", className: "w-32", editable: true },
   { key: "name", label: "Ingredients", className: "min-w-[13rem]", editable: true },
-  { key: "qty_per_mfc_batch", label: "Qty. per MFC Batch", className: "w-32", numeric: true, editable: true },
+  { key: "specification", label: "Spec.", className: "w-24", editable: true },
+  { key: "label_claim", label: "Label Claim mg./Tab", className: "w-28", numeric: true, editable: true },
   { key: "qty_required", label: "Qty. Required", className: "w-28", numeric: true, editable: true },
   { key: "uom", label: "U O M", className: "w-20", editable: true },
 ];
@@ -41,7 +43,8 @@ const FIELD_NAME: Record<keyof EditableRow, string> = {
   sr_no: "sr_no",
   material_code: "material_code",
   name: "name",
-  qty_per_mfc_batch: "qty_per_mfc_batch",
+  specification: "specification",
+  label_claim: "label_claim_mg_per_tab",
   qty_required: "qty_required_production",
   uom: "uom",
 };
@@ -76,7 +79,7 @@ export function BomEditTable({ ingredients, onSave, onCancel, saving = false, ch
 
   // The printed "second line" under every API / $#-compensated diluent is editable too —
   // its own state, keyed by the parent ingredient's index. Seeded from what the document
-  // shows on that line (code · name · uom; quantity fields blank).
+  // shows on that line (code · name · spec · uom; numeric quantity fields blank).
   const [dupRows, setDupRows] = useState<Record<number, EditableRow>>(() => {
     const seed: Record<number, EditableRow> = {};
     ingredients.forEach((ing, i) => {
@@ -263,8 +266,9 @@ function GroupBlock({
               <td className="border border-border px-3 py-2" />
               <td className="border border-border px-3 py-2" />
               <td className="border border-border px-3 py-2">{original.name}</td>
+              <td className="border border-border px-3 py-2" />
               <td className="border border-border px-3 py-2 text-right tabular-nums">
-                {num(original.qty_per_mfc_batch)}
+                {num(original.label_claim_mg_per_tab)}
               </td>
               <td className="border border-border px-3 py-2 text-right tabular-nums">
                 {num(original.qty_required_production)}
@@ -338,15 +342,16 @@ function toRow(original: BomIngredient): EditableRow {
     sr_no: num(original.sr_no),
     material_code: text(original.material_code),
     name: original.name ?? "",
-    qty_per_mfc_batch: num(original.qty_per_mfc_batch),
+    specification: text(original.specification),
+    label_claim: num(original.label_claim_mg_per_tab),
     qty_required: num(original.qty_required_production),
     uom: text(original.uom),
   };
 }
 
 /**
- * The second-line ("duplicate") row as the document seeds it: material code, name and
- * UOM are repeated from the ingredient; Sr. No. and quantities are blank.
+ * The second-line ("duplicate") row as the document seeds it: material code, name,
+ * specification and UOM are repeated; Sr. No. and numeric quantities are blank.
  */
 function toDupRow(original: BomIngredient): EditableRow {
   const text = (value: string | null) => value ?? "";
@@ -354,7 +359,8 @@ function toDupRow(original: BomIngredient): EditableRow {
     sr_no: "",
     material_code: text(original.material_code),
     name: original.name ?? "",
-    qty_per_mfc_batch: "",
+    specification: text(original.specification),
+    label_claim: "",
     qty_required: "",
     uom: text(original.uom),
   };

@@ -105,7 +105,7 @@ function ParameterRows({ root, schema, value, layers, scopeLabel = "Layer", show
         }) };
         if (rowLabels[index]) presentation.label = rowLabels[index];
         const enabled = row.enabled !== false;
-        const mode = String(row.mode || "record_only");
+        const mode = String(row.mode || "limit");
         const kind = String(row.kind || "range");
         const isHolding = name === "holding_period";
         const isKnownName = Boolean(name && nameOptions.includes(name));

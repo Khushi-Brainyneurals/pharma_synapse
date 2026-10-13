@@ -239,7 +239,7 @@ function BomRow({
           {ing.name.replace(/^Avg\. wt\. of /i, "Average weight of ")}
         </td>
         <td className={`${cell} text-right font-bold tabular-nums`}>
-          {fmt(ing.label_claim_mg_per_unit, 3)}
+          {fmt(ing.label_claim_mg_per_tab, 3)}
         </td>
         <td className={`${cell} text-right font-bold tabular-nums`}>
           {fmt(ing.qty_required_production ?? ing.qty_per_mfc_batch, 3)}
@@ -275,7 +275,7 @@ function BomRow({
       <td className={`${cell} tabular-nums`}>{ing.material_code ?? "—"}</td>
       <td className={cell}>{ing.name}</td>
       <td className={cell}>{ing.specification ?? "—"}</td>
-      <td className={`${cell} text-right tabular-nums`}>{fmt(ing.label_claim_mg_per_unit, 3)}</td>
+      <td className={`${cell} text-right tabular-nums`}>{fmt(ing.label_claim_mg_per_tab, 3)}</td>
       <td className={`${cell} text-right tabular-nums`}>{fmt(displayQty(ing), 4)}</td>
       <td className={`${cell} text-center`}>{ing.uom ?? "—"}</td>
     </tr>

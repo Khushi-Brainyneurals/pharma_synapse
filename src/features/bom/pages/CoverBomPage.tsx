@@ -403,8 +403,9 @@ function buildIngredientEdits(bom: BomResponse, changes: BomFieldChange[]) {
   const rows = new Map<number, {
     ingredient_name: string;
     material_code: string | null;
+    specification: string | null;
     sr_no: number;
-    qty_per_mfc_batch: number | null;
+    label_claim_mg_per_tab: number | null;
     qty_required_production: number | null;
     uom: string;
   }>();
@@ -414,16 +415,18 @@ function buildIngredientEdits(bom: BomResponse, changes: BomFieldChange[]) {
     const edit = rows.get(change.row_index) ?? {
       ingredient_name: ingredient.name,
       material_code: ingredient.material_code,
+      specification: ingredient.specification,
       sr_no: ingredient.sr_no ?? 0,
-      qty_per_mfc_batch: ingredient.qty_per_mfc_batch,
+      label_claim_mg_per_tab: ingredient.label_claim_mg_per_tab,
       qty_required_production: ingredient.qty_required_production,
       uom: ingredient.uom ?? "kg",
     };
     if (change.field === "name") edit.ingredient_name = change.to.trim();
     if (change.field === "material_code") edit.material_code = change.to.trim() || null;
+    if (change.field === "specification") edit.specification = change.to.trim() || null;
     if (change.field === "sr_no") edit.sr_no = Number(change.to);
-    if (change.field === "qty_per_mfc_batch") {
-      edit.qty_per_mfc_batch = nullableNumber(change.to);
+    if (change.field === "label_claim_mg_per_tab") {
+      edit.label_claim_mg_per_tab = nullableNumber(change.to);
     }
     if (change.field === "qty_required_production") {
       edit.qty_required_production = nullableNumber(change.to);
