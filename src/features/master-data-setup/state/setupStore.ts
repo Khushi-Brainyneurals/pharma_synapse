@@ -1,20 +1,22 @@
 import { create } from "zustand";
 import { DOCUMENT_TYPE_OPTIONS, DOSAGE_FORM_OPTIONS } from "../../new-document/model/documentSelector.config";
+import type { OtherDocumentsChecklistResponse, StageChecklistGroup, StageChecklistResponse, StageSlot } from "../api/masterDataDocuments.api";
 import {
   BATCH_DOCS,
   EQUIPMENT_SEED,
   INSTRUMENT_SEED,
   STAGE_SECTIONS,
+  type DocDef,
   type EquipmentRow,
   type InstrumentRow,
+  type StageSection,
   type UploadedFile,
 } from "../model/setup.model";
 
 /**
- * In-memory state for the Master Data Setup wizard, so the six steps share one draft as
- * the user moves between them. Seeded with a realistic part-done set (Dispensing,
- * Granulation and Compression stage documents uploaded; three of four batch documents),
- * standing in for a real per-Type master-data draft on the backend.
+ * State for the Master Data Setup wizard, synced with the backend per-Type master-data
+ * checklist endpoints (/api/master-data/:productType/:docType/checklist and
+ * /api/master-data/:productType/:docType/other-documents/checklist).
  */
 
 const STORAGE_KEY = "pharma.masterData.selectedType";
@@ -68,38 +70,63 @@ export function getSelectedTypeMeta(dosageFormId = "tablet", documentTypeId = "b
   };
 }
 
-function mkFile(base: string, format: "PDF" | "DOCX", sizeKB: number, at: string): UploadedFile {
-  return { filename: `${base}.${format.toLowerCase()}`, sizeKB, by: "A. Mehta (Reviewer QA)", at: `17 Jul 2026 · ${at}`, format };
+const STAGE_KEY_META: Record<string, { title: string; note?: string }> = {
+  dispensing: { title: "Dispensing" },
+  dispensing_rm: { title: "Dispensing", note: "for raw materials" },
+  granulation: { title: "Granulation" },
+  compression: { title: "Compression" },
+  inspection_uncoated: { title: "Tablet Inspection", note: "for uncoated tablets" },
+  uncoated_inspection: { title: "Tablet Inspection", note: "for uncoated tablets" },
+  dispensing_coating: { title: "Dispensing", note: "for coating materials" },
+  coating: { title: "Coating" },
+  inspection_coated: { title: "Tablet Inspection", note: "for coated tablets" },
+  coated_inspection: { title: "Tablet Inspection", note: "for coated tablets" },
+  batch_yield_reconciliation: { title: "Batch Yield Reconciliation" },
+  reconciliation: { title: "Batch Yield Reconciliation" },
+  packing: { title: "Packing" },
+  primary_packing: { title: "Primary Packing" },
+  secondary_packing: { title: "Secondary Packing" },
+};
+
+function formatStageTitle(stageKey: string): string {
+  return stageKey
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-const slug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
-
-// Seed the first three stages + most batch docs as already uploaded.
-const SEED_STAGE_KEYS = new Set(["dispensing", "granulation", "compression"]);
-const seedUploads: Record<string, UploadedFile | null> = {};
-let clock = 2;
-for (const section of STAGE_SECTIONS) {
-  const done = SEED_STAGE_KEYS.has(section.key);
-  for (const d of section.docs) {
-    seedUploads[d.code] = done
-      ? mkFile(slug(`${d.name} ${section.title}`), d.code.startsWith("GRN-05") ? "DOCX" : "PDF", 600 + ((clock * 37) % 900), `11:${String(clock++).padStart(2, "0")}`)
-      : null;
-  }
+export function mapBackendStagesToSections(stages: StageChecklistGroup[]): StageSection[] {
+  return stages.map((stage: any) => {
+    const meta = STAGE_KEY_META[stage.stage_key];
+    const title = stage.stage_label || stage.label || stage.title || meta?.title || formatStageTitle(stage.stage_key);
+    const note = stage.note ?? meta?.note;
+    return {
+      key: stage.stage_key,
+      title,
+      ...(note ? { note } : {}),
+      docs: (stage.slots || []).map((slot: any) => ({
+        code: slot.code,
+        name: slot.label || slot.name || slot.code,
+        required: slot.required ?? true,
+      })),
+    };
+  });
 }
 
-const seedBatch: Record<string, UploadedFile | null> = {};
-BATCH_DOCS.forEach((d, i) => {
-  seedBatch[d.code] = i === 2 // BAT-03 left pending
-    ? null
-    : mkFile(slug(d.name), i === 1 ? "DOCX" : "PDF", 200 + i * 210, `12:${18 + i * 3}`);
-});
+export function mapBackendSlotsToBatchDocs(slots: StageSlot[]): DocDef[] {
+  return slots.map((slot: any) => ({
+    code: slot.code,
+    name: slot.label || slot.name || slot.code,
+    required: slot.required ?? true,
+  }));
+}
 
 const initialType = readInitialType();
-const isInitialDefaultBmr = initialType.dosageFormId === "tablet" && initialType.documentTypeId === "bmr";
 
 interface SetupState {
   dosageFormId: string;
   documentTypeId: string;
+  stageSections: StageSection[];
+  batchDocs: DocDef[];
   uploads: Record<string, UploadedFile | null>;
   batchUploads: Record<string, UploadedFile | null>;
   equipment: EquipmentRow[];
@@ -108,6 +135,8 @@ interface SetupState {
   setDosageFormId: (id: string) => void;
   setDocumentTypeId: (id: string) => void;
   setSelectedType: (dosageFormId: string, documentTypeId: string) => void;
+  setStageChecklistData: (res: StageChecklistResponse) => void;
+  setOtherChecklistData: (res: OtherDocumentsChecklistResponse) => void;
   setUpload: (code: string, file: UploadedFile) => void;
   removeUpload: (code: string) => void;
   setBatchUpload: (code: string, file: UploadedFile) => void;
@@ -127,8 +156,10 @@ interface SetupState {
 export const useSetupStore = create<SetupState>((set) => ({
   dosageFormId: initialType.dosageFormId,
   documentTypeId: initialType.documentTypeId,
-  uploads: isInitialDefaultBmr ? seedUploads : {},
-  batchUploads: isInitialDefaultBmr ? seedBatch : {},
+  stageSections: STAGE_SECTIONS,
+  batchDocs: BATCH_DOCS,
+  uploads: {},
+  batchUploads: {},
   equipment: EQUIPMENT_SEED.map((r) => ({ ...r })),
   instrument: INSTRUMENT_SEED.map((r) => ({ ...r })),
   previewed: {},
@@ -164,6 +195,65 @@ export const useSetupStore = create<SetupState>((set) => ({
         uploads: {},
         batchUploads: {},
         previewed: {},
+      };
+    }),
+  setStageChecklistData: (res) =>
+    set((s) => {
+      if (!res || !Array.isArray(res.stages)) return s;
+      const stageSections = mapBackendStagesToSections(res.stages);
+      const nextUploads: Record<string, UploadedFile | null> = {};
+      for (const stage of res.stages) {
+        for (const slot of stage.slots || []) {
+          if (slot.uploaded) {
+            const existing = s.uploads[slot.code];
+            const fileName = slot.file_name || existing?.filename || `${slot.code}.docx`;
+            const format: "PDF" | "DOCX" = fileName.toLowerCase().endsWith(".pdf") ? "PDF" : "DOCX";
+            nextUploads[slot.code] = {
+              filename: fileName,
+              sizeKB: existing?.sizeKB ?? 24,
+              by: slot.uploaded_by || existing?.by || "Master Data",
+              at: slot.uploaded_at ? new Date(slot.uploaded_at).toLocaleDateString() : existing?.at || "Uploaded",
+              format,
+              stageKey: stage.stage_key,
+              rawFile: existing?.rawFile,
+              blobUrl: existing?.blobUrl,
+            };
+          } else {
+            nextUploads[slot.code] = null;
+          }
+        }
+      }
+      return {
+        stageSections,
+        uploads: nextUploads,
+      };
+    }),
+  setOtherChecklistData: (res) =>
+    set((s) => {
+      if (!res || !Array.isArray(res.slots)) return s;
+      const batchDocs = mapBackendSlotsToBatchDocs(res.slots);
+      const nextBatchUploads: Record<string, UploadedFile | null> = {};
+      for (const slot of res.slots) {
+        if (slot.uploaded) {
+          const existing = s.batchUploads[slot.code];
+          const fileName = slot.file_name || existing?.filename || `${slot.code}.docx`;
+          const format: "PDF" | "DOCX" = fileName.toLowerCase().endsWith(".pdf") ? "PDF" : "DOCX";
+          nextBatchUploads[slot.code] = {
+            filename: fileName,
+            sizeKB: existing?.sizeKB ?? 24,
+            by: slot.uploaded_by || existing?.by || "Master Data",
+            at: slot.uploaded_at ? new Date(slot.uploaded_at).toLocaleDateString() : existing?.at || "Uploaded",
+            format,
+            rawFile: existing?.rawFile,
+            blobUrl: existing?.blobUrl,
+          };
+        } else {
+          nextBatchUploads[slot.code] = null;
+        }
+      }
+      return {
+        batchDocs,
+        batchUploads: nextBatchUploads,
       };
     }),
   setUpload: (code, file) => set((s) => ({ uploads: { ...s.uploads, [code]: file } })),

@@ -15,10 +15,14 @@ export function TypePage() {
   const documentTypeId = useSetupStore((s) => s.documentTypeId);
   const setDosageFormId = useSetupStore((s) => s.setDosageFormId);
   const setDocumentTypeId = useSetupStore((s) => s.setDocumentTypeId);
+  const stageSections = useSetupStore((s) => s.stageSections);
+  const batchDocs = useSetupStore((s) => s.batchDocs);
 
   const dosage = DOSAGE_FORM_OPTIONS.find((o) => o.id === dosageFormId);
   const docType = DOCUMENT_TYPE_OPTIONS.find((o) => o.id === documentTypeId);
   const ready = Boolean(dosage?.available && docType?.available);
+  const stageDocCount = stageSections.reduce((n, s) => n + s.docs.length, 0);
+  const batchDocCount = batchDocs.length;
 
   return (
     <SetupShell
@@ -63,7 +67,7 @@ export function TypePage() {
       <StepFooter
         note={
           ready
-            ? `${dosage?.label} · ${docType?.label} selected — 34 stage documents, 2 list masters and 4 other documents to configure.`
+            ? `${dosage?.label} · ${docType?.label} selected — ${stageDocCount} stage documents and ${batchDocCount} other documents to configure.`
             : "Choose an available dosage form and document type to continue."
         }
         continueTo={STEPS[1].route}

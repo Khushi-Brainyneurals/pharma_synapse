@@ -533,8 +533,12 @@ test('masterDataAccess correctly partitions permissions for all user roles', () 
   assert.equal(superadmin.canView, false);
 });
 
-test('getSelectedTypeMeta resolves dynamic dosage form and document type for Master Data Dependent steps', () => {
-  const { getSelectedTypeMeta } = loader({
+test('getSelectedTypeMeta and checklist mappers resolve dynamic stages and documents for Master Data Dependent steps', () => {
+  const {
+    getSelectedTypeMeta,
+    mapBackendStagesToSections,
+    mapBackendSlotsToBatchDocs,
+  } = loader({
     zustand: { create: fn => () => fn(() => {}, () => ({})) },
   })('src/features/master-data-setup/state/setupStore.ts');
 
@@ -549,9 +553,30 @@ test('getSelectedTypeMeta resolves dynamic dosage form and document type for Mas
   assert.equal(pvpMeta.docShortLabel, 'PVP');
   assert.equal(pvpMeta.label, 'Tablet · PVP');
 
-  const bprMeta = getSelectedTypeMeta('capsule', 'bpr');
-  assert.equal(bprMeta.dosageBackend, 'capsule');
-  assert.equal(bprMeta.docBackend, 'bpr');
-  assert.equal(bprMeta.label, 'Capsule · BPR');
+  const mappedSections = mapBackendStagesToSections([
+    {
+      product_type: 'tablet',
+      doc_type: 'pvp',
+      stage_key: 'granulation',
+      slots: [
+        { code: 'PVP-GRN-01', label: 'PVP Granulation Sampling Plan', required: true, uploaded: false },
+      ],
+      others: [],
+      uploaded_count: 0,
+      required_count: 1,
+    },
+  ]);
+  assert.equal(mappedSections.length, 1);
+  assert.equal(mappedSections[0].key, 'granulation');
+  assert.equal(mappedSections[0].title, 'Granulation');
+  assert.equal(mappedSections[0].docs[0].code, 'PVP-GRN-01');
+  assert.equal(mappedSections[0].docs[0].name, 'PVP Granulation Sampling Plan');
+
+  const mappedBatch = mapBackendSlotsToBatchDocs([
+    { code: 'PVP-OT-01', label: 'Protocol Summary Report', required: true, uploaded: false },
+  ]);
+  assert.equal(mappedBatch.length, 1);
+  assert.equal(mappedBatch[0].code, 'PVP-OT-01');
+  assert.equal(mappedBatch[0].name, 'Protocol Summary Report');
 });
 

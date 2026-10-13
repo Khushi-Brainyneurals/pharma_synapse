@@ -1,13 +1,13 @@
 import { Eye, Lock, ShieldAlert } from "lucide-react";
+import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuthStore } from "../../auth/state/auth.store";
 import { AppHeader } from "../../new-document/components/AppHeader";
 import { AppSidebar } from "../../new-document/components/AppSidebar";
 import { masterDataAccess } from "../access";
+import { getOtherDocumentsChecklist, getStageChecklist } from "../api/masterDataDocuments.api";
 import { MasterDataZipButton } from "./MasterDataZipButton";
 import {
-  BATCH_DOCS,
-  STAGE_DOC_COUNT,
   STEP_GROUPS,
   STEPS,
   type StepKey,
@@ -35,6 +35,29 @@ export function SetupShell({
   const user = useAuthStore((state) => state.user);
   const access = masterDataAccess(user?.role);
   const activeGroup = STEP_GROUPS.find((g) => g.steps.includes(step));
+  const dosageFormId = useSetupStore((s) => s.dosageFormId);
+  const documentTypeId = useSetupStore((s) => s.documentTypeId);
+  const setStageChecklistData = useSetupStore((s) => s.setStageChecklistData);
+  const setOtherChecklistData = useSetupStore((s) => s.setOtherChecklistData);
+  const typeMeta = getSelectedTypeMeta(dosageFormId, documentTypeId);
+
+  useEffect(() => {
+    if (!access.canView) return;
+    let cancelled = false;
+    getStageChecklist(typeMeta.dosageBackend, typeMeta.docBackend)
+      .then((res) => {
+        if (!cancelled && res) setStageChecklistData(res);
+      })
+      .catch(() => {});
+    getOtherDocumentsChecklist(typeMeta.dosageBackend, typeMeta.docBackend)
+      .then((res) => {
+        if (!cancelled && res) setOtherChecklistData(res);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [access.canView, typeMeta.dosageBackend, typeMeta.docBackend, setStageChecklistData, setOtherChecklistData]);
 
   // Prepared-by has read-only rights to ALL of master data (spec §Master Data): they can
   // open every page and navigate the same two-group stepper, but every control is disabled.
@@ -94,24 +117,28 @@ export function SetupShell({
 function useStepMeta(): Record<StepKey, string> {
   const dosageFormId = useSetupStore((s) => s.dosageFormId);
   const documentTypeId = useSetupStore((s) => s.documentTypeId);
+  const stageSections = useSetupStore((s) => s.stageSections);
+  const batchDocs = useSetupStore((s) => s.batchDocs);
   const uploads = useSetupStore((s) => s.uploads);
   const batch = useSetupStore((s) => s.batchUploads);
   const equipment = useSetupStore((s) => s.equipment);
   const instrument = useSetupStore((s) => s.instrument);
 
   const typeMeta = getSelectedTypeMeta(dosageFormId, documentTypeId);
-  const stageDone = Object.values(uploads).filter(Boolean).length;
-  const batchDone = Object.values(batch).filter(Boolean).length;
+  const stageTotal = stageSections.reduce((n, sec) => n + sec.docs.length, 0);
+  const stageDone = stageSections.reduce((n, sec) => n + sec.docs.filter((d) => uploads[d.code]).length, 0);
+  const batchTotal = batchDocs.length;
+  const batchDone = batchDocs.filter((d) => batch[d.code]).length;
   const equipDone = equipment.filter((r) => r.name.trim() && r.mcId.trim()).length;
   const instrDone = instrument.filter((r) => r.name.trim() && r.instrumentId.trim()).length;
   const totalUploaded = stageDone + batchDone;
 
   return {
     type: typeMeta.label,
-    stages: `${stageDone} / ${STAGE_DOC_COUNT}`,
+    stages: `${stageDone} / ${stageTotal}`,
     equipment: `${equipDone} / ${equipment.length}`,
     instruments: `${instrDone} / ${instrument.length}`,
-    batch: `${batchDone} / ${BATCH_DOCS.length}`,
+    batch: `${batchDone} / ${batchTotal}`,
     preview: `${totalUploaded} documents`,
     company: "Letterhead & logo",
   };
