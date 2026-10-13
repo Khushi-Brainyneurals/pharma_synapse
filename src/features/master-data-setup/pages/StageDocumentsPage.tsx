@@ -181,8 +181,8 @@ export function StageDocumentsPage() {
         note={<>Autosaved · <span className="font-mono tabular-nums">{totalDone}</span> / {STAGE_DOC_COUNT} mandatory uploaded</>}
         backTo={STEPS[0].route}
         backLabel="Type"
-        continueTo={STEPS[2].route}
-        continueLabel="Continue to equipment list"
+        continueTo={STEPS[4].route}
+        continueLabel="Continue to other documents"
       />
     </SetupShell>
   );

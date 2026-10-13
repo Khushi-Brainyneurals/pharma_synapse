@@ -288,16 +288,16 @@ export function EquipmentListPage() {
               </>
             )
           }
-          backTo={STEPS[1].route}
-          backLabel="Stage documents"
+          backTo={STEPS[6].route}
+          backLabel="Company info"
           continueTo={STEPS[3].route}
           continueLabel="Continue to instrument list"
         />
       ) : (
         <StepFooter
           note="Viewing the equipment master — read only."
-          backTo={STEPS[5].route}
-          backLabel="Master data"
+          backTo={STEPS[6].route}
+          backLabel="Company info"
           continueTo={STEPS[3].route}
           continueLabel="View instrument list"
         />

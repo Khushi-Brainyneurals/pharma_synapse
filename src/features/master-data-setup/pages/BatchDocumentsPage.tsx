@@ -121,8 +121,8 @@ export function BatchDocumentsPage() {
 
       <StepFooter
         note={<>Autosaved · <span className="font-mono tabular-nums">{done}</span> / {total} mandatory uploaded</>}
-        backTo={STEPS[3].route}
-        backLabel="Instrument list"
+        backTo={STEPS[1].route}
+        backLabel="Stage documents"
         continueTo={STEPS[5].route}
         continueLabel="Continue to preview"
       />

@@ -368,16 +368,16 @@ export function InstrumentListPage() {
           }
           backTo={STEPS[2].route}
           backLabel="Equipment list"
-          continueTo={STEPS[4].route}
-          continueLabel="Continue to other documents"
+          continueTo={STEPS[0].route}
+          continueLabel="Continue to dependent data (Type)"
         />
       ) : (
         <StepFooter
           note="Viewing the instrument master — read only."
           backTo={STEPS[2].route}
           backLabel="Equipment list"
-          continueTo={STEPS[5].route}
-          continueLabel="Back to Master data"
+          continueTo={STEPS[0].route}
+          continueLabel="View dependent data (Type)"
         />
       )}
     </SetupShell>
