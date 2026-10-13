@@ -6,6 +6,7 @@ import { DocxViewer } from "../../preview/components/DocxViewer";
 import { DocumentViewer } from "../../../shared/document/DocumentViewer";
 import { getOtherDocumentPreviewBlob, getStageDocumentPreviewBlob } from "../api/masterDataDocuments.api";
 import type { DocDef, UploadedFile } from "../model/setup.model";
+import { getSelectedTypeMeta, useSetupStore } from "../state/setupStore";
 
 interface DocumentPreviewDialogProps {
   doc: DocDef;
@@ -14,6 +15,10 @@ interface DocumentPreviewDialogProps {
 }
 
 export function DocumentPreviewDialog({ doc, file, onClose }: DocumentPreviewDialogProps) {
+  const dosageFormId = useSetupStore((s) => s.dosageFormId);
+  const documentTypeId = useSetupStore((s) => s.documentTypeId);
+  const typeMeta = getSelectedTypeMeta(dosageFormId, documentTypeId);
+
   const [page, setPage] = useState(1);
   const totalPages = 2;
 
@@ -59,8 +64,8 @@ export function DocumentPreviewDialog({ doc, file, onClose }: DocumentPreviewDia
     setLoadError(null);
 
     const loader = file.stageKey
-      ? getStageDocumentPreviewBlob("tablet", "bmr", file.stageKey, doc.code)
-      : getOtherDocumentPreviewBlob("tablet", "bmr", doc.code);
+      ? getStageDocumentPreviewBlob(typeMeta.dosageBackend, typeMeta.docBackend, file.stageKey, doc.code)
+      : getOtherDocumentPreviewBlob(typeMeta.dosageBackend, typeMeta.docBackend, doc.code);
 
     loader
       .then(async (b) => {
@@ -78,7 +83,7 @@ export function DocumentPreviewDialog({ doc, file, onClose }: DocumentPreviewDia
     return () => {
       cancelled = true;
     };
-  }, [doc.code, file.blobUrl, file.stageKey, file.rawFile, file.format, file.filename]);
+  }, [doc.code, file.blobUrl, file.stageKey, file.rawFile, file.format, file.filename, typeMeta.dosageBackend, typeMeta.docBackend]);
 
   const handleDownload = () => {
     const targetBlob = blob || file.rawFile;
@@ -216,11 +221,14 @@ function PreviewDocumentSheet({
   page: number;
   total: number;
 }) {
+  const dosageFormId = useSetupStore((s) => s.dosageFormId);
+  const documentTypeId = useSetupStore((s) => s.documentTypeId);
+  const typeMeta = getSelectedTypeMeta(dosageFormId, documentTypeId);
   return (
     <div className="mx-auto w-[210mm] max-w-full min-h-[297mm] rounded-sm border border-border/80 bg-white p-10 text-black shadow-lg">
       <div className="flex items-center justify-between border-b border-black/10 pb-3 text-[10px] font-semibold uppercase tracking-wider text-black/60">
         <span>UNIT-01 · Master Format Template</span>
-        <span>Tablet · BMR</span>
+        <span>{typeMeta.label}</span>
       </div>
 
       <div className="my-6 text-center">

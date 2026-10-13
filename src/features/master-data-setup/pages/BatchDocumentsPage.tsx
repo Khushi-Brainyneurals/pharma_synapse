@@ -6,7 +6,7 @@ import { SetupShell } from "../components/SetupShell";
 import { StepFooter } from "../components/StepFooter";
 import { UploadRow } from "../components/UploadRow";
 import { BATCH_DOCS, STEPS } from "../model/setup.model";
-import { useSetupStore } from "../state/setupStore";
+import { getSelectedTypeMeta, useSetupStore } from "../state/setupStore";
 import { useAuthStore } from "../../auth/state/auth.store";
 
 const LETTERS = "abcd";
@@ -14,13 +14,16 @@ const LETTERS = "abcd";
 export function BatchDocumentsPage() {
   const user = useAuthStore((s) => s.user);
   const canEdit = masterDataAccess(user?.role).canEdit;
+  const dosageFormId = useSetupStore((s) => s.dosageFormId);
+  const documentTypeId = useSetupStore((s) => s.documentTypeId);
+  const typeMeta = getSelectedTypeMeta(dosageFormId, documentTypeId);
   const uploads = useSetupStore((s) => s.batchUploads);
   const setUpload = useSetupStore((s) => s.setBatchUpload);
   const removeUpload = useSetupStore((s) => s.removeBatchUpload);
 
   useEffect(() => {
     let cancelled = false;
-    getOtherDocumentsChecklist("tablet", "bmr")
+    getOtherDocumentsChecklist(typeMeta.dosageBackend, typeMeta.docBackend)
       .then((res) => {
         if (cancelled) return;
         res.slots.forEach((slot) => {
@@ -33,6 +36,8 @@ export function BatchDocumentsPage() {
               at: slot.uploaded_at ? new Date(slot.uploaded_at).toLocaleDateString() : "Uploaded",
               format,
             });
+          } else {
+            removeUpload(slot.code);
           }
         });
       })
@@ -42,7 +47,7 @@ export function BatchDocumentsPage() {
     return () => {
       cancelled = true;
     };
-  }, [setUpload]);
+  }, [typeMeta.dosageBackend, typeMeta.docBackend, setUpload, removeUpload]);
 
   const done = BATCH_DOCS.filter((d) => uploads[d.code]).length;
   const total = BATCH_DOCS.length;
@@ -53,7 +58,7 @@ export function BatchDocumentsPage() {
       title="Other documents"
       description={
         <>
-          The closing sections of the BMR — batch reconciliation, batch release, deviation, change history — they apply{" "}
+          The closing sections of the {typeMeta.docShortLabel} — batch reconciliation, batch release, deviation, change history — they apply{" "}
           <strong>once per batch, not per stage</strong>, which is why they live here. Upload the blank approved master
           format for each.
         </>
@@ -88,12 +93,12 @@ export function BatchDocumentsPage() {
             onUpload={(f) => {
               setUpload(d.code, f);
               if (f.rawFile) {
-                void uploadOtherDocument("tablet", "bmr", d.code, f.rawFile).catch(() => {});
+                void uploadOtherDocument(typeMeta.dosageBackend, typeMeta.docBackend, d.code, f.rawFile).catch(() => {});
               }
             }}
             onRemove={() => {
               removeUpload(d.code);
-              void removeOtherDocument("tablet", "bmr", d.code).catch(() => {});
+              void removeOtherDocument(typeMeta.dosageBackend, typeMeta.docBackend, d.code).catch(() => {});
             }}
           />
         ))}

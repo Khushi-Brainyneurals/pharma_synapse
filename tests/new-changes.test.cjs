@@ -532,3 +532,26 @@ test('masterDataAccess correctly partitions permissions for all user roles', () 
   const superadmin = masterDataAccess('superadmin');
   assert.equal(superadmin.canView, false);
 });
+
+test('getSelectedTypeMeta resolves dynamic dosage form and document type for Master Data Dependent steps', () => {
+  const { getSelectedTypeMeta } = loader({
+    zustand: { create: fn => () => fn(() => {}, () => ({})) },
+  })('src/features/master-data-setup/state/setupStore.ts');
+
+  const bmrMeta = getSelectedTypeMeta('tablet', 'bmr');
+  assert.equal(bmrMeta.dosageBackend, 'tablet');
+  assert.equal(bmrMeta.docBackend, 'bmr');
+  assert.equal(bmrMeta.label, 'Tablet · BMR');
+
+  const pvpMeta = getSelectedTypeMeta('tablet', 'pvp');
+  assert.equal(pvpMeta.dosageBackend, 'tablet');
+  assert.equal(pvpMeta.docBackend, 'pvp');
+  assert.equal(pvpMeta.docShortLabel, 'PVP');
+  assert.equal(pvpMeta.label, 'Tablet · PVP');
+
+  const bprMeta = getSelectedTypeMeta('capsule', 'bpr');
+  assert.equal(bprMeta.dosageBackend, 'capsule');
+  assert.equal(bprMeta.docBackend, 'bpr');
+  assert.equal(bprMeta.label, 'Capsule · BPR');
+});
+

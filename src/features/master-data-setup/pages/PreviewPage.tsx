@@ -7,12 +7,11 @@ import { HowThisWorks } from "../components/HowThisWorks";
 import { SetupShell } from "../components/SetupShell";
 import {
   BATCH_DOCS,
-  DOCUMENT_TYPE,
   STAGE_DOC_COUNT,
   STAGE_SECTIONS,
   type UploadedFile,
 } from "../model/setup.model";
-import { useSetupStore } from "../state/setupStore";
+import { getSelectedTypeMeta, useSetupStore } from "../state/setupStore";
 import { useAuthStore } from "../../auth/state/auth.store";
 import { DocxViewer } from "../../preview/components/DocxViewer";
 import { DocumentViewer } from "../../../shared/document/DocumentViewer";
@@ -42,6 +41,9 @@ interface PreviewDoc {
 export function PreviewPage() {
   const user = useAuthStore((s) => s.user);
   const access = masterDataAccess(user?.role);
+  const dosageFormId = useSetupStore((s) => s.dosageFormId);
+  const documentTypeId = useSetupStore((s) => s.documentTypeId);
+  const typeMeta = getSelectedTypeMeta(dosageFormId, documentTypeId);
   const uploads = useSetupStore((s) => s.uploads);
   const batch = useSetupStore((s) => s.batchUploads);
   const equipment = useSetupStore((s) => s.equipment);
@@ -73,9 +75,9 @@ export function PreviewPage() {
   useEffect(() => {
     let isMounted = true;
     Promise.all([
-      getStageChecklist("tablet", "bmr").catch(() => null),
-      getOtherDocumentsChecklist("tablet", "bmr").catch(() => null),
-      getStageApprovalStatus("tablet", "bmr").catch(() => null),
+      getStageChecklist(typeMeta.dosageBackend, typeMeta.docBackend).catch(() => null),
+      getOtherDocumentsChecklist(typeMeta.dosageBackend, typeMeta.docBackend).catch(() => null),
+      getStageApprovalStatus(typeMeta.dosageBackend, typeMeta.docBackend).catch(() => null),
       getEquipments().catch(() => null),
       getInstruments().catch(() => null),
     ]).then(([stageRes, otherRes, approvalRes, equipsRes, instrsRes]) => {
@@ -121,12 +123,14 @@ export function PreviewPage() {
       }
       if (approvalRes && (approvalRes.status === "submitted" || approvalRes.status === "approved")) {
         setSubmitted(true);
+      } else {
+        setSubmitted(false);
       }
     });
     return () => {
       isMounted = false;
     };
-  }, [setUpload, removeUpload, setBatchUpload, removeBatchUpload, setEquipmentRows, setInstrumentRows]);
+  }, [typeMeta.dosageBackend, typeMeta.docBackend, setUpload, removeUpload, setBatchUpload, removeBatchUpload, setEquipmentRows, setInstrumentRows]);
 
   // Flatten every uploaded master into a grouped, searchable list.
   const groups = useMemo(() => {
@@ -189,9 +193,9 @@ export function PreviewPage() {
         let blob: Blob | null = null;
         const stageKey = targetDoc.file.stageKey || DOC_CODE_TO_STAGE_KEY[targetDoc.code];
         if (stageKey) {
-          blob = await getStageDocumentPreviewBlob("tablet", "bmr", stageKey, targetDoc.code);
+          blob = await getStageDocumentPreviewBlob(typeMeta.dosageBackend, typeMeta.docBackend, stageKey, targetDoc.code);
         } else if (targetDoc.code.startsWith("BAT-0") || targetDoc.group.includes("Other")) {
-          blob = await getOtherDocumentPreviewBlob("tablet", "bmr", targetDoc.code);
+          blob = await getOtherDocumentPreviewBlob(typeMeta.dosageBackend, typeMeta.docBackend, targetDoc.code);
         }
 
         if (isMounted) {
@@ -237,7 +241,7 @@ export function PreviewPage() {
     return () => {
       isMounted = false;
     };
-  }, [currentDoc]);
+  }, [currentDoc, typeMeta.dosageBackend, typeMeta.docBackend]);
 
   // Close the full-screen preview on Escape.
   useEffect(() => {
@@ -256,7 +260,7 @@ export function PreviewPage() {
     setIsSubmitting(true);
     setSubmitError(null);
     try {
-      await submitStageApproval("tablet", "bmr");
+      await submitStageApproval(typeMeta.dosageBackend, typeMeta.docBackend);
       setSubmitted(true);
     } catch (err: any) {
       setSubmitError(err?.response?.data?.detail || err?.message || "Submission failed");
@@ -738,11 +742,14 @@ function Chip({ label, value, ok, to }: { label: string; value: string; ok: bool
 }
 
 function MockPage({ doc, page = 1, total = 2 }: { doc: PreviewDoc; page?: number; total?: number }) {
+  const dosageFormId = useSetupStore((s) => s.dosageFormId);
+  const documentTypeId = useSetupStore((s) => s.documentTypeId);
+  const typeMeta = getSelectedTypeMeta(dosageFormId, documentTypeId);
   return (
     <div className="mx-auto w-[210mm] max-w-full min-h-[297mm] rounded-sm border border-border/80 bg-white p-10 text-black shadow-lg">
       <div className="flex items-center justify-between text-[9px] uppercase tracking-wide text-black/50">
         <span>UNIT-01 · Master Template</span>
-        <span>{DOCUMENT_TYPE.dosage} · {DOCUMENT_TYPE.doc}</span>
+        <span>{typeMeta.label}</span>
       </div>
       <h3 className="mt-6 text-center text-sm font-bold uppercase tracking-wide">{doc.name}</h3>
       <p className="mt-1 text-center text-[10px] text-black/50">

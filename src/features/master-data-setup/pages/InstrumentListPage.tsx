@@ -7,7 +7,7 @@ import { SetupShell } from "../components/SetupShell";
 import { StepFooter } from "../components/StepFooter";
 import { STEPS, type InstrumentRow } from "../model/setup.model";
 import { printListPdf } from "../exportPdf";
-import { useSetupStore } from "../state/setupStore";
+import { getSelectedTypeMeta, useSetupStore } from "../state/setupStore";
 import { useAuthStore } from "../../auth/state/auth.store";
 import { USER_ROLE_LABELS } from "../../auth/model/roles";
 import {
@@ -24,6 +24,9 @@ import {
 export function InstrumentListPage() {
   const user = useAuthStore((s) => s.user);
   const canEdit = masterDataAccess(user?.role).canEdit;
+  const dosageFormId = useSetupStore((s) => s.dosageFormId);
+  const documentTypeId = useSetupStore((s) => s.documentTypeId);
+  const typeMeta = getSelectedTypeMeta(dosageFormId, documentTypeId);
   const rows = useSetupStore((s) => s.instrument);
   const update = useSetupStore((s) => s.updateInstr);
   const setStages = useSetupStore((s) => s.setInstrStages);
@@ -165,7 +168,7 @@ export function InstrumentListPage() {
 
   const downloadPdf = () =>
     printListPdf({
-      title: "Instrument List Master — Tablet · BMR",
+      title: `Instrument List Master — ${typeMeta.label}`,
       subtitle: "Master data · Instruments — measurement & IPQC",
       columns: ["Sr. No.", "Name of Instrument", "Instrument ID No.", "Location", "Stage(s)"],
       rows: rows.map((r) => [

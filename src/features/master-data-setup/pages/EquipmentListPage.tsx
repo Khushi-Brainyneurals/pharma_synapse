@@ -7,7 +7,7 @@ import { SetupShell } from "../components/SetupShell";
 import { StepFooter } from "../components/StepFooter";
 import { STEPS, type EquipmentRow } from "../model/setup.model";
 import { printListPdf } from "../exportPdf";
-import { useSetupStore } from "../state/setupStore";
+import { getSelectedTypeMeta, useSetupStore } from "../state/setupStore";
 import { useAuthStore } from "../../auth/state/auth.store";
 import { USER_ROLE_LABELS } from "../../auth/model/roles";
 import { EquipmentMasterTable } from "../components/EquipmentMasterTable";
@@ -25,6 +25,9 @@ import {
 export function EquipmentListPage() {
   const user = useAuthStore((s) => s.user);
   const canEdit = masterDataAccess(user?.role).canEdit;
+  const dosageFormId = useSetupStore((s) => s.dosageFormId);
+  const documentTypeId = useSetupStore((s) => s.documentTypeId);
+  const typeMeta = getSelectedTypeMeta(dosageFormId, documentTypeId);
   const rows = useSetupStore((s) => s.equipment);
   const update = useSetupStore((s) => s.updateEquip);
   const setEquipmentRows = useSetupStore((s) => s.setEquipmentRows);
@@ -176,7 +179,7 @@ export function EquipmentListPage() {
 
   const downloadPdf = () =>
     printListPdf({
-      title: "Equipment List Master — Tablet · BMR",
+      title: `Equipment List Master — ${typeMeta.label}`,
       subtitle: "Master data · Equipment — machines & processing stages",
       columns: [
         "Sr.",

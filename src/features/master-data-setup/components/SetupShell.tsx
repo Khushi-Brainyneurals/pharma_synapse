@@ -7,13 +7,12 @@ import { masterDataAccess } from "../access";
 import { MasterDataZipButton } from "./MasterDataZipButton";
 import {
   BATCH_DOCS,
-  DOCUMENT_TYPE,
   STAGE_DOC_COUNT,
   STEP_GROUPS,
   STEPS,
   type StepKey,
 } from "../model/setup.model";
-import { useSetupStore } from "../state/setupStore";
+import { getSelectedTypeMeta, useSetupStore } from "../state/setupStore";
 
 /**
  * The chrome shared by every Master Data Setup step: app shell, breadcrumb, the
@@ -93,11 +92,14 @@ export function SetupShell({
 
 /** Per-step completion counts, read live from the draft. */
 function useStepMeta(): Record<StepKey, string> {
+  const dosageFormId = useSetupStore((s) => s.dosageFormId);
+  const documentTypeId = useSetupStore((s) => s.documentTypeId);
   const uploads = useSetupStore((s) => s.uploads);
   const batch = useSetupStore((s) => s.batchUploads);
   const equipment = useSetupStore((s) => s.equipment);
   const instrument = useSetupStore((s) => s.instrument);
 
+  const typeMeta = getSelectedTypeMeta(dosageFormId, documentTypeId);
   const stageDone = Object.values(uploads).filter(Boolean).length;
   const batchDone = Object.values(batch).filter(Boolean).length;
   const equipDone = equipment.filter((r) => r.name.trim() && r.mcId.trim()).length;
@@ -105,7 +107,7 @@ function useStepMeta(): Record<StepKey, string> {
   const totalUploaded = stageDone + batchDone;
 
   return {
-    type: DOCUMENT_TYPE.label,
+    type: typeMeta.label,
     stages: `${stageDone} / ${STAGE_DOC_COUNT}`,
     equipment: `${equipDone} / ${equipment.length}`,
     instruments: `${instrDone} / ${instrument.length}`,

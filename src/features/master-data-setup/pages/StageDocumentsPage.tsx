@@ -7,7 +7,7 @@ import { SetupShell } from "../components/SetupShell";
 import { StepFooter } from "../components/StepFooter";
 import { UploadRow } from "../components/UploadRow";
 import { STAGE_DOC_COUNT, STAGE_SECTIONS, STEPS, type StageSection } from "../model/setup.model";
-import { useSetupStore } from "../state/setupStore";
+import { getSelectedTypeMeta, useSetupStore } from "../state/setupStore";
 import { useAuthStore } from "../../auth/state/auth.store";
 
 const LETTERS = "abcdefghij";
@@ -26,6 +26,9 @@ const STAGE_KEY_MAP: Record<string, string> = {
 export function StageDocumentsPage() {
   const user = useAuthStore((s) => s.user);
   const access = masterDataAccess(user?.role);
+  const dosageFormId = useSetupStore((s) => s.dosageFormId);
+  const documentTypeId = useSetupStore((s) => s.documentTypeId);
+  const typeMeta = getSelectedTypeMeta(dosageFormId, documentTypeId);
   const uploads = useSetupStore((s) => s.uploads);
   const setUpload = useSetupStore((s) => s.setUpload);
   const removeUpload = useSetupStore((s) => s.removeUpload);
@@ -40,7 +43,7 @@ export function StageDocumentsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    getStageChecklist("tablet", "bmr")
+    getStageChecklist(typeMeta.dosageBackend, typeMeta.docBackend)
       .then((res) => {
         if (cancelled) return;
         res.stages.forEach((stage) => {
@@ -55,6 +58,8 @@ export function StageDocumentsPage() {
                 format,
                 stageKey: stage.stage_key,
               });
+            } else {
+              removeUpload(slot.code);
             }
           });
         });
@@ -66,7 +71,7 @@ export function StageDocumentsPage() {
     return () => {
       cancelled = true;
     };
-  }, [setUpload]);
+  }, [typeMeta.dosageBackend, typeMeta.docBackend, setUpload, removeUpload]);
 
   const setAll = (open: boolean) =>
     setExpanded(Object.fromEntries(STAGE_SECTIONS.map((s) => [s.key, open])));
@@ -92,7 +97,7 @@ export function StageDocumentsPage() {
 
       <div className="flex items-center justify-between">
         <p className="text-micro font-semibold uppercase tracking-overline text-subdued">
-          Stages — Tablet · BMR · {STAGE_SECTIONS.length} sections · {STAGE_DOC_COUNT} mandatory documents
+          Stages — {typeMeta.label} · {STAGE_SECTIONS.length} sections · {STAGE_DOC_COUNT} mandatory documents
         </p>
         <div className="flex items-center gap-3 text-small font-semibold text-primary">
           <button type="button" onClick={() => setAll(true)} className="hover:underline">Expand all</button>
@@ -147,13 +152,13 @@ export function StageDocumentsPage() {
                         const stageKey = STAGE_KEY_MAP[sec.key] || sec.key;
                         setUpload(d.code, { ...f, stageKey });
                         if (f.rawFile) {
-                          void uploadStageDocument("tablet", "bmr", stageKey, d.code, f.rawFile).catch(() => {});
+                          void uploadStageDocument(typeMeta.dosageBackend, typeMeta.docBackend, stageKey, d.code, f.rawFile).catch(() => {});
                         }
                       }}
                       onRemove={() => {
                         const stageKey = STAGE_KEY_MAP[sec.key] || sec.key;
                         removeUpload(d.code);
-                        void removeStageDocument("tablet", "bmr", stageKey, d.code).catch(() => {});
+                        void removeStageDocument(typeMeta.dosageBackend, typeMeta.docBackend, stageKey, d.code).catch(() => {});
                       }}
                     />
                   ))}
