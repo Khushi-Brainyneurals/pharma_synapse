@@ -5,36 +5,30 @@ import { HowThisWorks } from "../components/HowThisWorks";
 import { SetupShell } from "../components/SetupShell";
 import { StepFooter } from "../components/StepFooter";
 import { UploadRow } from "../components/UploadRow";
-import { BATCH_DOCS, STEPS } from "../model/setup.model";
-import { useSetupStore } from "../state/setupStore";
+import { STEPS } from "../model/setup.model";
+import { getSelectedTypeMeta, useSetupStore } from "../state/setupStore";
 import { useAuthStore } from "../../auth/state/auth.store";
 
-const LETTERS = "abcd";
+const LETTERS = "abcdefghijklmnopqrstuvwxyz";
 
 export function BatchDocumentsPage() {
   const user = useAuthStore((s) => s.user);
   const canEdit = masterDataAccess(user?.role).canEdit;
+  const dosageFormId = useSetupStore((s) => s.dosageFormId);
+  const documentTypeId = useSetupStore((s) => s.documentTypeId);
+  const typeMeta = getSelectedTypeMeta(dosageFormId, documentTypeId);
+  const batchDocs = useSetupStore((s) => s.batchDocs);
+  const setOtherChecklistData = useSetupStore((s) => s.setOtherChecklistData);
   const uploads = useSetupStore((s) => s.batchUploads);
   const setUpload = useSetupStore((s) => s.setBatchUpload);
   const removeUpload = useSetupStore((s) => s.removeBatchUpload);
 
   useEffect(() => {
     let cancelled = false;
-    getOtherDocumentsChecklist("tablet", "bmr")
+    getOtherDocumentsChecklist(typeMeta.dosageBackend, typeMeta.docBackend)
       .then((res) => {
-        if (cancelled) return;
-        res.slots.forEach((slot) => {
-          if (slot.uploaded) {
-            const format: "PDF" | "DOCX" = (slot.file_name || "").toLowerCase().endsWith(".docx") ? "DOCX" : "PDF";
-            setUpload(slot.code, {
-              filename: slot.file_name || `${slot.code}.docx`,
-              sizeKB: 24,
-              by: slot.uploaded_by || "Master Data",
-              at: slot.uploaded_at ? new Date(slot.uploaded_at).toLocaleDateString() : "Uploaded",
-              format,
-            });
-          }
-        });
+        if (cancelled || !res) return;
+        setOtherChecklistData(res);
       })
       .catch(() => {
         /* fallback to store */
@@ -42,10 +36,10 @@ export function BatchDocumentsPage() {
     return () => {
       cancelled = true;
     };
-  }, [setUpload]);
+  }, [typeMeta.dosageBackend, typeMeta.docBackend, setOtherChecklistData]);
 
-  const done = BATCH_DOCS.filter((d) => uploads[d.code]).length;
-  const total = BATCH_DOCS.length;
+  const done = batchDocs.filter((d) => uploads[d.code]).length;
+  const total = batchDocs.length;
 
   return (
     <SetupShell
@@ -53,7 +47,7 @@ export function BatchDocumentsPage() {
       title="Other documents"
       description={
         <>
-          The closing sections of the BMR — batch reconciliation, batch release, deviation, change history — they apply{" "}
+          The closing sections of the {typeMeta.docShortLabel} — batch reconciliation, batch release, deviation, change history — they apply{" "}
           <strong>once per batch, not per stage</strong>, which is why they live here. Upload the blank approved master
           format for each.
         </>
@@ -70,30 +64,30 @@ export function BatchDocumentsPage() {
       <section className="overflow-hidden rounded-panel border border-border bg-surface">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div>
-            <p className="text-base font-semibold">Batch-level documents</p>
+            <p className="text-base font-semibold">Batch-level documents — {typeMeta.label}</p>
             <p className="text-micro text-subdued">{total} documents · all mandatory · one file per document · PDF or DOCX</p>
           </div>
           <p className="text-right">
-            <span className={`font-mono text-small font-semibold tabular-nums ${done === total ? "text-approved-fg" : "text-draft-fg"}`}>{done} / {total}</span>
+            <span className={`font-mono text-small font-semibold tabular-nums ${done === total && total > 0 ? "text-approved-fg" : "text-draft-fg"}`}>{done} / {total}</span>
             <span className="block text-[10px] uppercase tracking-overline text-subdued">Uploaded</span>
           </p>
         </div>
-        {BATCH_DOCS.map((d, i) => (
+        {batchDocs.map((d, i) => (
           <UploadRow
             key={d.code}
             doc={d}
-            letter={LETTERS[i]}
+            letter={LETTERS[i] ?? String(i + 1)}
             file={uploads[d.code] ?? null}
             canEdit={canEdit}
             onUpload={(f) => {
               setUpload(d.code, f);
               if (f.rawFile) {
-                void uploadOtherDocument("tablet", "bmr", d.code, f.rawFile).catch(() => {});
+                void uploadOtherDocument(typeMeta.dosageBackend, typeMeta.docBackend, d.code, f.rawFile).catch(() => {});
               }
             }}
             onRemove={() => {
               removeUpload(d.code);
-              void removeOtherDocument("tablet", "bmr", d.code).catch(() => {});
+              void removeOtherDocument(typeMeta.dosageBackend, typeMeta.docBackend, d.code).catch(() => {});
             }}
           />
         ))}
@@ -105,7 +99,7 @@ export function BatchDocumentsPage() {
           <span className="rounded-pill border border-border px-2 py-0.5 text-[10px] font-semibold uppercase text-subdued">Optional</span>
         </div>
         <p className="mt-1 text-micro text-subdued">
-          Anything beyond the four fixed sections — annexures, formats, SOP extracts. PDF or DOCX · never blocks Continue to preview.
+          Anything beyond the fixed sections — annexures, formats, SOP extracts. PDF or DOCX · never blocks Continue to preview.
         </p>
         {canEdit ? (
           <button type="button" className="mt-3 rounded-control border border-dashed border-border px-3 py-1.5 text-small font-semibold text-subdued hover:border-primary hover:text-primary">
@@ -116,8 +110,8 @@ export function BatchDocumentsPage() {
 
       <StepFooter
         note={<>Autosaved · <span className="font-mono tabular-nums">{done}</span> / {total} mandatory uploaded</>}
-        backTo={STEPS[3].route}
-        backLabel="Instrument list"
+        backTo={STEPS[1].route}
+        backLabel="Stage documents"
         continueTo={STEPS[5].route}
         continueLabel="Continue to preview"
       />

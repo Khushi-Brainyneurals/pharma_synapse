@@ -5,14 +5,8 @@ import { Identifier } from "../../../shared/ui/Identifier";
 import { masterDataAccess } from "../access";
 import { HowThisWorks } from "../components/HowThisWorks";
 import { SetupShell } from "../components/SetupShell";
-import {
-  BATCH_DOCS,
-  DOCUMENT_TYPE,
-  STAGE_DOC_COUNT,
-  STAGE_SECTIONS,
-  type UploadedFile,
-} from "../model/setup.model";
-import { useSetupStore } from "../state/setupStore";
+import { type UploadedFile } from "../model/setup.model";
+import { getSelectedTypeMeta, useSetupStore } from "../state/setupStore";
 import { useAuthStore } from "../../auth/state/auth.store";
 import { DocxViewer } from "../../preview/components/DocxViewer";
 import { DocumentViewer } from "../../../shared/document/DocumentViewer";
@@ -36,12 +30,20 @@ interface PreviewDoc {
   code: string;
   name: string;
   group: string;
+  stageKey?: string;
   file: UploadedFile;
 }
 
 export function PreviewPage() {
   const user = useAuthStore((s) => s.user);
   const access = masterDataAccess(user?.role);
+  const dosageFormId = useSetupStore((s) => s.dosageFormId);
+  const documentTypeId = useSetupStore((s) => s.documentTypeId);
+  const typeMeta = getSelectedTypeMeta(dosageFormId, documentTypeId);
+  const stageSections = useSetupStore((s) => s.stageSections);
+  const batchDocs = useSetupStore((s) => s.batchDocs);
+  const setStageChecklistData = useSetupStore((s) => s.setStageChecklistData);
+  const setOtherChecklistData = useSetupStore((s) => s.setOtherChecklistData);
   const uploads = useSetupStore((s) => s.uploads);
   const batch = useSetupStore((s) => s.batchUploads);
   const equipment = useSetupStore((s) => s.equipment);
@@ -50,10 +52,6 @@ export function PreviewPage() {
   const setInstrumentRows = useSetupStore((s) => s.setInstrumentRows);
   const previewed = useSetupStore((s) => s.previewed);
   const markPreviewed = useSetupStore((s) => s.markPreviewed);
-  const setUpload = useSetupStore((s) => s.setUpload);
-  const removeUpload = useSetupStore((s) => s.removeUpload);
-  const setBatchUpload = useSetupStore((s) => s.setBatchUpload);
-  const removeBatchUpload = useSetupStore((s) => s.removeBatchUpload);
 
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
@@ -73,9 +71,9 @@ export function PreviewPage() {
   useEffect(() => {
     let isMounted = true;
     Promise.all([
-      getStageChecklist("tablet", "bmr").catch(() => null),
-      getOtherDocumentsChecklist("tablet", "bmr").catch(() => null),
-      getStageApprovalStatus("tablet", "bmr").catch(() => null),
+      getStageChecklist(typeMeta.dosageBackend, typeMeta.docBackend).catch(() => null),
+      getOtherDocumentsChecklist(typeMeta.dosageBackend, typeMeta.docBackend).catch(() => null),
+      getStageApprovalStatus(typeMeta.dosageBackend, typeMeta.docBackend).catch(() => null),
       getEquipments().catch(() => null),
       getInstruments().catch(() => null),
     ]).then(([stageRes, otherRes, approvalRes, equipsRes, instrsRes]) => {
@@ -86,61 +84,44 @@ export function PreviewPage() {
       if (instrsRes && instrsRes.length > 0) {
         setInstrumentRows(instrsRes.map(backendInstrumentToInstrumentRow));
       }
-      if (stageRes?.stages) {
-        for (const stage of stageRes.stages) {
-          for (const slot of stage.slots) {
-            if (slot.uploaded && slot.file_name) {
-              setUpload(slot.code, {
-                filename: slot.file_name,
-                sizeKB: 250,
-                by: slot.uploaded_by || "QA System",
-                at: slot.uploaded_at || new Date().toISOString(),
-                format: slot.file_name.toLowerCase().endsWith(".pdf") ? "PDF" : "DOCX",
-                stageKey: stage.stage_key,
-              });
-            } else {
-              removeUpload(slot.code);
-            }
-          }
-        }
+      if (stageRes) {
+        setStageChecklistData(stageRes);
       }
-      if (otherRes?.slots) {
-        for (const slot of otherRes.slots) {
-          if (slot.uploaded && slot.file_name) {
-            setBatchUpload(slot.code, {
-              filename: slot.file_name,
-              sizeKB: 220,
-              by: slot.uploaded_by || "QA System",
-              at: slot.uploaded_at || new Date().toISOString(),
-              format: slot.file_name.toLowerCase().endsWith(".pdf") ? "PDF" : "DOCX",
-            });
-          } else {
-            removeBatchUpload(slot.code);
-          }
-        }
+      if (otherRes) {
+        setOtherChecklistData(otherRes);
       }
       if (approvalRes && (approvalRes.status === "submitted" || approvalRes.status === "approved")) {
         setSubmitted(true);
+      } else {
+        setSubmitted(false);
       }
     });
     return () => {
       isMounted = false;
     };
-  }, [setUpload, removeUpload, setBatchUpload, removeBatchUpload, setEquipmentRows, setInstrumentRows]);
+  }, [typeMeta.dosageBackend, typeMeta.docBackend, setStageChecklistData, setOtherChecklistData, setEquipmentRows, setInstrumentRows]);
 
   // Flatten every uploaded master into a grouped, searchable list.
   const groups = useMemo(() => {
     const out: { group: string; docs: PreviewDoc[] }[] = [];
-    for (const sec of STAGE_SECTIONS) {
+    for (const sec of stageSections) {
       const docs = sec.docs
         .filter((d) => uploads[d.code])
-        .map((d) => ({ code: d.code, name: d.name, group: sec.note ? `${sec.title} (${sec.note})` : sec.title, file: uploads[d.code]! }));
+        .map((d) => ({
+          code: d.code,
+          name: d.name,
+          group: sec.note ? `${sec.title} (${sec.note})` : sec.title,
+          stageKey: uploads[d.code]?.stageKey || sec.key,
+          file: uploads[d.code]!,
+        }));
       if (docs.length) out.push({ group: sec.note ? `${sec.title} (${sec.note})` : sec.title, docs });
     }
-    const batchDocs = BATCH_DOCS.filter((d) => batch[d.code]).map((d) => ({ code: d.code, name: d.name, group: "Other documents", file: batch[d.code]! }));
-    if (batchDocs.length) out.push({ group: "Other documents", docs: batchDocs });
+    const otherUploadedDocs = batchDocs
+      .filter((d) => batch[d.code])
+      .map((d) => ({ code: d.code, name: d.name, group: "Other documents", file: batch[d.code]! }));
+    if (otherUploadedDocs.length) out.push({ group: "Other documents", docs: otherUploadedDocs });
     return out;
-  }, [uploads, batch]);
+  }, [stageSections, batchDocs, uploads, batch]);
 
   const allDocs = groups.flatMap((g) => g.docs);
   const q = query.trim().toLowerCase();
@@ -148,11 +129,13 @@ export function PreviewPage() {
     .map((g) => ({ ...g, docs: g.docs.filter((d) => !q || d.name.toLowerCase().includes(q) || d.code.toLowerCase().includes(q)) }))
     .filter((g) => g.docs.length);
 
-  const stageDone = Object.values(uploads).filter(Boolean).length;
-  const batchDone = Object.values(batch).filter(Boolean).length;
+  const stageTotal = stageSections.reduce((n, sec) => n + sec.docs.length, 0);
+  const stageDone = stageSections.reduce((n, sec) => n + sec.docs.filter((d) => uploads[d.code]).length, 0);
+  const batchTotal = batchDocs.length;
+  const batchDone = batchDocs.filter((d) => batch[d.code]).length;
   const totalUploaded = allDocs.length;
   const previewedCount = allDocs.filter((d) => previewed[d.code]).length;
-  const ready = stageDone === STAGE_DOC_COUNT && batchDone === BATCH_DOCS.length;
+  const ready = stageDone === stageTotal && batchDone === batchTotal;
 
   const current = selected ?? allDocs[0]?.code ?? null;
   const currentDoc = allDocs.find((d) => d.code === current) ?? null;
@@ -187,11 +170,11 @@ export function PreviewPage() {
         }
 
         let blob: Blob | null = null;
-        const stageKey = targetDoc.file.stageKey || DOC_CODE_TO_STAGE_KEY[targetDoc.code];
-        if (stageKey) {
-          blob = await getStageDocumentPreviewBlob("tablet", "bmr", stageKey, targetDoc.code);
-        } else if (targetDoc.code.startsWith("BAT-0") || targetDoc.group.includes("Other")) {
-          blob = await getOtherDocumentPreviewBlob("tablet", "bmr", targetDoc.code);
+        const stageKey = targetDoc.stageKey || targetDoc.file.stageKey || DOC_CODE_TO_STAGE_KEY[targetDoc.code];
+        if (stageKey && targetDoc.group !== "Other documents") {
+          blob = await getStageDocumentPreviewBlob(typeMeta.dosageBackend, typeMeta.docBackend, stageKey, targetDoc.code);
+        } else {
+          blob = await getOtherDocumentPreviewBlob(typeMeta.dosageBackend, typeMeta.docBackend, targetDoc.code);
         }
 
         if (isMounted) {
@@ -237,7 +220,7 @@ export function PreviewPage() {
     return () => {
       isMounted = false;
     };
-  }, [currentDoc]);
+  }, [currentDoc, typeMeta.dosageBackend, typeMeta.docBackend]);
 
   // Close the full-screen preview on Escape.
   useEffect(() => {
@@ -256,7 +239,7 @@ export function PreviewPage() {
     setIsSubmitting(true);
     setSubmitError(null);
     try {
-      await submitStageApproval("tablet", "bmr");
+      await submitStageApproval(typeMeta.dosageBackend, typeMeta.docBackend);
       setSubmitted(true);
     } catch (err: any) {
       setSubmitError(err?.response?.data?.detail || err?.message || "Submission failed");
@@ -308,13 +291,13 @@ export function PreviewPage() {
 
       {/* summary strip */}
       <div className="flex flex-wrap items-center gap-2 rounded-panel border border-border bg-surface px-4 py-3 text-small">
-        <Chip label="Stage documents" value={`${stageDone} / ${STAGE_DOC_COUNT}`} ok={stageDone === STAGE_DOC_COUNT} />
+        <Chip label="Stage documents" value={`${stageDone} / ${stageTotal}`} ok={stageDone === stageTotal} />
         <Chip label="Equipment list" value={`${equipment.length} rows`} ok to="/master-data-setup/equipment" />
         <Chip label="Instrument list" value={`${instrument.length} rows`} ok to="/master-data-setup/instruments" />
-        <Chip label="Other documents" value={`${batchDone} / ${BATCH_DOCS.length}`} ok={batchDone === BATCH_DOCS.length} />
+        <Chip label="Other documents" value={`${batchDone} / ${batchTotal}`} ok={batchDone === batchTotal} />
         <span className={`ml-auto inline-flex items-center gap-1.5 font-semibold ${ready ? "text-approved-fg" : "text-draft-fg"}`}>
           {ready ? <Check className="size-4" aria-hidden="true" /> : null}
-          {ready ? "All steps complete — ready to submit" : `${STAGE_DOC_COUNT - stageDone + (BATCH_DOCS.length - batchDone)} mandatory pending`}
+          {ready ? "All steps complete — ready to submit" : `${stageTotal - stageDone + (batchTotal - batchDone)} mandatory pending`}
         </span>
       </div>
 
@@ -738,11 +721,14 @@ function Chip({ label, value, ok, to }: { label: string; value: string; ok: bool
 }
 
 function MockPage({ doc, page = 1, total = 2 }: { doc: PreviewDoc; page?: number; total?: number }) {
+  const dosageFormId = useSetupStore((s) => s.dosageFormId);
+  const documentTypeId = useSetupStore((s) => s.documentTypeId);
+  const typeMeta = getSelectedTypeMeta(dosageFormId, documentTypeId);
   return (
     <div className="mx-auto w-[210mm] max-w-full min-h-[297mm] rounded-sm border border-border/80 bg-white p-10 text-black shadow-lg">
       <div className="flex items-center justify-between text-[9px] uppercase tracking-wide text-black/50">
         <span>UNIT-01 · Master Template</span>
-        <span>{DOCUMENT_TYPE.dosage} · {DOCUMENT_TYPE.doc}</span>
+        <span>{typeMeta.label}</span>
       </div>
       <h3 className="mt-6 text-center text-sm font-bold uppercase tracking-wide">{doc.name}</h3>
       <p className="mt-1 text-center text-[10px] text-black/50">

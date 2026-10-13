@@ -32,23 +32,27 @@ export interface UploadedFile {
 
 export const DOCUMENT_TYPE = { dosage: "Tablet", doc: "BMR", label: "Tablet · BMR" };
 
-const doc = (code: string, name: string): DocDef => ({ code, name, required: true });
+const doc = (code: string, name: string, required = true): DocDef => ({ code, name, required });
 
 export const STAGE_SECTIONS: StageSection[] = [
   {
-    key: "dispensing",
-    title: "Dispensing",
-    docs: [doc("DSP-01", "Line Clearance Check List"), doc("DSP-02", "In-Process Check List")],
+    key: "dispensing_rm",
+    title: "Dispensing of Raw Material",
+    docs: [
+      doc("DSP-01", "Line Clearance Check List"),
+      doc("DSP-02", "In-Process Check List"),
+    ],
   },
   {
     key: "granulation",
     title: "Granulation",
     docs: [
       doc("GRN-01", "Line Clearance Check List"),
-      doc("GRN-02", "In-Process Check List"),
-      doc("GRN-03", "Weigh IPC Bin / HDPE Container"),
+      doc("GRN-02", "In-Process Check List (Lubrication step, optional)", false),
+      doc("GRN-03", "Weigh IPC Bin / HDPE Container - Dried Granules"),
       doc("GRN-04", "Sampling Plan of Lubricated Blend"),
-      doc("GRN-05", "Yield Reconciliation — Granulation Stage"),
+      doc("GRN-05", "Yield Reconciliation – Granulation Stage"),
+      doc("GRN-06", "Weigh IPC Bin / HDPE Container - Final Blend"),
     ],
   },
   {
@@ -56,61 +60,68 @@ export const STAGE_SECTIONS: StageSection[] = [
     title: "Compression",
     docs: [
       doc("CMP-01", "Line Clearance Check List"),
-      doc("CMP-02", "In-Process Check List"),
-      doc("CMP-03", "Dies & Punches Verification Record"),
-      doc("CMP-04", "Machine Setting Record"),
-      doc("CMP-05", "Hardness & Speed Challenge Study"),
-      doc("CMP-06", "Metal Detector Challenge Test"),
-      doc("CMP-07", "Compression Process Record"),
-      doc("CMP-08", "Yield Reconciliation — Compression Stage"),
+      doc("CMP-02", "In-Process Check List (before Sampling Plan, optional)", false),
+      doc("CMP-03", "Weigh IPC Bin / HDPE Container"),
+      doc("CMP-04", "Sampling Plan of Compressed Tablets"),
+      doc("CMP-05", "Metal Detector Challenge Test"),
+      doc("CMP-06", "Evaluation Report of Rejection from Metal Detector"),
+      doc("CMP-07", "Details of Rejection"),
+      doc("CMP-08", "Yield Reconciliation – Compression Stage"),
     ],
   },
   {
-    key: "inspection_uncoated",
-    title: "Tablet Inspection",
-    note: "for uncoated tablets",
+    key: "uncoated_inspection",
+    title: "Uncoated Tablet Inspection",
     docs: [
-      doc("INU-01", "Line Clearance Check List"),
-      doc("INU-02", "In-Process Check List"),
-      doc("INU-03", "Visual Inspection Record"),
-      doc("INU-04", "Sorting / De-dusting Record"),
-      doc("INU-05", "Rejection Record"),
-      doc("INU-06", "Yield Reconciliation — Inspection"),
+      doc("TIU-01", "Line Clearance Check List"),
+      doc("TIU-02", "In-Process Check List"),
+      doc("TIU-03", "Tablet Inspection Process"),
+      doc("TIU-04", "AQL Inspection Record"),
+      doc("TIU-05", "Weigh IPC Bin / HDPE Container & Record – Transfer to Quarantine"),
+      doc("TIU-06", "Yield Reconciliation for Uncoated Inspected Tablets"),
     ],
   },
   {
     key: "dispensing_coating",
-    title: "Dispensing",
-    note: "for coating materials",
-    docs: [doc("DSC-01", "Line Clearance Check List"), doc("DSC-02", "Coating Material Dispensing Sheet")],
+    title: "Dispensing of Coating Material",
+    docs: [
+      doc("DCM-01", "Line Clearance Check List"),
+      doc("DCM-02", "In-Process Check List"),
+    ],
   },
   {
     key: "coating",
     title: "Coating",
     docs: [
-      doc("COT-01", "Line Clearance Check List"),
-      doc("COT-02", "In-Process Check List"),
-      doc("COT-03", "Coating Solution Preparation Record"),
-      doc("COT-04", "Coating Process Record"),
-      doc("COT-05", "Yield Reconciliation — Coating Stage"),
+      doc("COA-01", "Line Clearance Check List"),
+      doc("COA-02", "In-Process Check List"),
+      doc("COA-03", "Weighing of Seal Coated Tablets"),
+      doc("COA-04", "Sampling for Coated Tablets"),
+      doc("COA-05", "Yield Calculation for Film Coated Tablets"),
     ],
   },
   {
-    key: "inspection_coated",
-    title: "Tablet Inspection",
-    note: "for coated tablets",
+    key: "coated_inspection",
+    title: "Coated Tablet Inspection",
     docs: [
-      doc("INC-01", "Line Clearance Check List"),
-      doc("INC-02", "In-Process Check List"),
-      doc("INC-03", "Visual Inspection Record"),
-      doc("INC-04", "Sorting / De-dusting Record"),
-      doc("INC-05", "Rejection Record"),
-      doc("INC-06", "Yield Reconciliation — Inspection"),
+      doc("TIC-01", "Line Clearance Check List"),
+      doc("TIC-02", "In-Process Check List"),
+      doc("TIC-03", "Tablet Inspection Process"),
+      doc("TIC-04", "AQL Inspection Record"),
+      doc("TIC-05", "Weigh IPC Bin / HDPE Container & Record – Transfer to Quarantine"),
+      doc("TIC-06", "Yield Reconciliation for Coated Inspected Tablets"),
+    ],
+  },
+  {
+    key: "batch_yield_reconciliation",
+    title: "Batch Yield Reconciliation",
+    docs: [
+      doc("BAT-01", "Batch Yield Reconciliation"),
     ],
   },
 ];
 
-/** Total mandatory stage documents (34). */
+/** Total mandatory stage documents (36). */
 export const STAGE_DOC_COUNT = STAGE_SECTIONS.reduce((n, s) => n + s.docs.length, 0);
 
 export const BATCH_DOCS: DocDef[] = [

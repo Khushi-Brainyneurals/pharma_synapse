@@ -7,7 +7,7 @@ import { SetupShell } from "../components/SetupShell";
 import { StepFooter } from "../components/StepFooter";
 import { STEPS, type InstrumentRow } from "../model/setup.model";
 import { printListPdf } from "../exportPdf";
-import { useSetupStore } from "../state/setupStore";
+import { getSelectedTypeMeta, useSetupStore } from "../state/setupStore";
 import { useAuthStore } from "../../auth/state/auth.store";
 import { USER_ROLE_LABELS } from "../../auth/model/roles";
 import {
@@ -24,6 +24,9 @@ import {
 export function InstrumentListPage() {
   const user = useAuthStore((s) => s.user);
   const canEdit = masterDataAccess(user?.role).canEdit;
+  const dosageFormId = useSetupStore((s) => s.dosageFormId);
+  const documentTypeId = useSetupStore((s) => s.documentTypeId);
+  const typeMeta = getSelectedTypeMeta(dosageFormId, documentTypeId);
   const rows = useSetupStore((s) => s.instrument);
   const update = useSetupStore((s) => s.updateInstr);
   const setStages = useSetupStore((s) => s.setInstrStages);
@@ -165,7 +168,7 @@ export function InstrumentListPage() {
 
   const downloadPdf = () =>
     printListPdf({
-      title: "Instrument List Master — Tablet · BMR",
+      title: `Instrument List Master — ${typeMeta.label}`,
       subtitle: "Master data · Instruments — measurement & IPQC",
       columns: ["Sr. No.", "Name of Instrument", "Instrument ID No.", "Location", "Stage(s)"],
       rows: rows.map((r) => [
@@ -365,16 +368,16 @@ export function InstrumentListPage() {
           }
           backTo={STEPS[2].route}
           backLabel="Equipment list"
-          continueTo={STEPS[4].route}
-          continueLabel="Continue to other documents"
+          continueTo={STEPS[0].route}
+          continueLabel="Continue to dependent data (Type)"
         />
       ) : (
         <StepFooter
           note="Viewing the instrument master — read only."
           backTo={STEPS[2].route}
           backLabel="Equipment list"
-          continueTo={STEPS[5].route}
-          continueLabel="Back to Master data"
+          continueTo={STEPS[0].route}
+          continueLabel="View dependent data (Type)"
         />
       )}
     </SetupShell>
@@ -399,10 +402,11 @@ function Cell({
   placeholder?: string;
 }) {
   return (
-    <td className="px-2 py-2">
+    <td className="px-2 py-2" title={value}>
       {canEdit ? (
         <input
           value={value}
+          title={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           className={`min-h-9 w-full rounded-control border bg-surface px-2.5 py-1.5 text-sm text-text transition placeholder:text-subdued/70 focus:outline-none focus:ring-2 focus:ring-primary/20 ${
@@ -414,7 +418,10 @@ function Cell({
           }`}
         />
       ) : (
-        <span className={`block px-2.5 py-1.5 ${mono ? "font-mono tabular-nums" : ""} ${value ? "text-text" : "text-subdued/60"}`}>
+        <span
+          title={value}
+          className={`block px-2.5 py-1.5 ${mono ? "font-mono tabular-nums" : ""} ${value ? "text-text" : "text-subdued/60"}`}
+        >
           {value || "—"}
         </span>
       )}

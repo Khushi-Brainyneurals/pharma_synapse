@@ -879,6 +879,20 @@ test('equipment mapper and payload properly serialize both CPP and CQA', () => {
   assert.deepEqual(payload.steps[0].cpp, ['Impeller Speed (RPM)']);
   assert.deepEqual(payload.steps[0].cqa, ['Blend Uniformity']);
   assert.deepEqual(payload.steps[1].cqa, ['Granule Size', '% LOD']);
+
+  // Capacity values round-trip exactly by meaning: backend blanks stay blank,
+  // while an explicit N/A remains visible and is sent back as N/A.
+  const blankCapacityRow = backendEquipmentToEquipmentRow({
+    ...backendRow,
+    capacity: '',
+    working_capacity: 'N/A',
+  }, 0);
+  assert.equal(blankCapacityRow.capacity, '');
+  assert.equal(blankCapacityRow.workingCap, 'N/A');
+
+  const capacityPayload = toEquipmentPayload(blankCapacityRow, 0);
+  assert.equal(capacityPayload.capacity, '');
+  assert.equal(capacityPayload.working_capacity, 'N/A');
 });
 
 test('masterDataAccess correctly partitions permissions for all user roles', () => {
@@ -913,3 +927,51 @@ test('masterDataAccess correctly partitions permissions for all user roles', () 
   const superadmin = masterDataAccess('superadmin');
   assert.equal(superadmin.canView, false);
 });
+
+test('getSelectedTypeMeta and checklist mappers resolve dynamic stages and documents for Master Data Dependent steps', () => {
+  const {
+    getSelectedTypeMeta,
+    mapBackendStagesToSections,
+    mapBackendSlotsToBatchDocs,
+  } = loader({
+    zustand: { create: fn => () => fn(() => {}, () => ({})) },
+  })('src/features/master-data-setup/state/setupStore.ts');
+
+  const bmrMeta = getSelectedTypeMeta('tablet', 'bmr');
+  assert.equal(bmrMeta.dosageBackend, 'tablet');
+  assert.equal(bmrMeta.docBackend, 'bmr');
+  assert.equal(bmrMeta.label, 'Tablet · BMR');
+
+  const pvpMeta = getSelectedTypeMeta('tablet', 'pvp');
+  assert.equal(pvpMeta.dosageBackend, 'tablet');
+  assert.equal(pvpMeta.docBackend, 'pvp');
+  assert.equal(pvpMeta.docShortLabel, 'PVP');
+  assert.equal(pvpMeta.label, 'Tablet · PVP');
+
+  const mappedSections = mapBackendStagesToSections([
+    {
+      product_type: 'tablet',
+      doc_type: 'pvp',
+      stage_key: 'granulation',
+      slots: [
+        { code: 'PVP-GRN-01', label: 'PVP Granulation Sampling Plan', required: true, uploaded: false },
+      ],
+      others: [],
+      uploaded_count: 0,
+      required_count: 1,
+    },
+  ]);
+  assert.equal(mappedSections.length, 1);
+  assert.equal(mappedSections[0].key, 'granulation');
+  assert.equal(mappedSections[0].title, 'Granulation');
+  assert.equal(mappedSections[0].docs[0].code, 'PVP-GRN-01');
+  assert.equal(mappedSections[0].docs[0].name, 'PVP Granulation Sampling Plan');
+
+  const mappedBatch = mapBackendSlotsToBatchDocs([
+    { code: 'PVP-OT-01', label: 'Protocol Summary Report', required: true, uploaded: false },
+  ]);
+  assert.equal(mappedBatch.length, 1);
+  assert.equal(mappedBatch[0].code, 'PVP-OT-01');
+  assert.equal(mappedBatch[0].name, 'Protocol Summary Report');
+});
+

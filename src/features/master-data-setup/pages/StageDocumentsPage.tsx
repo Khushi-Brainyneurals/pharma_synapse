@@ -6,11 +6,11 @@ import { HowThisWorks } from "../components/HowThisWorks";
 import { SetupShell } from "../components/SetupShell";
 import { StepFooter } from "../components/StepFooter";
 import { UploadRow } from "../components/UploadRow";
-import { STAGE_DOC_COUNT, STAGE_SECTIONS, STEPS, type StageSection } from "../model/setup.model";
-import { useSetupStore } from "../state/setupStore";
+import { STEPS, type StageSection } from "../model/setup.model";
+import { getSelectedTypeMeta, useSetupStore } from "../state/setupStore";
 import { useAuthStore } from "../../auth/state/auth.store";
 
-const LETTERS = "abcdefghij";
+const LETTERS = "abcdefghijklmnopqrstuvwxyz";
 
 const STAGE_KEY_MAP: Record<string, string> = {
   dispensing: "dispensing_rm",
@@ -26,38 +26,34 @@ const STAGE_KEY_MAP: Record<string, string> = {
 export function StageDocumentsPage() {
   const user = useAuthStore((s) => s.user);
   const access = masterDataAccess(user?.role);
+  const dosageFormId = useSetupStore((s) => s.dosageFormId);
+  const documentTypeId = useSetupStore((s) => s.documentTypeId);
+  const typeMeta = getSelectedTypeMeta(dosageFormId, documentTypeId);
+  const stageSections = useSetupStore((s) => s.stageSections);
+  const setStageChecklistData = useSetupStore((s) => s.setStageChecklistData);
   const uploads = useSetupStore((s) => s.uploads);
   const setUpload = useSetupStore((s) => s.setUpload);
   const removeUpload = useSetupStore((s) => s.removeUpload);
 
   const sectionCount = (sec: StageSection) => sec.docs.filter((d) => uploads[d.code]).length;
-  const totalDone = STAGE_SECTIONS.reduce((n, sec) => n + sectionCount(sec), 0);
+  const totalDone = stageSections.reduce((n, sec) => n + sectionCount(sec), 0);
+  const stageDocCount = stageSections.reduce((n, sec) => n + sec.docs.length, 0);
 
-  const firstIncomplete = STAGE_SECTIONS.find((sec) => sectionCount(sec) < sec.docs.length)?.key;
+  const firstIncomplete = stageSections.find((sec) => sectionCount(sec) < sec.docs.length)?.key;
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
     firstIncomplete ? { [firstIncomplete]: true } : {},
   );
 
   useEffect(() => {
     let cancelled = false;
-    getStageChecklist("tablet", "bmr")
+    getStageChecklist(typeMeta.dosageBackend, typeMeta.docBackend)
       .then((res) => {
-        if (cancelled) return;
-        res.stages.forEach((stage) => {
-          stage.slots.forEach((slot) => {
-            if (slot.uploaded) {
-              const format: "PDF" | "DOCX" = (slot.file_name || "").toLowerCase().endsWith(".docx") ? "DOCX" : "PDF";
-              setUpload(slot.code, {
-                filename: slot.file_name || `${slot.code}.docx`,
-                sizeKB: 24,
-                by: slot.uploaded_by || "Master Data",
-                at: slot.uploaded_at ? new Date(slot.uploaded_at).toLocaleDateString() : "Uploaded",
-                format,
-                stageKey: stage.stage_key,
-              });
-            }
-          });
-        });
+        if (cancelled || !res) return;
+        setStageChecklistData(res);
+        const firstKey = res.stages?.[0]?.stage_key;
+        if (firstKey) {
+          setExpanded((prev) => (Object.keys(prev).length > 0 ? prev : { [firstKey]: true }));
+        }
       })
       .catch(() => {
         /* fallback to existing store */
@@ -66,10 +62,10 @@ export function StageDocumentsPage() {
     return () => {
       cancelled = true;
     };
-  }, [setUpload]);
+  }, [typeMeta.dosageBackend, typeMeta.docBackend, setStageChecklistData]);
 
   const setAll = (open: boolean) =>
-    setExpanded(Object.fromEntries(STAGE_SECTIONS.map((s) => [s.key, open])));
+    setExpanded(Object.fromEntries(stageSections.map((s) => [s.key, open])));
 
   return (
     <SetupShell
@@ -86,13 +82,13 @@ export function StageDocumentsPage() {
         items={[
           <>Open a stage with the <span className="font-semibold">arrow</span>.</>,
           <>Each box tells you <span className="font-semibold">which document to upload</span> — one PDF or DOCX per box.</>,
-          <><span className="font-semibold">Green tick = done.</span> Finish all {STAGE_DOC_COUNT} and press Continue.</>,
+          <><span className="font-semibold">Green tick = done.</span> Finish all {stageDocCount} and press Continue.</>,
         ]}
       />
 
       <div className="flex items-center justify-between">
         <p className="text-micro font-semibold uppercase tracking-overline text-subdued">
-          Stages — Tablet · BMR · {STAGE_SECTIONS.length} sections · {STAGE_DOC_COUNT} mandatory documents
+          Stages — {typeMeta.label} · {stageSections.length} sections · {stageDocCount} mandatory documents
         </p>
         <div className="flex items-center gap-3 text-small font-semibold text-primary">
           <button type="button" onClick={() => setAll(true)} className="hover:underline">Expand all</button>
@@ -101,10 +97,10 @@ export function StageDocumentsPage() {
       </div>
 
       <div className="space-y-3">
-        {STAGE_SECTIONS.map((sec) => {
+        {stageSections.map((sec) => {
           const done = sectionCount(sec);
           const total = sec.docs.length;
-          const state = done === total ? "done" : done > 0 ? "partial" : "empty";
+          const state = done === total && total > 0 ? "done" : done > 0 ? "partial" : "empty";
           const isOpen = expanded[sec.key] ?? false;
           const led = state === "done" ? "bg-approved-fg" : state === "partial" ? "bg-draft-fg" : "bg-border";
           return (
@@ -140,20 +136,20 @@ export function StageDocumentsPage() {
                     <UploadRow
                       key={d.code}
                       doc={d}
-                      letter={LETTERS[i]}
+                      letter={LETTERS[i] ?? String(i + 1)}
                       file={uploads[d.code] ?? null}
                       canEdit={access.canEdit}
                       onUpload={(f) => {
                         const stageKey = STAGE_KEY_MAP[sec.key] || sec.key;
                         setUpload(d.code, { ...f, stageKey });
                         if (f.rawFile) {
-                          void uploadStageDocument("tablet", "bmr", stageKey, d.code, f.rawFile).catch(() => {});
+                          void uploadStageDocument(typeMeta.dosageBackend, typeMeta.docBackend, stageKey, d.code, f.rawFile).catch(() => {});
                         }
                       }}
                       onRemove={() => {
                         const stageKey = STAGE_KEY_MAP[sec.key] || sec.key;
                         removeUpload(d.code);
-                        void removeStageDocument("tablet", "bmr", stageKey, d.code).catch(() => {});
+                        void removeStageDocument(typeMeta.dosageBackend, typeMeta.docBackend, stageKey, d.code).catch(() => {});
                       }}
                     />
                   ))}
@@ -173,11 +169,11 @@ export function StageDocumentsPage() {
       </div>
 
       <StepFooter
-        note={<>Autosaved · <span className="font-mono tabular-nums">{totalDone}</span> / {STAGE_DOC_COUNT} mandatory uploaded</>}
+        note={<>Autosaved · <span className="font-mono tabular-nums">{totalDone}</span> / {stageDocCount} mandatory uploaded</>}
         backTo={STEPS[0].route}
         backLabel="Type"
-        continueTo={STEPS[2].route}
-        continueLabel="Continue to equipment list"
+        continueTo={STEPS[4].route}
+        continueLabel="Continue to other documents"
       />
     </SetupShell>
   );

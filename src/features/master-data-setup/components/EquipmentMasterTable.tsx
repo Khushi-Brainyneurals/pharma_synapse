@@ -99,6 +99,18 @@ function summarizeCqa(steps: MasterDataStep[]): string {
   return `${steps.length} step${steps.length === 1 ? "" : "s"} · ${cqaCount} CQA${cqaCount === 1 ? "" : "s"}`;
 }
 
+function stepValuesTitle(steps: MasterDataStep[], kind: "cpp" | "cqa"): string {
+  const label = kind.toUpperCase();
+  if (steps.length === 0) return `No process steps or ${label}s`;
+
+  return steps
+    .map((step) => {
+      const values = kind === "cpp" ? step.cpp : step.cqa ?? [];
+      return `${step.step || "Unnamed step"}: ${values.length > 0 ? values.join(", ") : `No ${label}s`}`;
+    })
+    .join("\n");
+}
+
 export function EquipmentMasterTable({
   rows,
   canEdit,
@@ -240,6 +252,7 @@ export function EquipmentMasterTable({
                     <td className="min-w-52 px-2 py-2">
                       <input
                         value={row.name}
+                        title={row.name}
                         disabled={!canEdit}
                         placeholder={canEdit ? "Machine name" : undefined}
                         aria-label={`Name of machine, row ${index + 1}`}
@@ -255,7 +268,8 @@ export function EquipmentMasterTable({
                     {/* Capacity */}
                     <td className="px-2 py-2">
                       <input
-                        value={row.capacity === "N/A" ? "" : row.capacity}
+                        value={row.capacity}
+                        title={row.capacity}
                         disabled={!canEdit}
                         placeholder={canEdit ? "e.g. 100 kg" : undefined}
                         aria-label={`Capacity, row ${index + 1}`}
@@ -267,7 +281,8 @@ export function EquipmentMasterTable({
                     {/* Working Capacity */}
                     <td className="px-2 py-2">
                       <input
-                        value={row.workingCap === "N/A" ? "" : row.workingCap}
+                        value={row.workingCap}
+                        title={row.workingCap}
                         disabled={!canEdit}
                         placeholder={canEdit ? "e.g. 80 kg" : undefined}
                         aria-label={`Working capacity, row ${index + 1}`}
@@ -280,6 +295,7 @@ export function EquipmentMasterTable({
                     <td className="px-2 py-2">
                       <input
                         value={row.mcId}
+                        title={row.mcId}
                         disabled={!canEdit}
                         placeholder={canEdit ? "Unique ID" : undefined}
                         aria-label={`M/C ID No., row ${index + 1}`}
@@ -296,6 +312,7 @@ export function EquipmentMasterTable({
                     <td className="px-2 py-2">
                       <input
                         value={row.stage}
+                        title={row.stage}
                         disabled={!canEdit}
                         placeholder={canEdit ? "e.g. Granulation" : undefined}
                         aria-label={`Stage, row ${index + 1}`}
@@ -308,6 +325,7 @@ export function EquipmentMasterTable({
                     <td className="min-w-44 px-2 py-2">
                       <input
                         value={row.procStage}
+                        title={row.procStage}
                         disabled={!canEdit}
                         placeholder={canEdit ? "e.g. Compression" : undefined}
                         aria-label={`Processing stage, row ${index + 1}`}
@@ -321,6 +339,7 @@ export function EquipmentMasterTable({
                       <button
                         type="button"
                         aria-label={`Process steps & CPPs, row ${index + 1}`}
+                        title={stepValuesTitle(steps, "cpp")}
                         className="min-h-9 w-full rounded-control border border-border bg-surface px-2.5 py-1.5 text-left text-sm text-text transition hover:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                         onClick={() => openStepsEditor(row, "cpp")}
                       >
@@ -333,6 +352,7 @@ export function EquipmentMasterTable({
                       <button
                         type="button"
                         aria-label={`Process steps & CQAs, row ${index + 1}`}
+                        title={stepValuesTitle(steps, "cqa")}
                         className="min-h-9 w-full rounded-control border border-border bg-surface px-2.5 py-1.5 text-left text-sm text-text transition hover:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                         onClick={() => openStepsEditor(row, "cqa")}
                       >
