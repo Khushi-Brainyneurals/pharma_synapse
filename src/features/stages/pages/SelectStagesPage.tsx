@@ -58,17 +58,41 @@ export function SelectStagesPage() {
     void (async () => {
       try {
         const [optionsResponse, schemaResponse] = await Promise.all([
-          getOptions(),
+          getOptions().catch(() => ({
+            stages: [],
+            default_stages: [],
+            batch_types: [],
+            commercial_modes: [],
+            supported_dosage_forms: [],
+            supported_doc_types: [],
+          })),
           getStageSchema(documentId),
         ]);
         if (cancelled) return;
 
-        setOptions(optionsResponse.stages);
+        const schemaStages: StageOption[] = (schemaResponse.stages || [])
+          .filter((s) => s.key !== BATCH_YIELD_KEY)
+          .map((s) => {
+            const opt = (optionsResponse.stages || []).find((o) => o.key === s.key);
+            return {
+              key: s.key,
+              label: s.label || opt?.label || s.key,
+              description: opt?.description || s.description || "",
+              required: opt?.required ?? false,
+              implies: opt?.implies || [],
+            };
+          });
+
+        setOptions(schemaStages.length > 0 ? schemaStages : optionsResponse.stages || []);
         setSchema(schemaResponse);
 
         const alreadyConfigured = document?.stages && document.stages.length > 0;
+        const defaultKeys =
+          optionsResponse.default_stages && optionsResponse.default_stages.length > 0
+            ? optionsResponse.default_stages
+            : schemaStages.map((s) => s.key);
         const selectedKeys = new Set(
-          alreadyConfigured ? document!.stages : optionsResponse.default_stages,
+          alreadyConfigured ? document!.stages : defaultKeys,
         );
 
         const nextUi: Record<string, StageUi> = {};

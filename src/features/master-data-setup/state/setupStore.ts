@@ -71,16 +71,16 @@ export function getSelectedTypeMeta(dosageFormId = "tablet", documentTypeId = "b
 }
 
 const STAGE_KEY_META: Record<string, { title: string; note?: string }> = {
-  dispensing: { title: "Dispensing" },
-  dispensing_rm: { title: "Dispensing", note: "for raw materials" },
+  dispensing: { title: "Dispensing of Raw Material" },
+  dispensing_rm: { title: "Dispensing of Raw Material" },
   granulation: { title: "Granulation" },
   compression: { title: "Compression" },
-  inspection_uncoated: { title: "Tablet Inspection", note: "for uncoated tablets" },
-  uncoated_inspection: { title: "Tablet Inspection", note: "for uncoated tablets" },
-  dispensing_coating: { title: "Dispensing", note: "for coating materials" },
+  inspection_uncoated: { title: "Uncoated Tablet Inspection" },
+  uncoated_inspection: { title: "Uncoated Tablet Inspection" },
+  dispensing_coating: { title: "Dispensing of Coating Material" },
   coating: { title: "Coating" },
-  inspection_coated: { title: "Tablet Inspection", note: "for coated tablets" },
-  coated_inspection: { title: "Tablet Inspection", note: "for coated tablets" },
+  inspection_coated: { title: "Coated Tablet Inspection" },
+  coated_inspection: { title: "Coated Tablet Inspection" },
   batch_yield_reconciliation: { title: "Batch Yield Reconciliation" },
   reconciliation: { title: "Batch Yield Reconciliation" },
   packing: { title: "Packing" },

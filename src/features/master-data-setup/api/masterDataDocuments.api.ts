@@ -15,6 +15,7 @@ export interface StageChecklistGroup {
   product_type: string;
   doc_type: string;
   stage_key: string;
+  stage_label?: string;
   slots: StageSlot[];
   others: any[];
   uploaded_count: number;
@@ -41,10 +42,30 @@ export async function getStageChecklist(
   productType = "tablet",
   docType = "bmr",
 ): Promise<StageChecklistResponse> {
-  const res = await httpClient.get<StageChecklistResponse>(
-    `/api/master-data/${encodeURIComponent(productType)}/${encodeURIComponent(docType)}/checklist`,
-  );
-  return res.data;
+  const [checklistRes, stagesRes] = await Promise.all([
+    httpClient.get<StageChecklistResponse>(
+      `/api/master-data/${encodeURIComponent(productType)}/${encodeURIComponent(docType)}/checklist`,
+    ),
+    httpClient
+      .get<{ stages?: { key: string; label: string }[] }>(
+        `/api/documents/stages?product_type=${encodeURIComponent(productType)}&doc_type=${encodeURIComponent(docType)}`,
+      )
+      .catch(() => null),
+  ]);
+  const data = checklistRes.data;
+  const labelMap: Record<string, string> = {};
+  for (const st of stagesRes?.data?.stages || []) {
+    if (st.key && st.label) {
+      labelMap[st.key] = st.label;
+    }
+  }
+  if (Array.isArray(data?.stages)) {
+    data.stages = data.stages.map((stage) => ({
+      ...stage,
+      stage_label: stage.stage_label || labelMap[stage.stage_key],
+    }));
+  }
+  return data;
 }
 
 export async function getOtherDocumentsChecklist(
