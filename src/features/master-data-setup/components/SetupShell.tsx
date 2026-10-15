@@ -123,23 +123,30 @@ function useStepMeta(): Record<StepKey, string> {
   const batch = useSetupStore((s) => s.batchUploads);
   const equipment = useSetupStore((s) => s.equipment);
   const instrument = useSetupStore((s) => s.instrument);
+  const stageOthers = useSetupStore((s) => s.stageOthers);
+  const batchOthers = useSetupStore((s) => s.batchOthers);
 
   const typeMeta = getSelectedTypeMeta(dosageFormId, documentTypeId);
   const stageTotal = stageSections.reduce((n, sec) => n + sec.docs.length, 0);
   const stageDone = stageSections.reduce((n, sec) => n + sec.docs.filter((d) => uploads[d.code]).length, 0);
+  const stageExtraTotal = Object.values(stageOthers).reduce((sum, list) => sum + (list?.length || 0), 0);
+
   const batchTotal = batchDocs.length;
   const batchDone = batchDocs.filter((d) => batch[d.code]).length;
+  const batchExtraTotal = batchOthers?.length || 0;
+
   const equipDone = equipment.filter((r) => r.name.trim() && r.mcId.trim()).length;
   const instrDone = instrument.filter((r) => r.name.trim() && r.instrumentId.trim()).length;
   const totalUploaded = stageDone + batchDone;
+  const totalExtra = stageExtraTotal + batchExtraTotal;
 
   return {
     type: typeMeta.label,
-    stages: `${stageDone} / ${stageTotal}`,
+    stages: `${stageDone} / ${stageTotal}${stageExtraTotal > 0 ? ` (+${stageExtraTotal} extra)` : ""}`,
     equipment: `${equipDone} / ${equipment.length}`,
     instruments: `${instrDone} / ${instrument.length}`,
-    batch: `${batchDone} / ${batchTotal}`,
-    preview: `${totalUploaded} documents`,
+    batch: `${batchDone} / ${batchTotal}${batchExtraTotal > 0 ? ` (+${batchExtraTotal} extra)` : ""}`,
+    preview: `${totalUploaded + totalExtra} documents${totalExtra > 0 ? ` (${totalUploaded} + ${totalExtra} extra)` : ""}`,
     company: "Letterhead & logo",
   };
 }

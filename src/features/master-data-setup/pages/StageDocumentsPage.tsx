@@ -43,7 +43,8 @@ export function StageDocumentsPage() {
   const setUpload = useSetupStore((s) => s.setUpload);
   const removeUpload = useSetupStore((s) => s.removeUpload);
 
-  const [stageOthers, setStageOthers] = useState<Record<string, MasterOtherDocStatus[]>>({});
+  const stageOthers = useSetupStore((s) => s.stageOthers);
+  const setStageOthers = useSetupStore((s) => s.setStageOthers);
   const [activeStageKeyForOther, setActiveStageKeyForOther] = useState<string | null>(null);
   const [isUploadingOther, setIsUploadingOther] = useState(false);
   const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
@@ -74,7 +75,7 @@ export function StageDocumentsPage() {
     } catch {
       /* fallback */
     }
-  }, [typeMeta.dosageBackend, typeMeta.docBackend, setStageChecklistData]);
+  }, [typeMeta.dosageBackend, typeMeta.docBackend, setStageChecklistData, setStageOthers]);
 
   useEffect(() => {
     let cancelled = false;
@@ -99,7 +100,7 @@ export function StageDocumentsPage() {
     return () => {
       cancelled = true;
     };
-  }, [typeMeta.dosageBackend, typeMeta.docBackend, setStageChecklistData]);
+  }, [typeMeta.dosageBackend, typeMeta.docBackend, setStageChecklistData, setStageOthers]);
 
   const setAll = (open: boolean) =>
     setExpanded(Object.fromEntries(stageSections.map((s) => [s.key, open])));

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { DOCUMENT_TYPE_OPTIONS, DOSAGE_FORM_OPTIONS } from "../../new-document/model/documentSelector.config";
-import type { OtherDocumentsChecklistResponse, StageChecklistGroup, StageChecklistResponse, StageSlot } from "../api/masterDataDocuments.api";
+import type { MasterOtherDocStatus, OtherDocumentsChecklistResponse, StageChecklistGroup, StageChecklistResponse, StageSlot } from "../api/masterDataDocuments.api";
 import {
   BATCH_DOCS,
   EQUIPMENT_SEED,
@@ -20,6 +20,21 @@ import {
  */
 
 const STORAGE_KEY = "pharma.masterData.selectedType";
+
+function readInitialBatchOthers(): MasterOtherDocStatus[] {
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      const raw = window.localStorage.getItem("master_data_other_batch_docs");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return [];
+}
 
 function readInitialType(): { dosageFormId: string; documentTypeId: string } {
   try {
@@ -126,7 +141,8 @@ interface SetupState {
   dosageFormId: string;
   documentTypeId: string;
   stageSections: StageSection[];
-  stageOthers: Record<string, any[]>;
+  stageOthers: Record<string, MasterOtherDocStatus[]>;
+  batchOthers: MasterOtherDocStatus[];
   batchDocs: DocDef[];
   uploads: Record<string, UploadedFile | null>;
   batchUploads: Record<string, UploadedFile | null>;
@@ -137,7 +153,8 @@ interface SetupState {
   setDocumentTypeId: (id: string) => void;
   setSelectedType: (dosageFormId: string, documentTypeId: string) => void;
   setStageChecklistData: (res: StageChecklistResponse) => void;
-  setStageOthers: (others: Record<string, any[]>) => void;
+  setStageOthers: (others: Record<string, MasterOtherDocStatus[]>) => void;
+  setBatchOthers: (others: MasterOtherDocStatus[] | ((prev: MasterOtherDocStatus[]) => MasterOtherDocStatus[])) => void;
   setOtherChecklistData: (res: OtherDocumentsChecklistResponse) => void;
   setUpload: (code: string, file: UploadedFile) => void;
   removeUpload: (code: string) => void;
@@ -160,6 +177,7 @@ export const useSetupStore = create<SetupState>((set) => ({
   documentTypeId: initialType.documentTypeId,
   stageSections: STAGE_SECTIONS,
   stageOthers: {},
+  batchOthers: readInitialBatchOthers(),
   batchDocs: BATCH_DOCS,
   uploads: {},
   batchUploads: {},
@@ -208,9 +226,26 @@ export const useSetupStore = create<SetupState>((set) => ({
       if (!res || !Array.isArray(res.stages)) return s;
       const stageSections = mapBackendStagesToSections(res.stages);
       const nextUploads: Record<string, UploadedFile | null> = {};
-      const stageOthers: Record<string, any[]> = {};
+      const stageOthers: Record<string, MasterOtherDocStatus[]> = {};
+      let nextBatchOthers: MasterOtherDocStatus[] = s.batchOthers || [];
+
       for (const stage of res.stages) {
         stageOthers[stage.stage_key] = stage.others || [];
+        if (
+          stage.stage_key === "batch_yield_reconciliation" ||
+          stage.stage_key === "reconciliation"
+        ) {
+          if (stage.others && stage.others.length > 0) {
+            nextBatchOthers = stage.others;
+            try {
+              if (typeof window !== "undefined" && window.localStorage) {
+                window.localStorage.setItem("master_data_other_batch_docs", JSON.stringify(stage.others));
+              }
+            } catch {
+              // ignore
+            }
+          }
+        }
         for (const slot of stage.slots || []) {
           if (slot.uploaded) {
             const existing = s.uploads[slot.code];
@@ -235,9 +270,23 @@ export const useSetupStore = create<SetupState>((set) => ({
         stageSections,
         uploads: nextUploads,
         stageOthers,
+        batchOthers: nextBatchOthers,
       };
     }),
   setStageOthers: (others) => set({ stageOthers: others }),
+  setBatchOthers: (others) => {
+    set((s) => {
+      const next = typeof others === "function" ? others(s.batchOthers) : others;
+      try {
+        if (typeof window !== "undefined" && window.localStorage) {
+          window.localStorage.setItem("master_data_other_batch_docs", JSON.stringify(next));
+        }
+      } catch {
+        // ignore
+      }
+      return { batchOthers: next };
+    });
+  },
   setOtherChecklistData: (res) =>
     set((s) => {
       if (!res || !Array.isArray(res.slots)) return s;

@@ -34,14 +34,8 @@ export function BatchDocumentsPage() {
   const setUpload = useSetupStore((s) => s.setBatchUpload);
   const removeUpload = useSetupStore((s) => s.removeBatchUpload);
 
-  const [otherBatchDocs, setOtherBatchDocs] = useState<MasterOtherDocStatus[]>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
-  });
+  const otherBatchDocs = useSetupStore((s) => s.batchOthers);
+  const setOtherBatchDocs = useSetupStore((s) => s.setBatchOthers);
   const [isUploadingOther, setIsUploadingOther] = useState(false);
   const otherFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -49,23 +43,18 @@ export function BatchDocumentsPage() {
     try {
       const res = await getStageChecklist(typeMeta.dosageBackend, typeMeta.docBackend);
       if (res && Array.isArray(res.stages)) {
-        // Find others uploaded under batch reconciliation stage or any matching others
+        useSetupStore.getState().setStageChecklistData(res);
         const reconStage = res.stages.find(
           (s: any) => s.stage_key === "batch_yield_reconciliation" || s.stage_key === "reconciliation",
         );
         if (reconStage?.others && reconStage.others.length > 0) {
           setOtherBatchDocs(reconStage.others);
-          try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(reconStage.others));
-          } catch {
-            // ignore
-          }
         }
       }
     } catch {
       // Offline fallback
     }
-  }, [typeMeta.dosageBackend, typeMeta.docBackend]);
+  }, [typeMeta.dosageBackend, typeMeta.docBackend, setOtherBatchDocs]);
 
   useEffect(() => {
     let cancelled = false;
