@@ -42,7 +42,9 @@ function optionForBackendValue(options: DocumentOption[], value: string, useShor
   const template = options.find((option) =>
     option.backendValue.replace(/-/g, "_").toLowerCase() === normalized,
   );
-  if (template) return { ...template, backendValue: value, available: true, unavailableReason: undefined };
+  // The API controls which options are shown, while the local configuration
+  // controls which options are enabled for the current release.
+  if (template) return { ...template, backendValue: value };
   const label = value.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
   return {
     id: value.replace(/_/g, "-"),

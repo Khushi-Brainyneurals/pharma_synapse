@@ -4,12 +4,13 @@ import {
   Droplets,
   FileCheck2,
   FileText,
-  FlaskConical,
+  Syringe,
   Package,
   Pill,
-  HandCoins,
+  TubeLotion,
   Tablets,
   Bubbles,
+  FileChartLine,
 } from "lucide-react";
 
 export const RELEASE_TOOLTIP =
@@ -18,7 +19,7 @@ export const RELEASE_TOOLTIP =
 export const DOCUMENT_SELECTOR_STEPS: DocumentStep[] = [
   { id: "type", label: "Type" },
   { id: "inputs", label: "Core inputs" },
-  { id: "cover-bom", label: "Cover + BOM" },
+  { id: "cover-bom", label: "Cover Page" },
   { id: "stages", label: "Select stage & stage inputs" },
   { id: "generate-submit", label: "Generate & submit" },
 ];
@@ -42,22 +43,22 @@ export const DOSAGE_FORM_OPTIONS: DocumentOption[] = [
     icon: Pill,
   },
   {
-    id: "cream",
-    backendValue: "cream",
-    label: "Cream",
+    id: "cream_ointment",
+    backendValue: "cream_ointment",
+    label: "Cream / Ointment",
     description: "",
     available: false,
     unavailableReason: RELEASE_TOOLTIP,
-    icon: FlaskConical,
+    icon: TubeLotion,
   },
   {
-    id: "ointment",
-    backendValue: "ointment",
-    label: "Ointment",
+    id: "injection",
+    backendValue: "injection",
+    label: "Injection",
     description: "",
     available: false,
     unavailableReason: RELEASE_TOOLTIP,
-    icon: FlaskConical,
+    icon: Syringe,
   },
   {
     id: "powder",
@@ -115,6 +116,15 @@ export const DOCUMENT_TYPE_OPTIONS: DocumentOption[] = [
     description: "",
     available: true,
     icon: FileCheck2,
+  },
+    {
+    id: "cpv",
+    backendValue: "cpv",
+    label: "Continuous Process Verification Report",
+    shortLabel: "CPV",
+    description: "",
+    available: true,
+    icon: FileChartLine,
   },
 ];
 

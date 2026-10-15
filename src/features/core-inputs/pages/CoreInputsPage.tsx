@@ -4,7 +4,6 @@ import {
   FileText,
   Info,
   Loader2,
-  Lock,
   ShieldCheck,
 } from "lucide-react";
 import {
@@ -59,9 +58,6 @@ interface CoreInputsFormState {
   batchSize: string;
   batchType: BatchType | "";
   commercialMode: CommercialMode | "";
-  headerFooterSize: string;   // header size (inches)
-  footerSize: string;          // footer size (inches)
-  footerTemplateNo: string;
 }
 
 type CoreInputsErrors = Partial<Record<string, string>>;
@@ -84,9 +80,6 @@ const INITIAL_FORM_STATE: CoreInputsFormState = {
   batchSize: "",
   batchType: "",
   commercialMode: "",
-  headerFooterSize: "",
-  footerSize: "",
-  footerTemplateNo: "",
 };
 
 const BATCH_TYPE_OPTIONS = [
@@ -99,15 +92,6 @@ const COMMERCIAL_MODE_OPTIONS = [
   { value: "revision", label: "Revision" },
   { value: "validation", label: "Validation" },
 ];
-
-// Header/footer size in INCHES — the same unit Word uses for the header/footer
-// distance from the page edge. The preview and the generated .docx both read this.
-const HEADER_FOOTER_SIZE_OPTIONS = [
-  { value: "0.5", label: '0.5" (compact)' },
-  { value: "1.0", label: '1.0" (standard)' },
-  { value: "1.5", label: '1.5" (large)' },
-];
-
 
 export function CoreInputsPage() {
   const { documentId = "" } = useParams();
@@ -170,18 +154,6 @@ export function CoreInputsPage() {
       commercialMode:
         current.commercialMode ||
         ((storedCoreInputs.commercial_mode as CommercialMode) ?? ""),
-      headerFooterSize:
-        current.headerFooterSize ||
-        (storedCoreInputs.header_size != null ? String(storedCoreInputs.header_size) : ""),
-      footerSize:
-        current.footerSize ||
-        (storedCoreInputs.footer_size != null
-          ? String(storedCoreInputs.footer_size)
-          : storedCoreInputs.header_size != null
-            ? String(storedCoreInputs.header_size)
-            : ""),
-      footerTemplateNo:
-        current.footerTemplateNo || (storedCoreInputs.footer_template_no ?? ""),
     }));
   }, [storedCoreInputs]);
 
@@ -375,7 +347,7 @@ export function CoreInputsPage() {
   function handleFieldChange(
     field: keyof Pick<
       CoreInputsFormState,
-      "batchSize" | "batchType" | "commercialMode" | "headerFooterSize" | "footerSize" | "footerTemplateNo"
+      "batchSize" | "batchType" | "commercialMode"
     >,
   ) {
     return (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -423,10 +395,8 @@ export function CoreInputsPage() {
 
     const batchType = form.batchType;
     const batchSize = parseWholeNumber(form.batchSize);
-    const headerFooterSize = parseDecimal(form.headerFooterSize);
-    const footerSize = parseDecimal(form.footerSize);
 
-    if (!batchType || batchSize === null || headerFooterSize === null || footerSize === null) {
+    if (!batchType || batchSize === null) {
       return;
     }
 
@@ -441,9 +411,6 @@ export function CoreInputsPage() {
         batchSize,
         batchType,
         commercialMode: batchType === "commercial" ? form.commercialMode : "",
-        headerFooterSize,
-        footerSize,
-        footerTemplateNo: form.footerTemplateNo.trim(),
         addressId: storedCoreInputs?.address_id,
         user: user?.username ?? user?.id,
       });
@@ -657,57 +624,6 @@ export function CoreInputsPage() {
                       onChange={handleFieldChange("commercialMode")}
                     />
                   ) : null}
-
-                  <div className="grid gap-5 sm:grid-cols-2">
-                    <SelectField
-                      id="header-size"
-                      label="Header size"
-                      value={form.headerFooterSize}
-                      options={HEADER_FOOTER_SIZE_OPTIONS}
-                      placeholder="Select a size..."
-                      error={visibleErrors.headerFooterSize}
-                      isRequired
-                      disabled={isSubmitting || Boolean(success)}
-                      helper="Distance the header sits from the top edge, in inches."
-                      onBlur={() =>
-                        setTouched((current) => ({ ...current, headerFooterSize: true }))
-                      }
-                      onChange={handleFieldChange("headerFooterSize")}
-                    />
-
-                    <SelectField
-                      id="footer-size"
-                      label="Footer size"
-                      value={form.footerSize}
-                      options={HEADER_FOOTER_SIZE_OPTIONS}
-                      placeholder="Select a size..."
-                      error={visibleErrors.footerSize}
-                      isRequired
-                      disabled={isSubmitting || Boolean(success)}
-                      helper="Distance the footer sits from the bottom edge, in inches."
-                      onBlur={() =>
-                        setTouched((current) => ({ ...current, footerSize: true }))
-                      }
-                      onChange={handleFieldChange("footerSize")}
-                    />
-                  </div>
-
-                  <TextField
-                    id="footer-template-no"
-                    label="Footer template no."
-                    value={form.footerTemplateNo}
-                    error={visibleErrors.footerTemplateNo}
-                    placeholder="F-QA-014"
-                    isRequired
-                    disabled={isSubmitting || Boolean(success)}
-                    helper="The controlled footer template stamped on every page."
-                    onBlur={() =>
-                      setTouched((current) => ({ ...current, footerTemplateNo: true }))
-                    }
-                    onChange={handleFieldChange("footerTemplateNo")}
-                  />
-
-                  {/* <DisabledTemplateBlock /> */}
 
                   {batchSizeWarning ? (
                     <StatusBanner tone="warning" title="Batch size check" message={batchSizeWarning} />
@@ -956,28 +872,6 @@ function SelectField({
   );
 }
 
-function DisabledTemplateBlock() {
-  return (
-    <div className="rounded-control border border-dashed border-border bg-surface p-4 opacity-75 cursor-not-allowed" title="Planned for a future release. This version supports Tablet BMR only.">
-      <p className="inline-flex items-center gap-2 text-micro font-semibold uppercase tracking-overline text-subdued">
-        <Lock className="size-3.5" aria-hidden="true" />
-        Not in this release - richer header/footer template
-      </p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        {["Document no.", "Effective date", "Page x of y", "Supersedes"].map((label) => (
-          <label key={label} className="space-y-1 text-micro font-medium text-subdued">
-            <span>{label}</span>
-            <input
-              disabled
-              className="min-h-10 w-full rounded-control border border-border bg-muted px-3 py-2"
-            />
-          </label>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function StatusBanner({
   tone,
   title,
@@ -1011,9 +905,6 @@ function toDraft(form: CoreInputsFormState): CoreInputsDraft {
     batchSize: form.batchSize,
     batchType: form.batchType,
     commercialMode: form.commercialMode,
-    headerFooterSize: form.headerFooterSize,
-    footerSize: form.footerSize,
-    footerTemplateNo: form.footerTemplateNo,
   };
 }
 
@@ -1027,9 +918,6 @@ function mergeDraft(base: CoreInputsFormState, draft: CoreInputsDraft | null): C
     batchSize: draft.batchSize,
     batchType: draft.batchType as BatchType | "",
     commercialMode: draft.commercialMode as CommercialMode | "",
-    headerFooterSize: draft.headerFooterSize,
-    footerSize: draft.footerSize,
-    footerTemplateNo: draft.footerTemplateNo,
   };
 }
 
@@ -1074,23 +962,6 @@ function validateCoreInputs(
     errors.commercialMode = "Select a commercial mode.";
   }
 
-  if (!form.headerFooterSize) {
-    errors.headerFooterSize = "Select the header size.";
-  } else if (parseDecimal(form.headerFooterSize) === null) {
-    // Sizes are in inches (0.5 / 1.0 / 1.5) — decimals, not whole numbers.
-    errors.headerFooterSize = "Enter a valid header size.";
-  }
-
-  if (!form.footerSize) {
-    errors.footerSize = "Select the footer size.";
-  } else if (parseDecimal(form.footerSize) === null) {
-    errors.footerSize = "Enter a valid footer size.";
-  }
-
-  if (!form.footerTemplateNo.trim()) {
-    errors.footerTemplateNo = "Enter the footer template number (e.g. F-QA-014).";
-  }
-
   return errors;
 }
 
@@ -1117,15 +988,6 @@ function isAcceptedFile(file: File, acceptedTypes: string[]) {
     if (file.type.toLowerCase() === normalized) return true;
     return normalized === "application/pdf" && fileName.endsWith(".pdf");
   });
-}
-
-function parseDecimal(value: string): number | null {
-  const normalized = value.replace(/,/g, "").trim();
-  if (!normalized) {
-    return null;
-  }
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function parseWholeNumber(value: string) {
@@ -1234,9 +1096,7 @@ function getPrimaryDisabledReason(
   if (
     errors.batchSize ||
     errors.batchType ||
-    errors.commercialMode ||
-    errors.headerFooterSize ||
-    errors.footerTemplateNo
+    errors.commercialMode
   ) {
     return "Complete the required fields to continue.";
   }

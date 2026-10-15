@@ -83,7 +83,7 @@ export function LogoDropzone({
           if (file) validateAndSend(file);
         }}
         aria-disabled={disabled}
-        className={`flex flex-col items-center justify-center gap-2 rounded-card border border-dashed p-6 text-center transition ${
+        className={`flex items-center justify-center gap-2 rounded-card border border-dashed p-6 text-center transition ${
           disabled
             ? "cursor-not-allowed border-border bg-sunken opacity-70"
             : isDragging

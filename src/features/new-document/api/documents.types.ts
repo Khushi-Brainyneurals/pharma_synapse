@@ -47,9 +47,6 @@ export interface CoreInputsResponse {
   batch_size: number | null;
   batch_type: string | null;
   commercial_mode: string | null;
-  header_size: number | null;
-  footer_size: number | null;
-  footer_template_no: string | null;
   address_id: number | null;
   address: string | null;
   core_input_files: Record<string, string>;
@@ -63,9 +60,6 @@ export interface SetCoreInputsPayload {
   batchSize: number;
   batchType: BatchType;
   commercialMode?: CommercialMode | "";
-  headerFooterSize: number;
-  footerSize: number;
-  footerTemplateNo: string;
   addressId?: number | null;
   user?: string;
 }
@@ -76,7 +70,4 @@ export interface SetCoreInputsResponse {
   batch_size: number;
   batch_type: string;
   commercial_mode: string;
-  header_size: number;
-  footer_size: number;
-  footer_template_no: string;
 }

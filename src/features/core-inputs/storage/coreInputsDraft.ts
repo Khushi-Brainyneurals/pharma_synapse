@@ -18,9 +18,6 @@ export interface CoreInputsDraft {
   batchSize: string;
   batchType: string;
   commercialMode: string;
-  headerFooterSize: string;
-  footerSize: string;
-  footerTemplateNo: string;
 }
 
 const KEY_PREFIX = "bmr.client.coreInputs.draft.";
@@ -54,9 +51,6 @@ export function loadCoreInputsDraft(documentId: string): CoreInputsDraft | null 
       batchSize: parsed.batchSize ?? "",
       batchType: parsed.batchType ?? "",
       commercialMode: parsed.commercialMode ?? "",
-      headerFooterSize: parsed.headerFooterSize ?? "",
-      footerSize: parsed.footerSize ?? "",
-      footerTemplateNo: parsed.footerTemplateNo ?? "",
     };
   } catch {
     window.localStorage.removeItem(keyFor(documentId));

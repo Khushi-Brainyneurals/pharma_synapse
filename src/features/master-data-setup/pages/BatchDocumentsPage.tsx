@@ -113,7 +113,7 @@ export function BatchDocumentsPage() {
         backTo={STEPS[1].route}
         backLabel="Stage documents"
         continueTo={STEPS[5].route}
-        continueLabel="Continue to preview"
+        continueLabel="Continue to Cover Page"
       />
     </SetupShell>
   );

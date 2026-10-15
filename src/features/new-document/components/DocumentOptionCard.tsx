@@ -101,11 +101,11 @@ export function DocumentOptionCard({
                 className="size-5 shrink-0 text-primary"
                 aria-hidden="true"
               />
-            // ) : isUnavailable ? (
-            //   <Lock
-            //     className="size-4 shrink-0 text-subdued"
-            //     aria-hidden="true"
-            //   />
+            //  ) : isUnavailable ? (
+            //    <Lock
+            //      className="size-4 shrink-0 text-subdued"
+            //      aria-hidden="true"
+            //    />
             ) : null}
           </span>
 

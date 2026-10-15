@@ -188,9 +188,6 @@ test('core inputs use source-slot endpoints and append only backend-advertised f
     batchSize: 1000,
     batchType: 'commercial',
     commercialMode: 'validation',
-    headerFooterSize: 0.5,
-    footerSize: 0.5,
-    footerTemplateNo: 'F-QA-014',
     addressId: 1,
     user: 'alice',
   });
@@ -202,7 +199,9 @@ test('core inputs use source-slot endpoints and append only backend-advertised f
     .map(([field]) => field);
   assert.deepEqual(fileFields, ['mpc', 'pp']);
   const submittedFields = calls[1][2].parts.map(([field]) => field);
-  assert.ok(submittedFields.includes('header_size'));
+  assert.ok(!submittedFields.includes('header_size'));
+  assert.ok(!submittedFields.includes('footer_size'));
+  assert.ok(!submittedFields.includes('footer_template_no'));
   assert.ok(submittedFields.includes('address_id'));
   assert.ok(!submittedFields.includes('header_footer_size'));
 });
@@ -214,9 +213,6 @@ test('saved core inputs are loaded from the dedicated Step 3 prefill endpoint', 
     batch_size: 100000,
     batch_type: 'exhibit',
     commercial_mode: '',
-    header_size: 1,
-    footer_size: 0.5,
-    footer_template_no: 'F_QA',
     address_id: 1,
     address: 'Demo Test Address',
     core_input_files: { mfc: 'mfc.pdf', pp: 'pp.pdf' },
@@ -261,9 +257,6 @@ test('editing metadata does not re-upload files already stored by the backend', 
     multipartFields: ['mfc', 'pp', 'other_doc_1'],
     batchSize: 120000,
     batchType: 'exhibit',
-    headerFooterSize: 1,
-    footerSize: 0.5,
-    footerTemplateNo: 'F_QA',
     addressId: 1,
   });
 

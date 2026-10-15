@@ -10,6 +10,8 @@ export interface CompanyInfo {
   font_size: number | null;
   line_spacing: number | null;
   header_size: number | null;
+  footer_size: number | null;
+  footer_template_nos: FooterTemplateNos;
   template_no: string | null;
   department: string | null;
   has_logo: boolean;
@@ -29,24 +31,44 @@ export interface CompanyAddress {
   address: string;
 }
 
+export interface FooterTemplateNos {
+  bmr: string;
+  bpr: string;
+  pvp_manufacturing: string;
+  pvp_packing: string;
+  pvr_manufacturing: string;
+  pvr_packing: string;
+  cpv_manufacturing: string;
+  cpv_packing: string;
+}
+
+export const EMPTY_FOOTER_TEMPLATE_NOS: FooterTemplateNos = {
+  bmr: "",
+  bpr: "",
+  pvp_manufacturing: "",
+  pvp_packing: "",
+  pvr_manufacturing: "",
+  pvr_packing: "",
+  cpv_manufacturing: "",
+  cpv_packing: "",
+};
+
 type CompanyInfoResponse = Partial<CompanyInfo> & {
   approval_status?: string | null;
 };
 
-export type CompanyInfoUpdate = Partial<
-  Pick<
-    CompanyInfo,
-    | "company_name"
-    | "address"
-    | "mfg_licence_no"
-    | "font_name"
-    | "font_size"
-    | "line_spacing"
-    | "header_size"
-    | "template_no"
-    | "department"
-  >
-> & { reason?: string };
+export interface CompanyInfoUpdate {
+  company_name?: string;
+  font_name?: string;
+  font_size?: number;
+  line_spacing?: number;
+  header_size?: number;
+  footer_size?: number;
+  footer_template_nos?: FooterTemplateNos;
+  addresses?: string[];
+  user?: string;
+  reason?: string;
+}
 
 /** The document fonts, with their CSS stacks — taken from the design. */
 export const FONT_STACKS: Record<string, string> = {
@@ -109,6 +131,8 @@ function normalizeCompanyInfo(data: CompanyInfoResponse): CompanyInfo {
     font_size: data.font_size ?? null,
     line_spacing: data.line_spacing ?? null,
     header_size: data.header_size ?? null,
+    footer_size: data.footer_size ?? null,
+    footer_template_nos: normalizeFooterTemplateNos(data.footer_template_nos),
     template_no: data.template_no ?? null,
     department: data.department ?? null,
     has_logo: data.has_logo ?? Boolean(logoPath),
@@ -117,6 +141,19 @@ function normalizeCompanyInfo(data: CompanyInfoResponse): CompanyInfo {
     updated_by: data.updated_by ?? null,
     updated_at: data.updated_at ?? null,
     is_effective: data.is_effective ?? approvalStatus === "approved",
+  };
+}
+
+function normalizeFooterTemplateNos(value: Partial<FooterTemplateNos> | null | undefined) {
+  return {
+    bmr: value?.bmr ?? "",
+    bpr: value?.bpr ?? "",
+    pvp_manufacturing: value?.pvp_manufacturing ?? "",
+    pvp_packing: value?.pvp_packing ?? "",
+    pvr_manufacturing: value?.pvr_manufacturing ?? "",
+    pvr_packing: value?.pvr_packing ?? "",
+    cpv_manufacturing: value?.cpv_manufacturing ?? "",
+    cpv_packing: value?.cpv_packing ?? "",
   };
 }
 

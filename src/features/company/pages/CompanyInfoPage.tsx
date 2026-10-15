@@ -1,4 +1,14 @@
-import { AlertCircle, ArrowLeft, CheckCircle2, Info, Loader2, Lock, Save } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle2,
+  Info,
+  Loader2,
+  Lock,
+  Plus,
+  Save,
+  Trash2,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getApiErrorMessage } from "../../../shared/api/apiError";
@@ -8,6 +18,7 @@ import { AppHeader } from "../../new-document/components/AppHeader";
 import { AppSidebar } from "../../new-document/components/AppSidebar";
 import { canEditCompanyInfo } from "../access";
 import {
+  EMPTY_FOOTER_TEMPLATE_NOS,
   FONT_STACKS,
   fetchLogoObjectUrl,
   getCompanyApproval,
@@ -16,6 +27,7 @@ import {
   uploadLogo,
   type CompanyApprovalState,
   type CompanyInfo,
+  type FooterTemplateNos,
 } from "../api/company.api";
 import { CompanyApprovalPanel } from "../components/CompanyApprovalPanel";
 import { LetterheadPreview } from "../components/LetterheadPreview";
@@ -26,22 +38,44 @@ const FONTS = Object.keys(FONT_STACKS);
 
 interface FormState {
   company_name: string;
-  address: string;
+  addresses: string[];
   font_name: string;
   font_size: string;
   line_spacing: string;
+  header_size: string;
+  footer_size: string;
+  footer_template_nos: FooterTemplateNos;
 }
 
 const EMPTY: FormState = {
   company_name: "",
-  address: "",
+  addresses: [""],
   font_name: "",
   font_size: "",
   line_spacing: "",
+  header_size: "",
+  footer_size: "",
+  footer_template_nos: { ...EMPTY_FOOTER_TEMPLATE_NOS },
 };
 
+const HEADER_FOOTER_SIZE_OPTIONS = ["0.5", "1.0", "1.5"];
+
+const FOOTER_TEMPLATE_FIELDS: Array<{
+  key: keyof FooterTemplateNos;
+  label: string;
+}> = [
+  { key: "bmr", label: "BMR" },
+  { key: "bpr", label: "BPR" },
+  { key: "pvp_manufacturing", label: "PVP manufacturing" },
+  { key: "pvp_packing", label: "PVP packing" },
+  { key: "pvr_manufacturing", label: "PVR manufacturing" },
+  { key: "pvr_packing", label: "PVR packing" },
+  { key: "cpv_manufacturing", label: "CPV manufacturing" },
+  { key: "cpv_packing", label: "CPV packing" },
+];
+
 const controlClass =
-  "mt-1.5 h-[36px] w-full rounded-control border border-border-strong bg-surface px-3 text-small focus:border-primary focus:outline-none disabled:bg-sunken disabled:text-subdued";
+  "mt-1.5 h-[36px] w-full rounded-control border border-border-strong bg-surface px-3 py-2 text-small focus:border-primary focus:outline-none disabled:bg-sunken disabled:text-subdued";
 
 export function CompanyInfoPage() {
   const navigate = useNavigate();
@@ -50,6 +84,8 @@ export function CompanyInfoPage() {
 
   const [info, setInfo] = useState<CompanyInfo | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY);
+  const [selectedFooterTemplate, setSelectedFooterTemplate] =
+    useState<keyof FooterTemplateNos>("bmr");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoNonce, setLogoNonce] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -81,10 +117,16 @@ export function CompanyInfoPage() {
       setInfo(next);
       setForm({
         company_name: next.company_name ?? "",
-        address: next.address ?? "",
+        addresses:
+          next.addresses.length > 0
+            ? next.addresses.map((item) => item.address)
+            : [next.address ?? ""],
         font_name: next.font_name ?? "",
         font_size: next.font_size != null ? String(next.font_size) : "",
         line_spacing: next.line_spacing != null ? String(next.line_spacing) : "",
+        header_size: formatHeaderFooterSize(next.header_size),
+        footer_size: formatHeaderFooterSize(next.footer_size),
+        footer_template_nos: { ...next.footer_template_nos },
       });
       setError(null);
     } catch (caught) {
@@ -126,6 +168,41 @@ export function CompanyInfoPage() {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  function setFooterTemplate(key: keyof FooterTemplateNos, value: string) {
+    if (!canEdit) return;
+    setSaved(false);
+    setForm((current) => ({
+      ...current,
+      footer_template_nos: { ...current.footer_template_nos, [key]: value },
+    }));
+  }
+
+  function setAddress(index: number, value: string) {
+    if (!canEdit) return;
+    setSaved(false);
+    setForm((current) => ({
+      ...current,
+      addresses: current.addresses.map((address, addressIndex) =>
+        addressIndex === index ? value : address,
+      ),
+    }));
+  }
+
+  function addAddress() {
+    if (!canEdit) return;
+    setSaved(false);
+    setForm((current) => ({ ...current, addresses: [...current.addresses, ""] }));
+  }
+
+  function removeAddress(index: number) {
+    if (!canEdit) return;
+    setSaved(false);
+    setForm((current) => ({
+      ...current,
+      addresses: current.addresses.filter((_, addressIndex) => addressIndex !== index),
+    }));
+  }
+
   const onLogo = useCallback(async (file: File) => {
     if (!canEdit) return;
 
@@ -152,10 +229,25 @@ export function CompanyInfoPage() {
     };
 
     add("Company name", info.company_name, form.company_name.trim());
-    add("Address", info.address, form.address.trim());
+    add(
+      "Addresses",
+      info.addresses.length > 0
+        ? info.addresses.map((item) => item.address).join(" | ")
+        : info.address,
+      form.addresses.map((address) => address.trim()).join(" | "),
+    );
     add("Font", info.font_name, form.font_name);
     add("Size", info.font_size, form.font_size);
     add("Line spacing", info.line_spacing, form.line_spacing);
+    add("Header size", formatHeaderFooterSize(info.header_size), form.header_size);
+    add("Footer size", formatHeaderFooterSize(info.footer_size), form.footer_size);
+    FOOTER_TEMPLATE_FIELDS.forEach(({ key, label }) => {
+      add(
+        `${label} footer template no.`,
+        info.footer_template_nos[key],
+        form.footer_template_nos[key].trim(),
+      );
+    });
     return diffs;
   }, [form, info]);
 
@@ -170,10 +262,16 @@ export function CompanyInfoPage() {
       try {
         const next = await updateCompanyInfo({
           company_name: form.company_name.trim(),
-          address: form.address.trim() || undefined,
-          font_name: form.font_name || undefined,
-          font_size: form.font_size ? Number(form.font_size) : undefined,
-          line_spacing: form.line_spacing ? Number(form.line_spacing) : undefined,
+          addresses: form.addresses.map((address) => address.trim()),
+          font_name: form.font_name,
+          font_size: Number(form.font_size),
+          line_spacing: Number(form.line_spacing),
+          header_size: Number(form.header_size),
+          footer_size: Number(form.footer_size),
+          footer_template_nos: Object.fromEntries(
+            Object.entries(form.footer_template_nos).map(([key, value]) => [key, value.trim()]),
+          ) as FooterTemplateNos,
+          user: user?.username ?? user?.id,
           reason,
         });
         setInfo(next);
@@ -191,7 +289,7 @@ export function CompanyInfoPage() {
         setIsSaving(false);
       }
     },
-    [canEdit, form, loadApproval],
+    [canEdit, form, loadApproval, user],
   );
 
   function onSave() {
@@ -212,8 +310,20 @@ export function CompanyInfoPage() {
     approval?.status?.toLowerCase() === "in_review";
   const canEditForm = canEdit && !isLocked;
 
-  const nameMissing = !form.company_name.trim();
-  const canSave = canEditForm && !nameMissing && !isUploading && !isSaving;
+  const missingRequiredFields = [
+    !form.company_name.trim() ? "company name" : null,
+    form.addresses.length === 0 || form.addresses.some((address) => !address.trim())
+      ? "address"
+      : null,
+    !info?.has_logo ? "logo" : null,
+    !form.font_name ? "font" : null,
+    !form.font_size ? "font size" : null,
+    !form.line_spacing ? "line spacing" : null,
+    !HEADER_FOOTER_SIZE_OPTIONS.includes(form.header_size) ? "header size" : null,
+    !HEADER_FOOTER_SIZE_OPTIONS.includes(form.footer_size) ? "footer size" : null,
+  ].filter((field): field is string => Boolean(field));
+  const canSave =
+    canEditForm && missingRequiredFields.length === 0 && !isUploading && !isSaving;
 
   return (
     <div className="min-h-screen bg-background text-text">
@@ -223,7 +333,7 @@ export function CompanyInfoPage() {
         <AppSidebar user={user} />
 
         <main className="min-w-0 min-h-0 p-4 lg:p-6 lg:h-full lg:overflow-y-auto">
-          <div className="mx-auto max-w-4xl space-y-5">
+          <div className="mx-auto space-y-5">
             <header>
               <button
                 type="button"
@@ -282,26 +392,59 @@ export function CompanyInfoPage() {
                   <Field label="Company name" required>
                     <input
                       type="text"
+                      required
                       value={form.company_name}
                       disabled={!canEditForm || isSaving}
                       onChange={(event) => set("company_name", event.target.value)}
                       placeholder="Acme Pharmaceuticals Pvt. Ltd."
                       className={controlClass}
                     />
-                    <Help>Prints in the document header.</Help>
                   </Field>
 
-                  <Field label="Address">
-                    <textarea
-                      rows={2}
-                      value={form.address}
-                      disabled={!canEditForm || isSaving}
-                      onChange={(event) => set("address", event.target.value)}
-                      className={controlClass}
-                    />
-                  </Field>
+                  <div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-small font-semibold">
+                        Addresses <span className="ml-0.5 text-danger">*</span>
+                      </span>
+                      <button
+                        type="button"
+                        disabled={!canEditForm || isSaving}
+                        onClick={addAddress}
+                        className="inline-flex items-center gap-1 text-micro font-semibold text-primary-dark disabled:text-subdued"
+                      >
+                        <Plus className="size-3.5" aria-hidden="true" />
+                        Add site
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {form.addresses.map((address, index) => (
+                        <div key={index} className="flex items-start gap-2">
+                          <textarea
+                            rows={2}
+                            required
+                            aria-label={`Address ${index + 1}`}
+                            value={address}
+                            disabled={!canEditForm || isSaving}
+                            onChange={(event) => setAddress(index, event.target.value)}
+                            className={controlClass}
+                          />
+                          {form.addresses.length > 1 ? (
+                            <button
+                              type="button"
+                              aria-label={`Remove address ${index + 1}`}
+                              disabled={!canEditForm || isSaving}
+                              onClick={() => removeAddress(index)}
+                              className="mt-1.5 inline-flex size-9 shrink-0 items-center justify-center rounded-control border border-border text-subdued transition hover:border-danger/40 hover:bg-danger-soft hover:text-danger disabled:opacity-50"
+                            >
+                              <Trash2 className="size-4" aria-hidden="true" />
+                            </button>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
 
-                  <Field label="Logo">
+                  <Field label="Logo" required>
                     <LogoDropzone
                       hasLogo={info.has_logo}
                       logoUrl={logoUrl}
@@ -312,14 +455,15 @@ export function CompanyInfoPage() {
                   </Field>
 
                   <div className="grid grid-cols-3 gap-3">
-                    <Field label="Font">
+                    <Field label="Font" required>
                       <select
+                        required
                         value={form.font_name}
                         disabled={!canEditForm || isSaving}
                         onChange={(event) => set("font_name", event.target.value)}
                         className={controlClass}
                       >
-                        <option value="">Default</option>
+                        <option value="">Select font...</option>
                         {FONTS.map((font) => (
                           <option key={font} value={font}>
                             {font}
@@ -328,9 +472,10 @@ export function CompanyInfoPage() {
                       </select>
                     </Field>
 
-                    <Field label="Size (pt)">
+                    <Field label="Size (pt)" required>
                       <input
                         type="number"
+                        required
                         min={8}
                         max={14}
                         step={0.5}
@@ -342,9 +487,10 @@ export function CompanyInfoPage() {
                       />
                     </Field>
 
-                    <Field label="Line spacing">
+                    <Field label="Line spacing" required>
                       <input
                         type="number"
+                        required
                         min={1}
                         max={2}
                         step={0.05}
@@ -357,20 +503,92 @@ export function CompanyInfoPage() {
                     </Field>
                   </div>
 
-                  <div className="flex items-center gap-2 rounded-control border border-border bg-sunken px-3 py-2 text-micro text-subdued">
-                    <Lock className="size-3.5 shrink-0" aria-hidden="true" />
-                    Advanced letterhead &amp; company details — not in this release
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Header size" required>
+                      <select
+                        required
+                        value={form.header_size}
+                        disabled={!canEditForm || isSaving}
+                        onChange={(event) => set("header_size", event.target.value)}
+                        className={controlClass}
+                      >
+                        <option value="">Select size...</option>
+                        {HEADER_FOOTER_SIZE_OPTIONS.map((size) => (
+                          <option key={size} value={size}>
+                            {size}&quot;
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+
+                    <Field label="Footer size" required>
+                      <select
+                        required
+                        value={form.footer_size}
+                        disabled={!canEditForm || isSaving}
+                        onChange={(event) => set("footer_size", event.target.value)}
+                        className={controlClass}
+                      >
+                        <option value="">Select size...</option>
+                        {HEADER_FOOTER_SIZE_OPTIONS.map((size) => (
+                          <option key={size} value={size}>
+                            {size}&quot;
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
+
+                  <div>
+                    <p className="text-small font-semibold">Footer template numbers</p>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <Field label="Document type">
+                        <select
+                          value={selectedFooterTemplate}
+                          disabled={isSaving}
+                          onChange={(event) =>
+                            setSelectedFooterTemplate(event.target.value as keyof FooterTemplateNos)
+                          }
+                          className={controlClass}
+                        >
+                          {FOOTER_TEMPLATE_FIELDS.map(({ key, label }) => (
+                            <option key={key} value={key}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+
+                      <Field label="Template no.">
+                        <input
+                          type="text"
+                          value={form.footer_template_nos[selectedFooterTemplate]}
+                          disabled={!canEditForm || isSaving}
+                          onChange={(event) =>
+                            setFooterTemplate(selectedFooterTemplate, event.target.value)
+                          }
+                          placeholder="Optional"
+                          className={controlClass}
+                        />
+                      </Field>
+                    </div>
+                    <p className="mt-2 text-micro text-subdued">
+                      {
+                        Object.values(form.footer_template_nos).filter((value) => value.trim())
+                          .length
+                      } of {FOOTER_TEMPLATE_FIELDS.length} template numbers configured.
+                    </p>
                   </div>
                 </section>
 
                 <section className="space-y-4">
-                  <div className="rounded-card border border-border bg-surface p-5">
-                    <p className="mb-3 text-overline font-semibold uppercase tracking-overline text-subdued">
+                  <div className="rounded-card border border-border bg-surface p-5 py-7">
+                    <p className="mb-5 text-overline font-semibold uppercase tracking-overline text-subdued">
                       Letterhead preview
                     </p>
                     <LetterheadPreview
                       companyName={form.company_name}
-                      address={form.address}
+                      address={form.addresses[0] ?? ""}
                       fontName={form.font_name}
                       fontSize={form.font_size ? Number(form.font_size) : null}
                       lineSpacing={form.line_spacing ? Number(form.line_spacing) : null}
@@ -389,16 +607,16 @@ export function CompanyInfoPage() {
                               : null}
                           </p>
                         ) : (
-                          <p className="text-micro text-subdued">No updates yet</p>
+                          <p className="text-micro text-subdued">No updates yet saved</p>
                         )}
-                        {nameMissing ? (
+                        {missingRequiredFields.length > 0 ? (
                           <p className="text-micro text-draft-fg mt-0.5">
-                            Add a company name to save.
+                            Required: {missingRequiredFields.join(", ")}.
                           </p>
                         ) : null}
                       </div>
 
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 p-2">
                         {saved ? (
                           <span className="inline-flex items-center gap-1 text-small text-approved-fg font-medium">
                             <CheckCircle2 className="size-4" aria-hidden="true" />
@@ -474,4 +692,8 @@ function Field({
 
 function Help({ children }: { children: React.ReactNode }) {
   return <p className="mt-1.5 text-micro text-subdued">{children}</p>;
+}
+
+function formatHeaderFooterSize(value: number | null) {
+  return value == null ? "" : value.toFixed(1);
 }
