@@ -130,6 +130,76 @@ export async function removeOtherDocument(
   );
 }
 
+export interface MasterOtherDocStatus {
+  id: number;
+  label: string;
+  file_name: string;
+  uploaded_by?: string;
+  uploaded_at?: string;
+}
+
+export interface SavedStageDocument {
+  id?: number | null;
+  code?: string | null;
+  label: string;
+  file_name: string;
+}
+
+export async function uploadOtherStageDocument(
+  productType = "tablet",
+  docType = "bmr",
+  stageKey: string,
+  file: File,
+): Promise<SavedStageDocument> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await httpClient.post<SavedStageDocument>(
+    `/api/master-data/${encodeURIComponent(productType)}/${encodeURIComponent(docType)}/stages/${encodeURIComponent(stageKey)}/documents/other`,
+    formData,
+  );
+  return res.data;
+}
+
+export async function replaceOtherStageDocument(
+  productType = "tablet",
+  docType = "bmr",
+  stageKey: string,
+  otherId: number,
+  file: File,
+): Promise<SavedStageDocument> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await httpClient.post<SavedStageDocument>(
+    `/api/master-data/${encodeURIComponent(productType)}/${encodeURIComponent(docType)}/stages/${encodeURIComponent(stageKey)}/documents/other/${otherId}`,
+    formData,
+  );
+  return res.data;
+}
+
+export async function removeOtherStageDocument(
+  productType = "tablet",
+  docType = "bmr",
+  stageKey: string,
+  otherId: number,
+): Promise<void> {
+  await httpClient.delete(
+    `/api/master-data/${encodeURIComponent(productType)}/${encodeURIComponent(docType)}/stages/${encodeURIComponent(stageKey)}/documents/other/${otherId}`,
+  );
+}
+
+export async function getOtherStageDocumentPreviewBlob(
+  productType = "tablet",
+  docType = "bmr",
+  stageKey: string,
+  otherId: number,
+): Promise<Blob> {
+  const res = await httpClient.get<Blob>(
+    `/api/master-data/${encodeURIComponent(productType)}/${encodeURIComponent(docType)}/stages/${encodeURIComponent(stageKey)}/documents/other/${otherId}/preview`,
+    { responseType: "blob" },
+  );
+  return res.data;
+}
+
 export async function getStageDocumentPreviewBlob(
   productType = "tablet",
   docType = "bmr",

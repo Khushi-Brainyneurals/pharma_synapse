@@ -126,6 +126,7 @@ interface SetupState {
   dosageFormId: string;
   documentTypeId: string;
   stageSections: StageSection[];
+  stageOthers: Record<string, any[]>;
   batchDocs: DocDef[];
   uploads: Record<string, UploadedFile | null>;
   batchUploads: Record<string, UploadedFile | null>;
@@ -136,6 +137,7 @@ interface SetupState {
   setDocumentTypeId: (id: string) => void;
   setSelectedType: (dosageFormId: string, documentTypeId: string) => void;
   setStageChecklistData: (res: StageChecklistResponse) => void;
+  setStageOthers: (others: Record<string, any[]>) => void;
   setOtherChecklistData: (res: OtherDocumentsChecklistResponse) => void;
   setUpload: (code: string, file: UploadedFile) => void;
   removeUpload: (code: string) => void;
@@ -157,6 +159,7 @@ export const useSetupStore = create<SetupState>((set) => ({
   dosageFormId: initialType.dosageFormId,
   documentTypeId: initialType.documentTypeId,
   stageSections: STAGE_SECTIONS,
+  stageOthers: {},
   batchDocs: BATCH_DOCS,
   uploads: {},
   batchUploads: {},
@@ -171,6 +174,7 @@ export const useSetupStore = create<SetupState>((set) => ({
         dosageFormId: id,
         uploads: {},
         batchUploads: {},
+        stageOthers: {},
         previewed: {},
       };
     }),
@@ -182,6 +186,7 @@ export const useSetupStore = create<SetupState>((set) => ({
         documentTypeId: id,
         uploads: {},
         batchUploads: {},
+        stageOthers: {},
         previewed: {},
       };
     }),
@@ -194,6 +199,7 @@ export const useSetupStore = create<SetupState>((set) => ({
         documentTypeId,
         uploads: {},
         batchUploads: {},
+        stageOthers: {},
         previewed: {},
       };
     }),
@@ -202,7 +208,9 @@ export const useSetupStore = create<SetupState>((set) => ({
       if (!res || !Array.isArray(res.stages)) return s;
       const stageSections = mapBackendStagesToSections(res.stages);
       const nextUploads: Record<string, UploadedFile | null> = {};
+      const stageOthers: Record<string, any[]> = {};
       for (const stage of res.stages) {
+        stageOthers[stage.stage_key] = stage.others || [];
         for (const slot of stage.slots || []) {
           if (slot.uploaded) {
             const existing = s.uploads[slot.code];
@@ -226,8 +234,10 @@ export const useSetupStore = create<SetupState>((set) => ({
       return {
         stageSections,
         uploads: nextUploads,
+        stageOthers,
       };
     }),
+  setStageOthers: (others) => set({ stageOthers: others }),
   setOtherChecklistData: (res) =>
     set((s) => {
       if (!res || !Array.isArray(res.slots)) return s;

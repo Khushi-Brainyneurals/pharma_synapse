@@ -22,9 +22,31 @@ interface ApiNotif {
   view_only: boolean;
 }
 
+const LOCAL_NOTIFS_STORAGE_KEY = "pharma_custom_notifications";
+
+export function getLocalNotifications(): Omit<Notification, "unread">[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_NOTIFS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveLocalNotification(notif: Omit<Notification, "unread">): void {
+  try {
+    const existing = getLocalNotifications();
+    const updated = [notif, ...existing.filter((n) => n.id !== notif.id)].slice(0, 50);
+    localStorage.setItem(LOCAL_NOTIFS_STORAGE_KEY, JSON.stringify(updated));
+  } catch {
+    // best-effort display cache
+  }
+}
+
 /** Fetch the signed-in user's feed. Read/unread is tracked client-side, so this returns
  *  events without `unread` — the store fills it in from the local read-set. */
 export async function getNotifications(): Promise<Omit<Notification, "unread">[]> {
+  const localItems = getLocalNotifications();
   let resData: any = null;
   try {
     const response = await httpClient.get<any>("/notifications");
@@ -40,14 +62,14 @@ export async function getNotifications(): Promise<Omit<Notification, "unread">[]
             const response = await httpClient.get<any>("/api/bmr/notifications");
             resData = response.data;
           } catch {
-            return [];
+            return localItems;
           }
         } else {
-          return [];
+          return localItems;
         }
       }
     } else {
-      return [];
+      return localItems;
     }
   }
 
@@ -57,7 +79,7 @@ export async function getNotifications(): Promise<Omit<Notification, "unread">[]
       ? resData
       : [];
 
-  return rawItems.map((n: any) => {
+  const backendItems = rawItems.map((n: any) => {
     const createdAt = n.created_at ? new Date(n.created_at) : new Date();
     return {
       id: String(n.id ?? n._id ?? Math.random().toString(36).slice(2)),
@@ -82,4 +104,29 @@ export async function getNotifications(): Promise<Omit<Notification, "unread">[]
       viewOnly: Boolean(n.view_only),
     };
   });
+
+  // Merge local custom notifications (e.g. master data workflow events) with backend notifications
+  const backendIds = new Set(backendItems.map((b: { id: string }) => b.id));
+  const uniqueLocal = localItems.filter((l) => !backendIds.has(l.id));
+  return [...uniqueLocal, ...backendItems];
 }
+
+export async function markNotificationAsRead(id: string | number): Promise<void> {
+  const numId = Number(id);
+  if (!Number.isNaN(numId)) {
+    try {
+      await httpClient.post(`/notifications/${numId}/read`);
+    } catch {
+      // non-blocking fallback
+    }
+  }
+}
+
+export async function markAllNotificationsAsRead(): Promise<void> {
+  try {
+    await httpClient.post("/notifications/mark-all-read");
+  } catch {
+    // non-blocking fallback
+  }
+}
+

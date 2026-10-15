@@ -25,10 +25,11 @@ interface MasterDataApprovalCardProps {
   entityName: "Equipment" | "Instrument";
   approval: ApprovalState | null;
   isLoading: boolean;
-  isSaving: boolean;
+  isSaving?: boolean;
+  isSubmitting?: boolean;
   hasErrors?: boolean;
   changes?: ChangeDiffItem[];
-  onSave: () => Promise<void> | void;
+  onSave?: () => Promise<void> | void;
   onSubmit: () => Promise<void> | void;
   onDecide: (decision: "approved" | "rejected", reason?: string) => Promise<void> | void;
 }
@@ -43,7 +44,8 @@ export function MasterDataApprovalCard({
   entityName,
   approval,
   isLoading,
-  isSaving,
+  isSaving = false,
+  isSubmitting = false,
   hasErrors = false,
   changes = [],
   onSave,
@@ -55,56 +57,63 @@ export function MasterDataApprovalCard({
   const isApprover = access.canApprove;
   const canEdit = access.canEdit;
 
-  const [isBusy, setIsBusy] = useState(false);
-  const [showRejectModal, setShowRejectModal] = useState(false);
-  const [rejectReason, setRejectReason] = useState("");
-  const [showDiff, setShowDiff] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
   const status = (approval?.status || "draft").toLowerCase();
   const isPending = status === "pending" || status === "submitted" || status === "in_review";
   const isApproved = status === "approved";
   const isRejected = status === "rejected";
 
+  const [internalSaving, setInternalSaving] = useState(false);
+  const [internalSubmitting, setInternalSubmitting] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [showDiff, setShowDiff] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const saving = isSaving || internalSaving;
+  const submitting = isSubmitting || internalSubmitting;
+
   const handleSave = async () => {
-    if (isBusy || isSaving) return;
+    if (saving || submitting || !onSave) return;
+    setInternalSaving(true);
     setErrorMessage(null);
     try {
       await onSave();
     } catch (err: any) {
       setErrorMessage(err.message || `Failed to save ${entityName.toLowerCase()} list.`);
+    } finally {
+      setInternalSaving(false);
     }
   };
 
   const handleSubmit = async () => {
-    if (isBusy || hasErrors) return;
-    setIsBusy(true);
+    if (submitting || saving || hasErrors) return;
+    setInternalSubmitting(true);
     setErrorMessage(null);
     try {
       await onSubmit();
     } catch (err: any) {
       setErrorMessage(err.message || `Failed to submit ${entityName.toLowerCase()} for approval.`);
     } finally {
-      setIsBusy(false);
+      setInternalSubmitting(false);
     }
   };
 
   const handleApprove = async () => {
-    if (isBusy) return;
-    setIsBusy(true);
+    if (submitting || saving) return;
+    setInternalSubmitting(true);
     setErrorMessage(null);
     try {
       await onDecide("approved");
     } catch (err: any) {
       setErrorMessage(err.message || "Failed to approve.");
     } finally {
-      setIsBusy(false);
+      setInternalSubmitting(false);
     }
   };
 
   const handleReject = async () => {
-    if (!rejectReason.trim() || isBusy) return;
-    setIsBusy(true);
+    if (!rejectReason.trim() || submitting || saving) return;
+    setInternalSubmitting(true);
     setErrorMessage(null);
     try {
       await onDecide("rejected", rejectReason.trim());
@@ -113,7 +122,7 @@ export function MasterDataApprovalCard({
     } catch (err: any) {
       setErrorMessage(err.message || "Failed to reject.");
     } finally {
-      setIsBusy(false);
+      setInternalSubmitting(false);
     }
   };
 
@@ -153,25 +162,27 @@ export function MasterDataApprovalCard({
         <div className="flex flex-wrap items-center gap-2">
           {canEdit && !isPending && (
             <>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={isSaving || isBusy}
-                className="inline-flex h-8 items-center gap-1.5 rounded-control border border-border bg-surface px-3 text-small font-semibold text-text transition hover:bg-muted disabled:opacity-50"
-              >
-                {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : null}
-                Save {entityName.toLowerCase()} list
-              </button>
+              {onSave && (
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving || submitting}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-control border border-border bg-surface px-3 text-small font-semibold text-text transition hover:bg-muted disabled:opacity-50"
+                >
+                  {saving ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                  {saving ? "Saving..." : "Save changes"}
+                </button>
+              )}
 
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={isBusy || hasErrors}
+                disabled={submitting || saving || hasErrors}
                 title={hasErrors ? "Resolve table errors before submitting" : undefined}
                 className="inline-flex h-8 items-center gap-1.5 rounded-control bg-primary px-3 text-small font-semibold text-white transition hover:bg-primary-dark disabled:opacity-50"
               >
-                {isBusy ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
-                Submit for approval
+                {submitting ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
+                {submitting ? "Submitting..." : "Submit for approval"}
               </button>
             </>
           )}
@@ -181,17 +192,17 @@ export function MasterDataApprovalCard({
               <button
                 type="button"
                 onClick={handleApprove}
-                disabled={isBusy}
-                className="inline-flex h-8 items-center gap-1.5 rounded-control bg-approved-fg px-3 text-small font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                disabled={submitting || saving}
+                className="inline-flex h-8 items-center gap-1.5 rounded-control bg-primary px-3 text-small font-semibold text-white transition hover:bg-primary-dark disabled:opacity-50"
               >
-                {isBusy ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
-                Approve
+                {submitting ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
+                {submitting ? "Approving..." : "Approve"}
               </button>
 
               <button
                 type="button"
                 onClick={() => setShowRejectModal(true)}
-                disabled={isBusy}
+                disabled={submitting || saving}
                 className="inline-flex h-8 items-center gap-1.5 rounded-control border border-danger bg-danger-soft px-3 text-small font-semibold text-danger-ink transition hover:bg-danger-soft/80 disabled:opacity-50"
               >
                 <XCircle className="size-3.5" />
@@ -215,7 +226,17 @@ export function MasterDataApprovalCard({
         <div className="mt-3 flex items-start gap-2.5 rounded-control border border-inreview-fg/30 bg-inreview-bg/40 p-3 text-small text-inreview-fg">
           <Lock className="mt-0.5 size-4 shrink-0" />
           <p>
-            <strong>Locked while pending Approver review.</strong> Saving additional edits, uploads, and deletions are disabled until decided.
+            {isApprover ? (
+              <>
+                <strong>Approval review requested.</strong> Submitted by{" "}
+                <span className="font-semibold">{approval?.submitted_by || "Reviewer QA"}</span> on{" "}
+                <span>{formatDate(approval?.submitted_at)}</span>. Review the submitted changes below and choose Approve or Reject.
+              </>
+            ) : (
+              <>
+                <strong>Locked while pending Approver review.</strong> Saving additional edits, uploads, and deletions are disabled until decided.
+              </>
+            )}
           </p>
         </div>
       )}
@@ -248,7 +269,7 @@ export function MasterDataApprovalCard({
       </div>
 
       {/* Changes Details (Existing & Proposed) - Page 21 requirement */}
-      {changes.length > 0 && (
+      {changes.length > 0 ? (
         <div className="mt-4 border-t border-border pt-3">
           <button
             type="button"
@@ -256,7 +277,13 @@ export function MasterDataApprovalCard({
             className="flex items-center gap-1.5 text-small font-semibold text-primary hover:underline"
           >
             <Diff className="size-4" />
-            {showDiff ? "Hide changes details" : `View changes before approval (${changes.length} modified field${changes.length === 1 ? "" : "s"})`}
+            {showDiff
+              ? isPending
+                ? "Hide submitted changes"
+                : "Hide changes details"
+              : isPending
+              ? `View submitted changes for approval (${changes.length} modified field${changes.length === 1 ? "" : "s"})`
+              : `View changes before approval (${changes.length} modified field${changes.length === 1 ? "" : "s"})`}
           </button>
 
           {showDiff && (
@@ -284,7 +311,11 @@ export function MasterDataApprovalCard({
             </div>
           )}
         </div>
-      )}
+      ) : isPending ? (
+        <div className="mt-4 border-t border-border pt-3 text-small text-subdued">
+          <span>All {entityName.toLowerCase()} entries have been submitted and are ready for approval review.</span>
+        </div>
+      ) : null}
 
       {/* Rejection Reason Modal */}
       {showRejectModal && (
@@ -321,7 +352,7 @@ export function MasterDataApprovalCard({
               <button
                 type="button"
                 onClick={handleReject}
-                disabled={!rejectReason.trim() || isBusy}
+                disabled={!rejectReason.trim() || submitting || saving}
                 className="h-8 rounded-control bg-danger px-3 text-small font-semibold text-white hover:bg-danger-ink disabled:opacity-50"
               >
                 Confirm Rejection

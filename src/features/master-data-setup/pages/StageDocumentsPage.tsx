@@ -1,7 +1,15 @@
-import { ChevronDown } from "lucide-react";
-import { useEffect, useState } from "react";
+import { AlertCircle, CheckCircle2, ChevronDown } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { masterDataAccess } from "../access";
-import { getStageChecklist, removeStageDocument, uploadStageDocument } from "../api/masterDataDocuments.api";
+import {
+  getStageChecklist,
+  removeOtherStageDocument,
+  removeStageDocument,
+  replaceOtherStageDocument,
+  uploadOtherStageDocument,
+  uploadStageDocument,
+  type MasterOtherDocStatus,
+} from "../api/masterDataDocuments.api";
 import { HowThisWorks } from "../components/HowThisWorks";
 import { SetupShell } from "../components/SetupShell";
 import { StepFooter } from "../components/StepFooter";
@@ -35,14 +43,38 @@ export function StageDocumentsPage() {
   const setUpload = useSetupStore((s) => s.setUpload);
   const removeUpload = useSetupStore((s) => s.removeUpload);
 
+  const [stageOthers, setStageOthers] = useState<Record<string, MasterOtherDocStatus[]>>({});
+  const [activeStageKeyForOther, setActiveStageKeyForOther] = useState<string | null>(null);
+  const [isUploadingOther, setIsUploadingOther] = useState(false);
+  const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
+  const [actionErrorMessage, setActionErrorMessage] = useState<string | null>(null);
+  const otherFileInputRef = useRef<HTMLInputElement>(null);
+
   const sectionCount = (sec: StageSection) => sec.docs.filter((d) => uploads[d.code]).length;
   const totalDone = stageSections.reduce((n, sec) => n + sectionCount(sec), 0);
   const stageDocCount = stageSections.reduce((n, sec) => n + sec.docs.length, 0);
+  const totalExtraCount = Object.values(stageOthers).reduce((sum, list) => sum + (list?.length || 0), 0);
 
   const firstIncomplete = stageSections.find((sec) => sectionCount(sec) < sec.docs.length)?.key;
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
     firstIncomplete ? { [firstIncomplete]: true } : {},
   );
+
+  const refreshChecklist = useCallback(async () => {
+    try {
+      const res = await getStageChecklist(typeMeta.dosageBackend, typeMeta.docBackend);
+      if (res) {
+        setStageChecklistData(res);
+        const othersMap: Record<string, MasterOtherDocStatus[]> = {};
+        for (const stage of res.stages || []) {
+          othersMap[stage.stage_key] = stage.others || [];
+        }
+        setStageOthers(othersMap);
+      }
+    } catch {
+      /* fallback */
+    }
+  }, [typeMeta.dosageBackend, typeMeta.docBackend, setStageChecklistData]);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,6 +82,11 @@ export function StageDocumentsPage() {
       .then((res) => {
         if (cancelled || !res) return;
         setStageChecklistData(res);
+        const othersMap: Record<string, MasterOtherDocStatus[]> = {};
+        for (const stage of res.stages || []) {
+          othersMap[stage.stage_key] = stage.others || [];
+        }
+        setStageOthers(othersMap);
         const firstKey = res.stages?.[0]?.stage_key;
         if (firstKey) {
           setExpanded((prev) => (Object.keys(prev).length > 0 ? prev : { [firstKey]: true }));
@@ -67,6 +104,76 @@ export function StageDocumentsPage() {
   const setAll = (open: boolean) =>
     setExpanded(Object.fromEntries(stageSections.map((s) => [s.key, open])));
 
+  const handleAddOtherClick = (stageKey: string) => {
+    setActiveStageKeyForOther(stageKey);
+    otherFileInputRef.current?.click();
+  };
+
+  const handleOtherFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeStageKeyForOther) return;
+    const stageKey = activeStageKeyForOther;
+    e.target.value = "";
+    setIsUploadingOther(true);
+    setActionSuccessMessage(null);
+    setActionErrorMessage(null);
+    try {
+      await uploadOtherStageDocument(
+        typeMeta.dosageBackend,
+        typeMeta.docBackend,
+        stageKey,
+        file,
+      );
+      await refreshChecklist();
+      setActionSuccessMessage(`"${file.name}" uploaded successfully to backend.`);
+      setTimeout(() => setActionSuccessMessage(null), 4000);
+    } catch (err: any) {
+      console.error("Failed to upload other stage document:", err);
+      setActionErrorMessage(err.message || "Failed to upload other document to backend.");
+    } finally {
+      setIsUploadingOther(false);
+    }
+  };
+
+  const handleReplaceOther = async (stageKey: string, otherId: number, file: File) => {
+    setActionSuccessMessage(null);
+    setActionErrorMessage(null);
+    try {
+      await replaceOtherStageDocument(
+        typeMeta.dosageBackend,
+        typeMeta.docBackend,
+        stageKey,
+        otherId,
+        file,
+      );
+      await refreshChecklist();
+      setActionSuccessMessage(`"${file.name}" replaced successfully in backend.`);
+      setTimeout(() => setActionSuccessMessage(null), 4000);
+    } catch (err: any) {
+      console.error("Failed to replace other stage document:", err);
+      setActionErrorMessage(err.message || "Failed to replace other document in backend.");
+    }
+  };
+
+  const handleRemoveOther = async (stageKey: string, otherId: number) => {
+    setActionSuccessMessage(null);
+    setActionErrorMessage(null);
+    try {
+      await removeOtherStageDocument(
+        typeMeta.dosageBackend,
+        typeMeta.docBackend,
+        stageKey,
+        otherId,
+      );
+      await refreshChecklist();
+      setActionSuccessMessage("Extra document removed from backend.");
+      setTimeout(() => setActionSuccessMessage(null), 4000);
+    } catch (err: any) {
+      console.error("Failed to remove other stage document:", err);
+      setActionErrorMessage(err.message || "Failed to remove other document from backend.");
+    }
+  };
+
   return (
     <SetupShell
       step="stages"
@@ -78,6 +185,15 @@ export function StageDocumentsPage() {
         </>
       }
     >
+      {/* Hidden input for adding optional other documents */}
+      <input
+        ref={otherFileInputRef}
+        type="file"
+        accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        className="hidden"
+        onChange={handleOtherFileSelected}
+      />
+
       <HowThisWorks
         items={[
           <>Open a stage with the <span className="font-semibold">arrow</span>.</>,
@@ -89,6 +205,9 @@ export function StageDocumentsPage() {
       <div className="flex items-center justify-between">
         <p className="text-micro font-semibold uppercase tracking-overline text-subdued">
           Stages — {typeMeta.label} · {stageSections.length} sections · {stageDocCount} mandatory documents
+          {totalExtraCount > 0 ? (
+            <span className="font-semibold text-primary"> · {totalExtraCount} extra document{totalExtraCount > 1 ? "s" : ""} uploaded</span>
+          ) : ""}
         </p>
         <div className="flex items-center gap-3 text-small font-semibold text-primary">
           <button type="button" onClick={() => setAll(true)} className="hover:underline">Expand all</button>
@@ -98,8 +217,10 @@ export function StageDocumentsPage() {
 
       <div className="space-y-3">
         {stageSections.map((sec) => {
+          const stageKey = STAGE_KEY_MAP[sec.key] || sec.key;
           const done = sectionCount(sec);
           const total = sec.docs.length;
+          const othersList = stageOthers[stageKey] || [];
           const state = done === total && total > 0 ? "done" : done > 0 ? "partial" : "empty";
           const isOpen = expanded[sec.key] ?? false;
           const led = state === "done" ? "bg-approved-fg" : state === "partial" ? "bg-draft-fg" : "bg-border";
@@ -117,14 +238,22 @@ export function StageDocumentsPage() {
                   </span>
                   <span className="block text-micro text-subdued">
                     {total} documents · all mandatory · one file per document · PDF or DOCX
+                    {othersList.length > 0 ? ` · ${othersList.length} extra document${othersList.length > 1 ? "s" : ""}` : ""}
                   </span>
                 </span>
                 <span className="ml-auto flex items-center gap-3 whitespace-nowrap text-right">
                   <span className="flex flex-col">
                     <span className={`font-mono text-small font-semibold tabular-nums ${state === "done" ? "text-approved-fg" : state === "partial" ? "text-draft-fg" : "text-subdued"}`}>
                       {done} / {total}
+                      {othersList.length > 0 ? (
+                        <span className="ml-1 text-[11px] font-semibold text-primary">
+                          (+{othersList.length} extra)
+                        </span>
+                      ) : null}
                     </span>
-                    <span className="text-[10px] uppercase tracking-overline text-subdued">Uploaded</span>
+                    <span className="text-[10px] uppercase tracking-overline text-subdued">
+                      Uploaded
+                    </span>
                   </span>
                   <ChevronDown className={`size-4 text-subdued transition ${isOpen ? "rotate-180" : ""}`} aria-hidden="true" />
                 </span>
@@ -140,22 +269,54 @@ export function StageDocumentsPage() {
                       file={uploads[d.code] ?? null}
                       canEdit={access.canEdit}
                       onUpload={(f) => {
-                        const stageKey = STAGE_KEY_MAP[sec.key] || sec.key;
                         setUpload(d.code, { ...f, stageKey });
                         if (f.rawFile) {
                           void uploadStageDocument(typeMeta.dosageBackend, typeMeta.docBackend, stageKey, d.code, f.rawFile).catch(() => {});
                         }
                       }}
                       onRemove={() => {
-                        const stageKey = STAGE_KEY_MAP[sec.key] || sec.key;
                         removeUpload(d.code);
                         void removeStageDocument(typeMeta.dosageBackend, typeMeta.docBackend, stageKey, d.code).catch(() => {});
                       }}
                     />
                   ))}
+
+                  {/* Other stage documents uploaded for this stage */}
+                  {othersList.map((item, idx) => (
+                    <UploadRow
+                      key={`other-${item.id}`}
+                      doc={{
+                        code: `OTHER-${item.id}`,
+                        name: item.label || item.file_name,
+                        required: false,
+                      }}
+                      letter={LETTERS[sec.docs.length + idx] ?? String(sec.docs.length + idx + 1)}
+                      file={{
+                        filename: item.file_name,
+                        sizeKB: 24,
+                        by: item.uploaded_by || "Reviewer QA",
+                        at: item.uploaded_at ? new Date(item.uploaded_at).toLocaleDateString() : "Uploaded",
+                        format: item.file_name.toLowerCase().endsWith(".pdf") ? "PDF" : "DOCX",
+                        stageKey,
+                        otherId: item.id,
+                      }}
+                      canEdit={access.canEdit}
+                      onUpload={(f) => {
+                        if (f.rawFile) {
+                          void handleReplaceOther(stageKey, item.id, f.rawFile);
+                        }
+                      }}
+                      onRemove={() => void handleRemoveOther(stageKey, item.id)}
+                    />
+                  ))}
+
                   {access.canEdit ? (
                     <div className="border-t border-border px-4 py-3">
-                      <button type="button" className="rounded-control border border-dashed border-border px-3 py-1.5 text-small font-semibold text-subdued hover:border-primary hover:text-primary">
+                      <button
+                        type="button"
+                        onClick={() => handleAddOtherClick(stageKey)}
+                        className="rounded-control border border-dashed border-border px-3 py-1.5 text-small font-semibold text-subdued hover:border-primary hover:text-primary transition"
+                      >
                         + Add other document
                       </button>
                       <span className="ml-2 text-micro text-subdued">Optional — stage-specific extra document</span>
@@ -169,7 +330,16 @@ export function StageDocumentsPage() {
       </div>
 
       <StepFooter
-        note={<>Autosaved · <span className="font-mono tabular-nums">{totalDone}</span> / {stageDocCount} mandatory uploaded</>}
+        note={
+          <>
+            Autosaved · <span className="font-mono tabular-nums">{totalDone}</span> / {stageDocCount} mandatory uploaded
+            {totalExtraCount > 0 ? (
+              <span className="ml-2 font-medium text-primary">
+                (+{totalExtraCount} extra document{totalExtraCount > 1 ? "s" : ""} saved in backend)
+              </span>
+            ) : null}
+          </>
+        }
         backTo={STEPS[0].route}
         backLabel="Type"
         continueTo={STEPS[4].route}
