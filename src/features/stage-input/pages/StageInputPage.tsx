@@ -1,4 +1,4 @@
-import { AlertCircle, ArrowLeft, Check, ChevronDown, Loader2, Plus, Save, Wrench, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, Check, ChevronDown, Loader2, Save, Wrench, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { getApiErrorMessage } from "../../../shared/api/apiError";
@@ -23,10 +23,6 @@ import {
   resolveSchema,
   type StageAssetScope,
 } from "../model/schemaForm";
-import {
-  areCppValuesComplete,
-  areScopedCppValuesComplete,
-} from "../model/cppValidation";
 import { filterByStage } from "../model/stageMatch";
 
 type Mode = "equipment" | "instrument";
@@ -57,7 +53,6 @@ export function StageInputPage() {
   const [cpp, setCpp] = useState<Record<string, string>>({});
   const [cppByScope, setCppByScope] = useState<Record<string, Record<string, string>>>({});
   const [activeCppScopeKey, setActiveCppScopeKey] = useState("");
-  const [layer, setLayer] = useState("");
 
   const assetScopes = useMemo(
     () => stageForm?.schema
@@ -84,8 +79,6 @@ export function StageInputPage() {
   const equipmentHasProcessing = Boolean(
     equipmentItemSchema?.properties?.processing_step || equipmentItemSchema?.properties?.cpp_values,
   );
-  const supportsLayer = Boolean((mode === "equipment" ? equipmentItemSchema : instrumentItemSchema)?.properties?.layer);
-
   useEffect(() => {
     let cancelled = false;
     if (!documentState?.dosage_form || !documentState.doc_type || !forStage) return;
@@ -103,7 +96,6 @@ export function StageInputPage() {
     setCpp({});
     setCppByScope({});
     setActiveCppScopeKey("");
-    setLayer("");
     void (async () => {
       try {
         const [md, form] = await Promise.all([
@@ -200,13 +192,6 @@ export function StageInputPage() {
   const currentCpp = isCoatingScoped
     ? cppByScope[activeCppScope?.key || ""] ?? {}
     : cpp;
-  const cppComplete = isCoatingScoped
-    ? areScopedCppValuesComplete(
-        cpps,
-        coatingScopes.map((scope) => scope.key),
-        cppByScope,
-      )
-    : areCppValuesComplete(cpps, cpp);
 
   const resetForm = useCallback((keepMode = true) => {
     if (!keepMode) setMode("equipment");
@@ -215,7 +200,6 @@ export function StageInputPage() {
     setProcStage("");
     setCpp({});
     setCppByScope({});
-    setLayer("");
   }, []);
 
   const switchMode = useCallback((next: Mode) => {
@@ -225,7 +209,6 @@ export function StageInputPage() {
     setProcStage("");
     setCpp({});
     setCppByScope({});
-    setLayer("");
   }, []);
 
   const switchScope = useCallback((scope: StageAssetScope) => {
@@ -236,7 +219,6 @@ export function StageInputPage() {
     setProcStage("");
     setCpp({});
     setCppByScope({});
-    setLayer("");
   }, []);
 
   const chooseName = useCallback((value: string) => {
@@ -255,13 +237,12 @@ export function StageInputPage() {
   }, []);
 
   const canAdd = mode === "equipment"
-    ? Boolean(name && id && (!equipmentHasProcessing || procStage) && cppComplete)
-    : Boolean(name && id);
+    ? Boolean(name && (!id || !equipmentHasProcessing || procStage))
+    : Boolean(name);
   const hasDraftValues = Boolean(
     name
       || id
       || procStage
-      || layer
       || Object.values(cpp).some((value) => value.trim())
       || Object.values(cppByScope).some((values) =>
         Object.values(values).some((value) => value.trim()),
@@ -303,7 +284,7 @@ export function StageInputPage() {
             mode,
             name,
             id,
-            layer,
+            layer: "",
             stage: forStage,
             proc_stage: procStage,
             cpp: isCoatingScoped ? cppByScope[scope.key] ?? {} : cpp,
@@ -313,7 +294,7 @@ export function StageInputPage() {
             mode,
             name,
             id,
-            layer,
+            layer: "",
             stage: forStage,
             proc_stage: "",
             cpp: {},
@@ -327,18 +308,11 @@ export function StageInputPage() {
       forStage,
       id,
       isCoatingScoped,
-      layer,
       mode,
       name,
       procStage,
     ],
   );
-
-  const addEntry = useCallback(() => {
-    if (!canAdd) return;
-    setEntries((cur) => [...cur, ...buildDraftEntries()]);
-    resetForm();
-  }, [canAdd, buildDraftEntries, resetForm]);
 
   const removeEntry = useCallback((index: number) => {
     setEntries((cur) => {
@@ -353,7 +327,7 @@ export function StageInputPage() {
   // nothing is silently lost. Returns the full saved list.
   const persistAll = useCallback(async (): Promise<EquipmentEntry[]> => {
     if (hasIncompleteDraft) {
-      throw new Error("Complete every required equipment, processing stage, and CPP value before saving.");
+      throw new Error("Complete every required equipment and processing-stage field before saving.");
     }
     const all = [...entries, ...(canAdd ? buildDraftEntries() : [])];
     if (!stageForm?.schema) throw new Error("Stage schema is not loaded.");
@@ -462,25 +436,37 @@ export function StageInputPage() {
             ) : (
               <>
                 {assetScopes.length > 1 && !isCoatingScoped ? (
-                  <section className="rounded-card border border-border bg-surface p-4">
-                    <p className="mb-2 text-micro font-bold uppercase tracking-wide text-subdued">
-                      Applies to
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {assetScopes.map((scope) => (
-                        <button
-                          key={scope.key}
-                          type="button"
-                          onClick={() => switchScope(scope)}
-                          className={`rounded-pill border px-4 py-1.5 text-small font-semibold capitalize transition ${
-                            activeScope?.key === scope.key
-                              ? "border-primary bg-primary text-white"
-                              : "border-border-strong bg-surface text-subdued hover:border-primary hover:text-primary-dark"
-                          }`}
-                        >
-                          {scope.label}
-                        </button>
-                      ))}
+                  <section className="w-full overflow-hidden rounded-control border border-border bg-surface">
+                    <div className="px-2">
+                      <div
+                        className="grid w-full gap-2"
+                        style={{
+                          gridTemplateColumns: `repeat(${assetScopes.length}, minmax(0, 1fr))`,
+                        }}
+                        role="tablist"
+                        aria-label="Asset scopes"
+                      >
+                        {assetScopes.map((scope) => {
+                          const active = activeScope?.key === scope.key;
+
+                          return (
+                            <button
+                              key={scope.key}
+                              type="button"
+                              role="tab"
+                              aria-selected={active}
+                              onClick={() => switchScope(scope)}
+                              className={`min-w-0 border-b-2 px-2 py-3 text-center text-small font-semibold capitalize transition ${
+                                active
+                                  ? "border-primary text-primary-dark"
+                                  : "border-transparent text-subdued hover:border-border-strong hover:text-text"
+                              }`}
+                            >
+                              {scope.label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </section>
                 ) : null}
@@ -560,6 +546,7 @@ export function StageInputPage() {
                       value={name}
                       options={nameOptions}
                       onChange={chooseName}
+                      selectionOnly
                       emptyText={
                         mode === "equipment"
                           ? "No equipment available for this stage"
@@ -571,14 +558,10 @@ export function StageInputPage() {
                       value={id}
                       options={idOptions}
                       onChange={chooseId}
+                      required={false}
+                      selectionOnly
                     />
                   </div>
-                  {supportsLayer && (documentState?.layers?.length || 0) > 1 ? (
-                    <div className="mt-4 max-w-sm">
-                      <Combo label="Layer (optional — blank applies to all)" value={layer} options={["", ...(documentState?.layers || [])]} onChange={setLayer} />
-                    </div>
-                  ) : null}
-
                   {mode === "equipment" && equipment ? (
                     <DetailBox
                       items={[
@@ -634,7 +617,9 @@ export function StageInputPage() {
                 {mode === "equipment" && equipmentHasProcessing ? (
                   <section className="rounded-card border border-border bg-surface p-5">
                     <div className="mb-3 flex items-baseline gap-2">
-                      <h2 className="text-small font-semibold">Critical process parameters</h2>
+                      <h2 className="text-small font-semibold">
+                        Critical process parameters <span className="font-normal text-subdued">(optional)</span>
+                      </h2>
                       {procStage ? (
                         <span className="font-mono text-micro text-subdued">
                           {name} · {cleanStageName(procStage)}
@@ -684,7 +669,6 @@ export function StageInputPage() {
                             >
                               <span className="flex flex-wrap items-center gap-2 text-small">
                                 {param}
-                                <span className="text-danger" aria-hidden="true">*</span>
                                 {meta.unit ? (
                                   <span className="rounded-sm bg-sunken px-1.5 py-0.5 font-mono text-micro text-subdued">
                                     {meta.unit}
@@ -694,10 +678,8 @@ export function StageInputPage() {
                               <input
                                 type="text"
                                 inputMode="decimal"
-                                required
-                                aria-required="true"
                                 value={currentCpp[param] ?? ""}
-                                placeholder={meta.ex ? `EX: ${meta.ex}` : "Enter value"}
+                                placeholder={meta.ex ? `EX: ${meta.ex} (optional)` : "Enter value (optional)"}
                                 onChange={(e) => {
                                   const value = e.target.value;
                                   if (isCoatingScoped && activeCppScope) {
@@ -719,25 +701,10 @@ export function StageInputPage() {
                         })}
                       </div>
                     )}
-                    {equipment && procStage && cpps.length > 0 && !cppComplete ? (
-                      <p className="mt-3 text-micro font-medium text-danger">
-                        Complete every CPP value{isCoatingScoped ? " in every coating-type tab" : ""} before adding this equipment.
-                      </p>
-                    ) : null}
                   </section>
                 ) : null}
 
                 {supportsEquipment || supportsInstrument ? <div className="flex flex-wrap justify-end gap-2.5">
-                  <button
-                    type="button"
-                    onClick={addEntry}
-                    disabled={!canAdd}
-                    title={hasIncompleteDraft ? "Complete all required fields and CPP values" : undefined}
-                    className="inline-flex h-9 items-center gap-1.5 rounded-control border border-border-strong bg-surface px-4 text-small font-semibold transition hover:bg-sunken disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Plus className="size-4" aria-hidden="true" />
-                    Add to document
-                  </button>
                   <button
                     type="button"
                     onClick={() => void saveStay()}
@@ -764,7 +731,7 @@ export function StageInputPage() {
                   isNextDisabled={hasIncompleteDraft || ((supportsEquipment || supportsInstrument) && recordedCount === 0 && !canAdd)}
                   hint={
                     hasIncompleteDraft
-                      ? "Complete all required fields and CPP values"
+                      ? "Complete all required equipment and processing-stage fields"
                       : recordedCount === 0 && !canAdd
                       ? "Add at least one equipment or instrument"
                       : `${recordedCount + (canAdd ? 1 : 0)} item${
@@ -875,12 +842,16 @@ function Combo({
   options,
   onChange,
   emptyText = "No options",
+  required = true,
+  selectionOnly = false,
 }: {
   label: string;
   value: string;
   options: string[];
   onChange: (value: string) => void;
   emptyText?: string;
+  required?: boolean;
+  selectionOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -898,42 +869,59 @@ function Combo({
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
-  const filtered = options.filter((o) => o.toLowerCase().includes(query.toLowerCase()));
+  const filtered = selectionOnly
+    ? options
+    : options.filter((option) => option.toLowerCase().includes(query.toLowerCase()));
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-micro font-semibold text-subdued">
-        {label} <span className="text-danger">*</span>
-      </label>
+      <span className="text-micro font-semibold text-subdued">
+        {label}{" "}
+        {required ? (
+          <span className="text-danger" aria-label="required">*</span>
+        ) : (
+          <span className="font-normal">(optional)</span>
+        )}
+      </span>
       <div ref={ref} className="relative">
         <div className="flex h-[38px] items-center rounded-control border border-border-strong bg-surface pl-3 pr-1 focus-within:border-primary focus-within:ring-2 focus-within:ring-accent-soft">
           <input
             type="text"
             value={query}
-            placeholder="Select or type…"
+            readOnly={selectionOnly}
+            placeholder={selectionOnly ? "Select…" : "Select or type…"}
             autoComplete="off"
+            aria-haspopup="listbox"
+            aria-expanded={open}
             onFocus={() => setOpen(true)}
-            onChange={(e) => {
-              setQuery(e.target.value);
+            onChange={(event) => {
+              if (selectionOnly) return;
+              setQuery(event.target.value);
               setOpen(true);
             }}
-            onBlur={() => query !== value && onChange(query.trim())}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                onChange(query.trim());
-                setOpen(false);
-              }
-              if (e.key === "Escape") setOpen(false);
+            onBlur={() => {
+              if (!selectionOnly && query !== value) onChange(query.trim());
             }}
-            className="min-w-0 flex-1 bg-transparent text-small outline-none placeholder:text-subdued"
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                if (selectionOnly) {
+                  setOpen(true);
+                } else {
+                  onChange(query.trim());
+                  setOpen(false);
+                }
+              }
+              if (event.key === "Escape") setOpen(false);
+            }}
+            className={`min-w-0 flex-1 bg-transparent text-small outline-none placeholder:text-subdued ${selectionOnly ? "cursor-pointer" : ""}`}
           />
           <button
             type="button"
             tabIndex={-1}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              setOpen((o) => !o);
+            onMouseDown={(event) => {
+              event.preventDefault();
+              setOpen((current) => !current);
             }}
             className="flex size-7 items-center justify-center text-subdued"
           >
@@ -941,10 +929,13 @@ function Combo({
           </button>
         </div>
         {open ? (
-          <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-64 overflow-auto rounded-control border border-border-strong bg-surface p-1 shadow-overlay">
+          <div
+            role="listbox"
+            className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-64 overflow-auto rounded-control border border-border-strong bg-surface p-1 shadow-overlay"
+          >
             {filtered.length === 0 ? (
               <div className="px-2.5 py-2 text-small text-subdued">
-                {query ? (
+                {!selectionOnly && query ? (
                   <>
                     Use custom value “<b className="text-primary-dark">{query}</b>”
                   </>
@@ -957,6 +948,8 @@ function Combo({
                 <button
                   key={opt}
                   type="button"
+                  role="option"
+                  aria-selected={opt === value}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     onChange(opt);

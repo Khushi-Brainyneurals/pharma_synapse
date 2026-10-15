@@ -49,9 +49,10 @@ export function AppSidebar({ user }: AppSidebarProps) {
   const clearSession = useAuthStore((state) => state.clearSession);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const mdAccess = masterDataAccess(user?.role);
-  // Prepared-by has no edit access, so "Master data" points them straight at the read-only
-  // preview of the uploaded masters instead of the equipment/instrument change-request page.
-  const previewOnly = mdAccess.canView && !mdAccess.canEdit;
+  // Read-only participants open Preview directly: Prepared-by inspects it, while Approver
+  // gets the stage/other-document decision controls and can use the stepper for the separate
+  // equipment and instrument approval pages.
+  const opensMasterPreview = mdAccess.canView && !mdAccess.canEdit;
 
   function handleLogout() {
     if (isLoggingOut) {
@@ -107,11 +108,11 @@ export function AppSidebar({ user }: AppSidebarProps) {
             const asReview = item.id === "new-document" && user?.role !== "preparer";
             const label = asReview ? "Review document" : item.label;
             const Icon = asReview ? ClipboardCheck : iconMap[item.id as keyof typeof iconMap] ?? FileClock;
-            // "Master data" opens the setup wizard for an editor, or its read-only preview
-            // for a preparer.
+            // "Master data" opens the setup wizard for QA, or the complete Preview package
+            // for Prepared-by and Approver.
             const to = asReview
               ? ROUTES.queue
-              : item.id === "master-data" && previewOnly
+              : item.id === "master-data" && opensMasterPreview
                 ? "/master-data-setup/preview"
                 : item.id === "new-document"
                   ? SIDEBAR_ROUTES["new-document"]

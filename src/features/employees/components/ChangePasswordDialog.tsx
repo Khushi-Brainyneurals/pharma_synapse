@@ -65,11 +65,10 @@ export function ChangePasswordDialog({
           Changing password for <span className="font-semibold text-text">{employeeLabel ?? employeeId}</span>.
           {isAdminAction ? (
             <p className="mt-1">
-              The backend contract requires <code>old_password</code> but does not state whose
-              password an administrator must enter. Enter the credential required by your backend.
+              Enter the password required to confirm this action.
             </p>
           ) : (
-            <p className="mt-1">The backend enforces the employee 90-day eligibility rule.</p>
+            <p className="mt-1">Employees become eligible after completing 90 days of service.</p>
           )}
         </div>
 

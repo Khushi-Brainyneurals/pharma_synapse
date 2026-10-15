@@ -86,20 +86,20 @@ export function SetupShell({
               <Stepper current={step} />
 
               {/* role banners */}
-              {!access.canEdit ? (
+              {access.canApprove ? (
+                <div className="flex items-start gap-2 rounded-panel border border-approved-fg/30 bg-approved-bg/50 p-3 text-small text-approved-fg">
+                  <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                  <p>
+                    <strong>Approver.</strong> You can inspect each master-data area and approve or reject its pending submission independently.
+                    A rejection must state a reason; nothing goes live until you approve it.
+                  </p>
+                </div>
+              ) : !access.canEdit ? (
                 <div className="flex items-start gap-2 rounded-panel border border-inreview-fg/30 bg-inreview-bg/50 p-3 text-small text-inreview-fg">
                   <Eye className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
                   <p>
                     <strong>View only.</strong> As Prepared-by you can open every uploaded master and check its
                     content, but editing, uploading and approval are reserved for the QA reviewer and the Approver.
-                  </p>
-                </div>
-              ) : access.canApprove ? (
-                <div className="flex items-start gap-2 rounded-panel border border-approved-fg/30 bg-approved-bg/50 p-3 text-small text-approved-fg">
-                  <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                  <p>
-                    <strong>Approver.</strong> You can edit the set and sign it off. A rejection must state a reason;
-                    nothing goes live until you approve.
                   </p>
                 </div>
               ) : null}
@@ -159,7 +159,7 @@ function Stepper({ current }: { current: StepKey }) {
           key={group.key}
           className={`flex-1 ${gi > 0 ? "border-t border-border pt-3 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0" : ""}`}
         >
-          <div className="mb-2 flex items-center justify-between px-1.5">
+          <div className="h-7 mb-2 flex items-center justify-between px-1.5">
             <p className="text-micro font-bold uppercase tracking-overline text-subdued">
               {group.label}
             </p>
@@ -212,7 +212,7 @@ function AccessDenied() {
       </span>
       <h1 className="text-h2 font-semibold">Master data isn't available to your role</h1>
       <p className="max-w-sm text-small text-subdued">
-        Master-data setup is limited to the QA reviewer (upload &amp; edit) and the Approver (upload, edit &amp;
+        Master-data setup is limited to the QA reviewer (upload &amp; edit) and the Approver (review &amp;
         sign-off). Prepared-by can view it read-only. Your role has no master-data access.
       </p>
     </div>

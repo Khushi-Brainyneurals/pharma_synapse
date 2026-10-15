@@ -48,7 +48,7 @@ export const DOSAGE_FORM_OPTIONS: DocumentOption[] = [
     description: "",
     available: false,
     unavailableReason: RELEASE_TOOLTIP,
-    icon: HandCoins,
+    icon: FlaskConical,
   },
   {
     id: "ointment",
@@ -85,7 +85,7 @@ export const DOCUMENT_TYPE_OPTIONS: DocumentOption[] = [
     backendValue: "bmr",
     label: "Batch Manufacturing Record",
     shortLabel: "BMR",
-    description: "Tablet dosage form",
+    description: "",
     available: true,
     icon: FileText,
   },

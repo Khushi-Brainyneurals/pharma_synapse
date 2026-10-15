@@ -1,5 +1,5 @@
-import { Check, CheckCircle2, ChevronLeft, ChevronRight, Eye, Loader2, Maximize2, Minus, Plus, Search, Send, StretchHorizontal, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertCircle, Check, CheckCircle2, ChevronLeft, ChevronRight, Eye, Loader2, Maximize2, Minus, Plus, Search, Send, StretchHorizontal, X, XCircle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Identifier } from "../../../shared/ui/Identifier";
 import { masterDataAccess } from "../access";
@@ -12,12 +12,14 @@ import { DocxViewer } from "../../preview/components/DocxViewer";
 import { DocumentViewer } from "../../../shared/document/DocumentViewer";
 import {
   DOC_CODE_TO_STAGE_KEY,
+  decideStageApproval,
   getOtherDocumentPreviewBlob,
   getOtherDocumentsChecklist,
   getStageApprovalStatus,
   getStageChecklist,
   getStageDocumentPreviewBlob,
   submitStageApproval,
+  type StageApprovalStatus,
 } from "../api/masterDataDocuments.api";
 import {
   backendEquipmentToEquipmentRow,
@@ -55,9 +57,13 @@ export function PreviewPage() {
 
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
-  const [submitted, setSubmitted] = useState(false);
+  const [documentApproval, setDocumentApproval] = useState<StageApprovalStatus | null>(null);
+  const [isApprovalLoading, setIsApprovalLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeciding, setIsDeciding] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [showRejectReason, setShowRejectReason] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
   const [page, setPage] = useState(1);
   const [fullScreen, setFullScreen] = useState(false);
   const TOTAL_PAGES = 2;
@@ -67,16 +73,26 @@ export function PreviewPage() {
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
+  const refreshDocumentApproval = useCallback(async (): Promise<StageApprovalStatus> => {
+    setIsApprovalLoading(true);
+    try {
+      const approval = await getStageApprovalStatus(typeMeta.dosageBackend, typeMeta.docBackend);
+      setDocumentApproval(approval);
+      return approval;
+    } finally {
+      setIsApprovalLoading(false);
+    }
+  }, [typeMeta.dosageBackend, typeMeta.docBackend]);
+
   // Sync live uploaded files, equipments, instruments, and approval state from backend on mount
   useEffect(() => {
     let isMounted = true;
     Promise.all([
       getStageChecklist(typeMeta.dosageBackend, typeMeta.docBackend).catch(() => null),
       getOtherDocumentsChecklist(typeMeta.dosageBackend, typeMeta.docBackend).catch(() => null),
-      getStageApprovalStatus(typeMeta.dosageBackend, typeMeta.docBackend).catch(() => null),
       getEquipments().catch(() => null),
       getInstruments().catch(() => null),
-    ]).then(([stageRes, otherRes, approvalRes, equipsRes, instrsRes]) => {
+    ]).then(([stageRes, otherRes, equipsRes, instrsRes]) => {
       if (!isMounted) return;
       if (equipsRes && equipsRes.length > 0) {
         setEquipmentRows(equipsRes.map(backendEquipmentToEquipmentRow));
@@ -90,16 +106,14 @@ export function PreviewPage() {
       if (otherRes) {
         setOtherChecklistData(otherRes);
       }
-      if (approvalRes && (approvalRes.status === "submitted" || approvalRes.status === "approved")) {
-        setSubmitted(true);
-      } else {
-        setSubmitted(false);
-      }
+    });
+    void refreshDocumentApproval().catch(() => {
+      if (isMounted) setSubmitError("Could not load the current approval status.");
     });
     return () => {
       isMounted = false;
     };
-  }, [typeMeta.dosageBackend, typeMeta.docBackend, setStageChecklistData, setOtherChecklistData, setEquipmentRows, setInstrumentRows]);
+  }, [typeMeta.dosageBackend, typeMeta.docBackend, setStageChecklistData, setOtherChecklistData, setEquipmentRows, setInstrumentRows, refreshDocumentApproval]);
 
   // Flatten every uploaded master into a grouped, searchable list.
   const groups = useMemo(() => {
@@ -136,6 +150,10 @@ export function PreviewPage() {
   const totalUploaded = allDocs.length;
   const previewedCount = allDocs.filter((d) => previewed[d.code]).length;
   const ready = stageDone === stageTotal && batchDone === batchTotal;
+  const documentsSubmitted = isSubmittedOrApproved(documentApproval?.status);
+  const documentsApproved = normalizeApprovalStatus(documentApproval?.status) === "approved";
+  const documentsRejected = normalizeApprovalStatus(documentApproval?.status) === "rejected";
+  const canDecideDocuments = isPendingApproval(documentApproval?.status);
 
   const current = selected ?? allDocs[0]?.code ?? null;
   const currentDoc = allDocs.find((d) => d.code === current) ?? null;
@@ -239,13 +257,42 @@ export function PreviewPage() {
     setIsSubmitting(true);
     setSubmitError(null);
     try {
-      await submitStageApproval(typeMeta.dosageBackend, typeMeta.docBackend);
-      setSubmitted(true);
+      // Equipment and instruments have independent approval flows on their own pages.
+      // Preview submits only this Type's stage and other-document package.
+      if (!isSubmittedOrApproved(documentApproval?.status)) {
+        await submitStageApproval(typeMeta.dosageBackend, typeMeta.docBackend);
+      }
+      await refreshDocumentApproval();
     } catch (err: any) {
       setSubmitError(err?.response?.data?.detail || err?.message || "Submission failed");
-      setSubmitted(true);
+      await refreshDocumentApproval().catch(() => undefined);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDecision = async (decision: "approved" | "rejected") => {
+    const reason = decision === "rejected" ? rejectReason.trim() : "";
+    if (decision === "rejected" && !reason) {
+      setSubmitError("Enter a rejection reason before sending the set back to QA.");
+      return;
+    }
+
+    setIsDeciding(true);
+    setSubmitError(null);
+    try {
+      if (!canDecideDocuments) {
+        throw new Error("There is no pending document submission to decide.");
+      }
+      await decideStageApproval(typeMeta.dosageBackend, typeMeta.docBackend, decision, reason);
+      await refreshDocumentApproval();
+      setShowRejectReason(false);
+      setRejectReason("");
+    } catch (err: any) {
+      setSubmitError(err?.response?.data?.detail || err?.message || `Could not ${decision} the document set.`);
+      await refreshDocumentApproval().catch(() => undefined);
+    } finally {
+      setIsDeciding(false);
     }
   };
 
@@ -254,8 +301,12 @@ export function PreviewPage() {
       step="preview"
       title="Document preview"
       description={
-        submitted ? (
-          "Submitted for approval."
+        documentsApproved ? (
+          "The stage and other-document set is approved."
+        ) : documentsSubmitted ? (
+          "The stage and other-document set is submitted for approval."
+        ) : documentsRejected ? (
+          "The document set was returned to QA for changes."
         ) : (
           <>
             One last look before it goes for approval. <strong>Click a document to open and check it</strong> — fix
@@ -264,22 +315,24 @@ export function PreviewPage() {
         )
       }
     >
-      {submitted && (
+      {documentsSubmitted && (
         <div className="flex items-center gap-3 rounded-panel border border-approved-fg/30 bg-approved-bg/50 px-4 py-3 text-text">
           <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-approved-bg text-approved-fg">
             <CheckCircle2 className="size-4" aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-small font-semibold text-text">Submitted to Master-Data Approvals</p>
+            <p className="text-small font-semibold text-text">
+              {documentsApproved ? "Document set approved" : "Documents submitted for approval"}
+            </p>
             <p className="text-micro text-subdued">
-              The full master-data set — {totalUploaded} documents, list masters, and other documents — is routed to the Approver for sign-off. You can inspect all documents below.
+              These {totalUploaded} stage and other documents {documentsApproved ? "have been signed off." : "are routed to the Approver for sign-off."} Equipment and instrument lists keep their separate approval flows.
             </p>
           </div>
         </div>
       )}
 
       {/* The how-it-works guidance is for the QA editor; a preparer just views, so it's hidden for them. */}
-      {access.canEdit && !submitted ? (
+      {access.canEdit && !documentsSubmitted ? (
         <HowThisWorks
           items={[
             <>Click a document on the left to open it — the eye marks it as checked.</>,
@@ -290,7 +343,7 @@ export function PreviewPage() {
       ) : null}
 
       {/* summary strip */}
-      <div className="flex flex-wrap items-center gap-2 rounded-panel border border-border bg-surface px-4 py-3 text-small">
+      {/* <div className="flex flex-wrap items-center gap-2 rounded-panel border border-border bg-surface px-4 py-3 text-small">
         <Chip label="Stage documents" value={`${stageDone} / ${stageTotal}`} ok={stageDone === stageTotal} />
         <Chip label="Equipment list" value={`${equipment.length} rows`} ok to="/master-data-setup/equipment" />
         <Chip label="Instrument list" value={`${instrument.length} rows`} ok to="/master-data-setup/instruments" />
@@ -299,7 +352,14 @@ export function PreviewPage() {
           {ready ? <Check className="size-4" aria-hidden="true" /> : null}
           {ready ? "All steps complete — ready to submit" : `${stageTotal - stageDone + (batchTotal - batchDone)} mandatory pending`}
         </span>
-      </div>
+      </div> */}
+
+      {submitError ? (
+        <div className="flex items-start gap-2 rounded-panel border border-danger/30 bg-danger-soft p-3 text-small text-danger-ink">
+          <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <span>{submitError}</span>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
         {/* left: doc list */}
@@ -427,22 +487,22 @@ export function PreviewPage() {
       {access.canEdit ? (
         <div className="flex flex-col gap-3 rounded-panel border border-border bg-surface p-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-micro text-subdued">
-            Submit routes the full set — stage docs, both list masters, batch docs — to Master-Data Approvals for Approver sign-off.
+            Submit routes only the stage and other documents to the Approver. Equipment and instruments are submitted separately from their own pages.
           </p>
           <div className="flex items-center gap-3">
             <StepFooterBack />
-            {submitted ? (
+            {documentsSubmitted ? (
               <div className="inline-flex h-9 items-center gap-2 rounded-control border border-approved-fg/30 bg-approved-bg px-4 text-small font-semibold text-approved-fg">
                 <CheckCircle2 className="size-4" aria-hidden="true" />
-                Submitted for approval
+                {documentsApproved ? "Approved" : "Submitted for approval"}
               </div>
             ) : (
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={!ready || isSubmitting}
+                disabled={!ready || isSubmitting || isApprovalLoading}
                 className="inline-flex h-9 items-center gap-1.5 rounded-control bg-primary px-4 text-small font-semibold text-white transition hover:bg-primary-dark disabled:cursor-not-allowed disabled:bg-primary/40"
-                title={ready ? undefined : "Upload every mandatory document to submit"}
+                title={!ready ? "Upload every mandatory document to submit" : isApprovalLoading ? "Loading approval status" : undefined}
               >
                 {isSubmitting ? (
                   <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -453,6 +513,85 @@ export function PreviewPage() {
               </button>
             )}
           </div>
+        </div>
+      ) : access.canApprove ? (
+        <div className="space-y-3 rounded-panel border border-border bg-surface p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-small font-semibold text-text">Stage and other-document approval</p>
+              <p className="mt-0.5 text-micro text-subdued">
+                {documentsApproved
+                  ? "The document set has been approved."
+                  : canDecideDocuments
+                    ? "The stage and other documents are waiting for your decision."
+                    : documentsRejected
+                      ? "The document set has been returned to QA for changes."
+                      : "Waiting for QA to submit the document set."}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <StepFooterBack />
+              {canDecideDocuments ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void handleDecision("approved")}
+                    disabled={isDeciding || isApprovalLoading}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-control bg-approved-fg px-4 text-small font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                  >
+                    {isDeciding ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="size-4" aria-hidden="true" />}
+                    Approve documents
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowRejectReason((current) => !current)}
+                    disabled={isDeciding || isApprovalLoading}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-control border border-danger bg-danger-soft px-4 text-small font-semibold text-danger-ink transition hover:bg-danger-soft/80 disabled:opacity-50"
+                  >
+                    <XCircle className="size-4" aria-hidden="true" />
+                    Reject documents
+                  </button>
+                </>
+              ) : null}
+            </div>
+          </div>
+
+          {showRejectReason && canDecideDocuments ? (
+            <div className="rounded-control border border-danger/30 bg-danger-soft/30 p-3">
+              <label className="text-small font-semibold text-danger-ink" htmlFor="master-data-reject-reason">
+                Rejection reason
+              </label>
+              <textarea
+                id="master-data-reject-reason"
+                value={rejectReason}
+                onChange={(event) => setRejectReason(event.target.value)}
+                rows={3}
+                placeholder="Explain what QA must correct before resubmitting."
+                className="mt-2 w-full rounded-control border border-border bg-surface px-3 py-2 text-small text-text outline-none focus:border-danger focus:ring-2 focus:ring-danger/20"
+              />
+              <div className="mt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRejectReason(false);
+                    setRejectReason("");
+                  }}
+                  className="h-8 rounded-control px-3 text-small font-semibold text-subdued hover:bg-muted"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDecision("rejected")}
+                  disabled={!rejectReason.trim() || isDeciding}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-control bg-danger px-3 text-small font-semibold text-white disabled:opacity-50"
+                >
+                  {isDeciding ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : null}
+                  Confirm rejection
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : (
         <div className="rounded-panel border border-border bg-sunken/40 p-3 text-micro text-subdued">
@@ -702,6 +841,66 @@ function StepFooterBack() {
     >
       ← Other documents
     </Link>
+  );
+}
+
+function normalizeApprovalStatus(status?: string | null): string {
+  return (status || "draft").toLowerCase();
+}
+
+function isPendingApproval(status?: string | null): boolean {
+  const normalized = normalizeApprovalStatus(status);
+  return normalized === "pending" || normalized === "submitted" || normalized === "in_review";
+}
+
+function isSubmittedOrApproved(status?: string | null): boolean {
+  return isPendingApproval(status) || normalizeApprovalStatus(status) === "approved";
+}
+
+function ApprovalStatusChip({
+  label,
+  status,
+  loading,
+}: {
+  label: string;
+  status?: string | null;
+  loading: boolean;
+}) {
+  const normalized = normalizeApprovalStatus(status);
+  const pending = isPendingApproval(normalized);
+  const approved = normalized === "approved";
+  const rejected = normalized === "rejected";
+  const display = !status
+    ? loading ? "Loading" : "Unavailable"
+    : pending
+      ? "Pending"
+      : approved
+        ? "Approved"
+        : rejected
+          ? "Rejected"
+          : "Draft";
+
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-pill border border-border bg-background px-2.5 py-1">
+      {loading && !status ? (
+        <Loader2 className="size-3 animate-spin text-subdued" aria-hidden="true" />
+      ) : (
+        <span
+          className={`size-1.5 rounded-full ${
+            approved
+              ? "bg-approved-fg"
+              : pending
+                ? "bg-inreview-fg"
+                : rejected
+                  ? "bg-danger"
+                  : "bg-draft-fg"
+          }`}
+          aria-hidden="true"
+        />
+      )}
+      <span className="text-subdued">{label}</span>
+      <span className="font-semibold text-text">{display}</span>
+    </span>
   );
 }
 
