@@ -109,14 +109,7 @@ export function PreviewPage() {
 
   // Flatten every uploaded master into a grouped, searchable list, including extra documents from database.
   const groups = useMemo(() => {
-    const out: {
-      group: string;
-      stageKey?: string;
-      mandatoryTotal: number;
-      mandatoryDone: number;
-      extraCount: number;
-      docs: PreviewDoc[];
-    }[] = [];
+    const out: { group: string; docs: PreviewDoc[] }[] = [];
 
     const STAGE_KEY_MAP: Record<string, string> = {
       dispensing: "dispensing_rm",
@@ -178,10 +171,6 @@ export function PreviewPage() {
       if (allSecDocs.length > 0) {
         out.push({
           group: sec.note ? `${sec.title} (${sec.note})` : sec.title,
-          stageKey,
-          mandatoryTotal: sec.docs.length,
-          mandatoryDone: mandatoryDocs.length,
-          extraCount: extraDocs.length,
           docs: allSecDocs,
         });
       }
@@ -223,10 +212,6 @@ export function PreviewPage() {
     if (allBatchDocs.length > 0) {
       out.push({
         group: "Other documents",
-        stageKey: "batch_yield_reconciliation",
-        mandatoryTotal: batchDocs.length,
-        mandatoryDone: otherUploadedDocs.length,
-        extraCount: batchExtraDocs.length,
         docs: allBatchDocs,
       });
     }
@@ -251,12 +236,8 @@ export function PreviewPage() {
 
   const stageTotal = stageSections.reduce((n, sec) => n + sec.docs.length, 0);
   const stageDone = stageSections.reduce((n, sec) => n + sec.docs.filter((d) => uploads[d.code]).length, 0);
-  const stageExtraTotal = Object.values(stageOthers).reduce((sum, list) => sum + (list?.length || 0), 0);
   const batchTotal = batchDocs.length;
   const batchDone = batchDocs.filter((d) => batch[d.code]).length;
-  const batchExtraTotal = (batchOthers || []).length;
-  const totalMandatoryUploaded = stageDone + batchDone;
-  const totalExtra = stageExtraTotal + batchExtraTotal;
   const totalUploaded = allDocs.length;
   const previewedCount = allDocs.filter((d) => previewed[d.code]).length;
   const ready = stageDone === stageTotal && batchDone === batchTotal;
@@ -426,18 +407,10 @@ export function PreviewPage() {
 
       {/* summary strip */}
       <div className="flex flex-wrap items-center gap-2 rounded-panel border border-border bg-surface px-4 py-3 text-small">
-        <Chip
-          label="Stage documents"
-          value={`${stageDone} / ${stageTotal}${stageExtraTotal > 0 ? ` (+${stageExtraTotal} extra)` : ""}`}
-          ok={stageDone === stageTotal}
-        />
+        <Chip label="Stage documents" value={`${stageDone} / ${stageTotal}`} ok={stageDone === stageTotal} />
         <Chip label="Equipment list" value={`${equipment.length} rows`} ok to="/master-data-setup/equipment" />
         <Chip label="Instrument list" value={`${instrument.length} rows`} ok to="/master-data-setup/instruments" />
-        <Chip
-          label="Other documents"
-          value={`${batchDone} / ${batchTotal}${batchExtraTotal > 0 ? ` (+${batchExtraTotal} extra)` : ""}`}
-          ok={batchDone === batchTotal}
-        />
+        <Chip label="Other documents" value={`${batchDone} / ${batchTotal}`} ok={batchDone === batchTotal} />
         <span className={`ml-auto inline-flex items-center gap-1.5 font-semibold ${ready ? "text-approved-fg" : "text-draft-fg"}`}>
           {ready ? <Check className="size-4" aria-hidden="true" /> : null}
           {ready ? "All steps complete — ready to submit" : `${stageTotal - stageDone + (batchTotal - batchDone)} mandatory pending`}
@@ -458,28 +431,17 @@ export function PreviewPage() {
               />
             </div>
             <p className="mt-2 text-micro text-subdued">
-              <span className="font-mono tabular-nums">{totalUploaded}</span> documents
-              {totalExtra > 0 ? (
-                <span className="text-primary font-medium"> ({totalMandatoryUploaded} mandatory + {totalExtra} extra)</span>
-              ) : null}
-              {" · "}
-              <span className="font-mono tabular-nums">{previewedCount}</span> previewed
+              <span className="font-mono tabular-nums">{totalUploaded}</span> documents · <span className="font-mono tabular-nums">{previewedCount}</span> previewed
             </p>
           </div>
           <div className="max-h-[520px] overflow-y-auto">
             {filteredGroups.map((g) => {
+              const gd = g.docs.filter((d) => previewed[d.code]).length;
               return (
                 <section key={g.group}>
                   <div className="flex items-center justify-between bg-sunken/50 px-3 py-1.5">
                     <span className="text-micro font-semibold uppercase tracking-overline text-subdued">{g.group}</span>
-                    <span className="font-mono text-[10px] tabular-nums text-subdued">
-                      {g.mandatoryDone}/{g.mandatoryTotal}
-                      {g.extraCount > 0 ? (
-                        <span className="ml-1 font-semibold text-primary">
-                          (+{g.extraCount} extra)
-                        </span>
-                      ) : null}
-                    </span>
+                    <span className="font-mono text-[10px] tabular-nums text-subdued">{gd}/{g.docs.length}</span>
                   </div>
                   <ul>
                     {g.docs.map((d) => {

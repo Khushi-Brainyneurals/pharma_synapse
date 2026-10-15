@@ -223,11 +223,6 @@ export function BatchDocumentsPage() {
           <p className="text-right">
             <span className={`font-mono text-small font-semibold tabular-nums ${done === total && total > 0 ? "text-approved-fg" : "text-draft-fg"}`}>
               {done} / {total}
-              {otherBatchDocs.length > 0 ? (
-                <span className="ml-1 text-[11px] font-semibold text-primary">
-                  (+{otherBatchDocs.length} extra)
-                </span>
-              ) : null}
             </span>
             <span className="block text-[10px] uppercase tracking-overline text-subdued">Uploaded</span>
           </p>
@@ -313,16 +308,7 @@ export function BatchDocumentsPage() {
       </section>
 
       <StepFooter
-        note={
-          <>
-            Autosaved · <span className="font-mono tabular-nums">{done}</span> / {total} mandatory uploaded
-            {otherBatchDocs.length > 0 ? (
-              <span className="ml-2 font-medium text-primary">
-                (+{otherBatchDocs.length} extra)
-              </span>
-            ) : null}
-          </>
-        }
+        note={<>Autosaved · <span className="font-mono tabular-nums">{done}</span> / {total} mandatory uploaded</>}
         backTo={STEPS[1].route}
         backLabel="Stage documents"
         continueTo={STEPS[5].route}
