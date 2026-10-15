@@ -1,5 +1,10 @@
 import { create } from "zustand";
-import { getNotifications } from "../api/notifications.api";
+import {
+  getNotifications,
+  markAllNotificationsAsRead,
+  markNotificationAsRead,
+  saveLocalNotification,
+} from "../api/notifications.api";
 
 /**
  * The signed-in user's notification feed — one row per event: the document (or master-
@@ -98,6 +103,7 @@ interface NotificationsState {
   fetch: () => Promise<void>;
   markRead: (id: string) => void;
   markAllRead: () => void;
+  addNotification: (notif: Omit<Notification, "unread">) => void;
 }
 
 export const useNotificationsStore = create<NotificationsState>((set, get) => ({
@@ -122,12 +128,25 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     read.add(id);
     saveReadSet(read);
     set((s) => ({ items: s.items.map((n) => (n.id === id ? { ...n, unread: false } : n)) }));
+    void markNotificationAsRead(id);
   },
   markAllRead: () => {
     const read = loadReadSet();
     get().items.forEach((n) => read.add(n.id));
     saveReadSet(read);
     set((s) => ({ items: s.items.map((n) => ({ ...n, unread: false })) }));
+    void markAllNotificationsAsRead();
+  },
+  addNotification: (notif) => {
+    saveLocalNotification(notif);
+    const read = loadReadSet();
+    const itemWithUnread: Notification = {
+      ...notif,
+      unread: !read.has(notif.id),
+    };
+    set((s) => ({
+      items: [itemWithUnread, ...s.items.filter((n) => n.id !== notif.id)],
+    }));
   },
 }));
 

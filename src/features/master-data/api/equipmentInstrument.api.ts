@@ -106,8 +106,34 @@ export function toEquipmentPayload(row: EquipmentRow, index: number): BackendEqu
       .filter((item) => item.step || item.cpp.length > 0 || (item.cqa && item.cqa.length > 0));
   };
 
-  return {
-    _row_id: (row as any)._row_id,
+  const rawSteps =
+    row.steps && row.steps.length > 0
+      ? row.steps
+      : row.procStage
+      ? row.procStage
+          .split(",")
+          .map((p) => p.trim())
+          .filter(Boolean)
+          .map((stepName) => ({
+            step: stepName,
+            cpp:
+              row.cpp && row.cpp !== "N/A"
+                ? row.cpp
+                    .split(",")
+                    .map((c) => c.trim())
+                    .filter(Boolean)
+                : [],
+            cqa:
+              row.cqa && row.cqa !== "N/A"
+                ? row.cqa
+                    .split(",")
+                    .map((c) => c.trim())
+                    .filter(Boolean)
+                : [],
+          }))
+      : [];
+
+  const payload: BackendEquipmentRow = {
     sr_no: row.sr || index + 1,
     name_of_machine: row.name.trim(),
     capacity: row.capacity === "N/A" ? "" : row.capacity.trim(),
@@ -115,14 +141,35 @@ export function toEquipmentPayload(row: EquipmentRow, index: number): BackendEqu
     machine_id_no: row.mcId.trim(),
     stage: row.stage.trim(),
     processing_stage: row.procStage.trim(),
-    cpp: row.cpp === "N/A" ? "" : row.cpp,
-    cqa: row.cqa === "N/A" ? "" : row.cqa,
-    steps: sanitizeSteps(row.steps),
+    steps: sanitizeSteps(rawSteps),
   };
+
+  if ((row as any)._row_id != null) {
+    payload._row_id = (row as any)._row_id;
+  }
+
+  return payload;
 }
 
-export async function saveEquipments(rows: EquipmentRow[], signal?: AbortSignal): Promise<UpsertRowsResponse> {
+export async function deleteEquipment(rowId: number, signal?: AbortSignal): Promise<void> {
   try {
+    await httpClient.delete(`${BASE}/equipments/${rowId}`, { signal });
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, `Unable to delete equipment row #${rowId}.`));
+  }
+}
+
+export async function saveEquipments(
+  rows: EquipmentRow[],
+  deletedRowIds?: number[],
+  signal?: AbortSignal,
+): Promise<UpsertRowsResponse> {
+  try {
+    if (deletedRowIds && deletedRowIds.length > 0) {
+      await Promise.all(
+        deletedRowIds.map((id) => deleteEquipment(id, signal).catch(() => undefined)),
+      );
+    }
     const payload = {
       rows: rows.map(toEquipmentPayload).filter((r) => Boolean(r.name_of_machine)),
     };
@@ -207,18 +254,40 @@ export function backendInstrumentToInstrumentRow(
 }
 
 export function toInstrumentPayload(row: InstrumentRow, index: number): BackendInstrumentRow {
-  return {
-    _row_id: (row as any)._row_id,
+  const payload: BackendInstrumentRow = {
     sr_no: row.sr || index + 1,
     name_of_instrument: row.name.trim(),
     instrument_id_no: row.instrumentId.trim(),
     location: row.location.trim(),
     stage: Array.isArray(row.stages) ? row.stages.join(", ") : String(row.stages || ""),
   };
+
+  if ((row as any)._row_id != null) {
+    payload._row_id = (row as any)._row_id;
+  }
+
+  return payload;
 }
 
-export async function saveInstruments(rows: InstrumentRow[], signal?: AbortSignal): Promise<UpsertRowsResponse> {
+export async function deleteInstrument(rowId: number, signal?: AbortSignal): Promise<void> {
   try {
+    await httpClient.delete(`${BASE}/instruments/${rowId}`, { signal });
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, `Unable to delete instrument row #${rowId}.`));
+  }
+}
+
+export async function saveInstruments(
+  rows: InstrumentRow[],
+  deletedRowIds?: number[],
+  signal?: AbortSignal,
+): Promise<UpsertRowsResponse> {
+  try {
+    if (deletedRowIds && deletedRowIds.length > 0) {
+      await Promise.all(
+        deletedRowIds.map((id) => deleteInstrument(id, signal).catch(() => undefined)),
+      );
+    }
     const payload = {
       rows: rows.map(toInstrumentPayload).filter((r) => Boolean(r.name_of_instrument)),
     };

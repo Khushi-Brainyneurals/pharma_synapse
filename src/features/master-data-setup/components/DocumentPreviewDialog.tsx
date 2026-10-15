@@ -4,7 +4,11 @@ import { Dialog } from "../../../shared/ui/Dialog";
 import { Identifier } from "../../../shared/ui/Identifier";
 import { DocxViewer } from "../../preview/components/DocxViewer";
 import { DocumentViewer } from "../../../shared/document/DocumentViewer";
-import { getOtherDocumentPreviewBlob, getStageDocumentPreviewBlob } from "../api/masterDataDocuments.api";
+import {
+  getOtherDocumentPreviewBlob,
+  getOtherStageDocumentPreviewBlob,
+  getStageDocumentPreviewBlob,
+} from "../api/masterDataDocuments.api";
 import type { DocDef, UploadedFile } from "../model/setup.model";
 import { getSelectedTypeMeta, useSetupStore } from "../state/setupStore";
 
@@ -32,11 +36,13 @@ export function DocumentPreviewDialog({ doc, file, onClose }: DocumentPreviewDia
     let cancelled = false;
 
     async function inspectAndSetBlob(b: Blob) {
-      setBlob(b);
       let fmt: "PDF" | "DOCX" =
         file.format === "DOCX" || file.filename.toLowerCase().endsWith(".docx") ? "DOCX" : "PDF";
       try {
-        const head = await b.slice(0, 5).text();
+        const head = await b.slice(0, 10).text();
+        if (head.startsWith("{") || head.startsWith("<")) {
+          throw new Error("Invalid document stream from backend");
+        }
         if (head.startsWith("%PDF")) {
           fmt = "PDF";
         } else {
@@ -46,16 +52,19 @@ export function DocumentPreviewDialog({ doc, file, onClose }: DocumentPreviewDia
             fmt = "DOCX";
           }
         }
-      } catch {
-        // fallback
+      } catch (err: any) {
+        if (err?.message === "Invalid document stream from backend") {
+          throw err;
+        }
       }
       if (!cancelled) {
+        setBlob(b);
         setDetectedFormat(fmt);
       }
     }
 
     if (file.rawFile) {
-      inspectAndSetBlob(file.rawFile);
+      inspectAndSetBlob(file.rawFile).catch(() => {});
       setIsLoading(false);
       return;
     }
@@ -63,8 +72,11 @@ export function DocumentPreviewDialog({ doc, file, onClose }: DocumentPreviewDia
     setIsLoading(true);
     setLoadError(null);
 
-    const loader = file.stageKey
-      ? getStageDocumentPreviewBlob(typeMeta.dosageBackend, typeMeta.docBackend, file.stageKey, doc.code)
+    const stageKey = file.stageKey || (file.otherId ? "batch_yield_reconciliation" : undefined);
+    const loader = file.otherId && stageKey
+      ? getOtherStageDocumentPreviewBlob(typeMeta.dosageBackend, typeMeta.docBackend, stageKey, file.otherId)
+      : stageKey
+      ? getStageDocumentPreviewBlob(typeMeta.dosageBackend, typeMeta.docBackend, stageKey, doc.code)
       : getOtherDocumentPreviewBlob(typeMeta.dosageBackend, typeMeta.docBackend, doc.code);
 
     loader
@@ -83,7 +95,7 @@ export function DocumentPreviewDialog({ doc, file, onClose }: DocumentPreviewDia
     return () => {
       cancelled = true;
     };
-  }, [doc.code, file.blobUrl, file.stageKey, file.rawFile, file.format, file.filename, typeMeta.dosageBackend, typeMeta.docBackend]);
+  }, [doc.code, file.blobUrl, file.stageKey, file.otherId, file.rawFile, file.format, file.filename, typeMeta.dosageBackend, typeMeta.docBackend]);
 
   const handleDownload = () => {
     const targetBlob = blob || file.rawFile;

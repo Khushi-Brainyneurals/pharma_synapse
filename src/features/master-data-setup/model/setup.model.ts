@@ -27,6 +27,7 @@ export interface UploadedFile {
   format: "PDF" | "DOCX";
   blobUrl?: string;
   stageKey?: string;
+  otherId?: number;
   rawFile?: File;
 }
 

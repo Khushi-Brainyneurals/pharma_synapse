@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 
 /**
@@ -14,6 +14,8 @@ export function StepFooter({
   continueLabel,
   disabled,
   disabledReason,
+  onContinue,
+  isContinuing,
 }: {
   note?: React.ReactNode;
   backTo?: string;
@@ -22,6 +24,8 @@ export function StepFooter({
   continueLabel: string;
   disabled?: boolean;
   disabledReason?: string;
+  onContinue?: () => void | Promise<void>;
+  isContinuing?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-3 rounded-panel border border-border bg-surface p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -48,6 +52,17 @@ export function StepFooter({
             {continueLabel}
             <ArrowRight className="size-4" aria-hidden="true" />
           </span>
+        ) : onContinue ? (
+          <button
+            type="button"
+            onClick={onContinue}
+            disabled={isContinuing}
+            className="inline-flex h-9 items-center gap-1.5 rounded-control bg-primary px-4 text-small font-semibold text-white transition hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50"
+          >
+            {isContinuing ? <Loader2 className="size-4 animate-spin" /> : null}
+            {continueLabel}
+            {!isContinuing && <ArrowRight className="size-4" aria-hidden="true" />}
+          </button>
         ) : (
           <Link
             to={continueTo}

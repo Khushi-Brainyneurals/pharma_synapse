@@ -1,5 +1,6 @@
-import { Download, Search, Trash2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Download, Loader2, Search, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { masterDataAccess } from "../access";
 import { HowThisWorks } from "../components/HowThisWorks";
 import { MasterDataApprovalCard } from "../components/MasterDataApprovalCard";
@@ -10,6 +11,7 @@ import { printListPdf } from "../exportPdf";
 import { getSelectedTypeMeta, useSetupStore } from "../state/setupStore";
 import { useAuthStore } from "../../auth/state/auth.store";
 import { USER_ROLE_LABELS } from "../../auth/model/roles";
+import { useNotificationsStore } from "../../notifications/state/notifications.store";
 import {
   backendInstrumentToInstrumentRow,
   decideInstrumentApproval,
@@ -22,6 +24,7 @@ import {
 } from "../../master-data/api/equipmentInstrument.api";
 
 export function InstrumentListPage() {
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const canEdit = masterDataAccess(user?.role).canEdit;
   const dosageFormId = useSetupStore((s) => s.dosageFormId);
@@ -38,13 +41,60 @@ export function InstrumentListPage() {
   const [approval, setApproval] = useState<ApprovalState | null>(null);
   const [isApprovalLoading, setIsApprovalLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
+  const [saveErrorMessage, setSaveErrorMessage] = useState<string | null>(null);
+  const [deletedRowIds, setDeletedRowIds] = useState<number[]>([]);
   const [serverBaseline, setServerBaseline] = useState<BackendInstrumentRow[]>([]);
+  const [canonicalBaseline, setCanonicalBaseline] = useState<BackendInstrumentRow[]>(() => {
+    try {
+      const raw = localStorage.getItem("master_data_approved_baseline_instrument");
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [submittedChanges, setSubmittedChanges] = useState<{ key: string; field: string; existing: string; proposed: string }[]>(() => {
+    try {
+      const raw = localStorage.getItem("master_data_pending_diffs_instrument");
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
 
   const loadApproval = useCallback(async () => {
     setIsApprovalLoading(true);
     try {
       const state = await getInstrumentApproval();
       setApproval(state);
+      const currentStatus = state.status?.toLowerCase();
+      if (currentStatus === "approved") {
+        localStorage.removeItem("master_data_pending_diffs_instrument");
+        setSubmittedChanges([]);
+        try {
+          const serverRows = await getInstruments();
+          if (serverRows && serverRows.length > 0) {
+            setCanonicalBaseline(serverRows);
+            localStorage.setItem("master_data_approved_baseline_instrument", JSON.stringify(serverRows));
+          }
+        } catch {
+          // Non-blocking
+        }
+      } else if (currentStatus === "pending") {
+        try {
+          const raw = localStorage.getItem("master_data_pending_diffs_instrument");
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setSubmittedChanges(parsed);
+            }
+          }
+        } catch {
+          // Non-blocking
+        }
+      }
     } catch {
       // Non-blocking
     } finally {
@@ -59,6 +109,13 @@ export function InstrumentListPage() {
         setServerBaseline(serverRows);
         const mapped = serverRows.map(backendInstrumentToInstrumentRow);
         setInstrumentRows(mapped);
+
+        // If no baseline stored in localStorage yet, treat initial server rows as baseline
+        const existingBaseline = localStorage.getItem("master_data_approved_baseline_instrument");
+        if (!existingBaseline || existingBaseline === "[]") {
+          setCanonicalBaseline(serverRows);
+          localStorage.setItem("master_data_approved_baseline_instrument", JSON.stringify(serverRows));
+        }
       }
     } catch {
       // Offline fallback
@@ -98,73 +155,263 @@ export function InstrumentListPage() {
     );
   }, [rows, searchQuery]);
 
-  // Diff comparison against server baseline - Page 21 requirement
+  // Diff comparison against canonical approved baseline (or fallback to server baseline)
   const changes = useMemo(() => {
-    if (!serverBaseline.length) return [];
+    const isApproved = approval?.status?.toLowerCase() === "approved";
+    const baseline = isApproved ? serverBaseline : (canonicalBaseline.length > 0 ? canonicalBaseline : serverBaseline);
+    if (!baseline.length) return [];
     const diffs: { key: string; field: string; existing: string; proposed: string }[] = [];
+
+    const norm = (v?: string | null) => {
+      const s = (v ?? "").trim();
+      return !s || s === "N/A" || s === "—" ? "" : s;
+    };
+
+    // Track which baseline rows still exist
+    const seenBaselineIds = new Set<string>();
+
     rows.forEach((r) => {
-      const base = serverBaseline.find(
-        (b) => b.instrument_id_no === r.instrumentId.trim() || b.sr_no === r.sr,
+      const b = baseline.find(
+        (item) => (r.instrumentId && item.instrument_id_no === r.instrumentId.trim()) || (item.sr_no != null && item.sr_no === r.sr),
       );
-      if (!base) {
+      if (!b) {
         diffs.push({
           key: r.instrumentId || `Row ${r.sr}`,
           field: "New Instrument",
           existing: "(none)",
-          proposed: `${r.name} (${r.instrumentId})`,
+          proposed: `${r.name || "Untitled"} (${r.instrumentId || "No ID"})`,
         });
         return;
       }
-      if (base.name_of_instrument !== r.name.trim()) {
+      if (b.instrument_id_no) seenBaselineIds.add(b.instrument_id_no);
+      else if (b.sr_no != null) seenBaselineIds.add(`sr-${b.sr_no}`);
+
+      if (norm(b.name_of_instrument) !== norm(r.name)) {
         diffs.push({
           key: r.instrumentId || `Row ${r.sr}`,
           field: "Instrument Name",
-          existing: base.name_of_instrument,
+          existing: b.name_of_instrument,
           proposed: r.name,
         });
       }
-      if ((base.location || "") !== r.location.trim()) {
+      if (norm(b.instrument_id_no) !== norm(r.instrumentId)) {
+        diffs.push({
+          key: r.instrumentId || `Row ${r.sr}`,
+          field: "Instrument ID No.",
+          existing: b.instrument_id_no || "—",
+          proposed: r.instrumentId || "—",
+        });
+      }
+      if (norm(b.location) !== norm(r.location)) {
         diffs.push({
           key: r.instrumentId || `Row ${r.sr}`,
           field: "Location",
-          existing: base.location || "—",
+          existing: b.location || "—",
           proposed: r.location || "—",
         });
       }
-      const stageStr = Array.isArray(r.stages) ? r.stages.join(", ") : String(r.stages);
-      if ((base.stage || "") !== stageStr) {
+      const stageStr = Array.isArray(r.stages) ? r.stages.join(", ") : String(r.stages || "");
+      if (norm(b.stage) !== norm(stageStr)) {
         diffs.push({
           key: r.instrumentId || `Row ${r.sr}`,
           field: "Stage(s)",
-          existing: base.stage || "—",
+          existing: b.stage || "—",
           proposed: stageStr || "—",
         });
       }
     });
-    return diffs;
-  }, [rows, serverBaseline]);
 
-  const handleSave = async () => {
+    // Detect removed rows
+    baseline.forEach((b) => {
+      const id = b.instrument_id_no || (b.sr_no != null ? `sr-${b.sr_no}` : "");
+      if (id && !seenBaselineIds.has(id)) {
+        diffs.push({
+          key: b.instrument_id_no || `Row ${b.sr_no ?? "—"}`,
+          field: "Row Deletion",
+          existing: b.name_of_instrument,
+          proposed: "(removed from master)",
+        });
+      }
+    });
+
+    return diffs;
+  }, [rows, canonicalBaseline, serverBaseline]);
+
+  const handleRemoveRow = useCallback(
+    (sr: number) => {
+      const row = rows.find((r) => r.sr === sr);
+      if (row?._row_id != null) {
+        setDeletedRowIds((prev) => (prev.includes(row._row_id!) ? prev : [...prev, row._row_id!]));
+      }
+      removeRow(sr);
+    },
+    [removeRow, rows],
+  );
+
+  const handleSave = useCallback(async () => {
+    if (isSaving || isSubmitting) return;
     setIsSaving(true);
+    setSaveErrorMessage(null);
+    setSaveSuccessMessage(null);
     try {
-      await saveInstruments(rows);
+      await saveInstruments(rows, deletedRowIds);
+      setDeletedRowIds([]);
       await loadServerRows();
       await loadApproval();
+      setSaveSuccessMessage("Instrument changes saved successfully.");
+      setTimeout(() => setSaveSuccessMessage(null), 4000);
+    } catch (err: any) {
+      setSaveErrorMessage(err.message || "Failed to save instrument list.");
+      throw err;
     } finally {
       setIsSaving(false);
     }
+  }, [isSaving, isSubmitting, rows, deletedRowIds, loadServerRows, loadApproval]);
+
+  const handleSubmit = useCallback(async () => {
+    if (hasErrors || isSubmitting || isSaving) return;
+    setIsSubmitting(true);
+    setSaveErrorMessage(null);
+    setSaveSuccessMessage(null);
+    try {
+      const snapshot = changes.length > 0 ? [...changes] : [];
+      if (deletedRowIds.length > 0) {
+        deletedRowIds.forEach((id) => {
+          const removed = (canonicalBaseline.length > 0 ? canonicalBaseline : serverBaseline).find(
+            (b) => b._row_id === id,
+          );
+          if (removed && !snapshot.some((s) => s.field === "Row Deletion" && s.existing === removed.name_of_instrument)) {
+            snapshot.push({
+              key: removed.instrument_id_no || `ID ${id}`,
+              field: "Row Deletion",
+              existing: removed.name_of_instrument,
+              proposed: "(removed from master)",
+            });
+          }
+        });
+      }
+
+      await saveInstruments(rows, deletedRowIds);
+      setDeletedRowIds([]);
+      const updated = await submitInstrumentApproval();
+      setApproval(updated);
+      await loadApproval();
+      await loadServerRows();
+
+      const finalSnapshot = snapshot.length > 0
+        ? snapshot
+        : [{
+            key: "MD-INST",
+            field: "Instrument Master",
+            existing: "Current baseline",
+            proposed: `${rows.length} rows verified & submitted for sign-off`,
+          }];
+
+      setSubmittedChanges(finalSnapshot);
+      try {
+        localStorage.setItem("master_data_pending_diffs_instrument", JSON.stringify(finalSnapshot));
+      } catch {
+        // Ignore
+      }
+
+      // Generate notification for Approver
+      const diffCount = snapshot.length;
+      useNotificationsStore.getState().addNotification({
+        id: `notif-inst-submit-${Date.now()}`,
+        category: "md",
+        md: { id: "MD-INST", line: "Instrument Master" },
+        actor: user?.username || "Reviewer QA",
+        actorRole: user?.role ? (USER_ROLE_LABELS[user.role] ?? user.role) : "QA Reviewer",
+        action: "Instrument list submitted for approval",
+        state: "pending",
+        comment: diffCount > 0
+          ? `${diffCount} modification${diffCount === 1 ? "" : "s"} submitted for Approver review`
+          : "Instrument master list submitted for Approver sign-off",
+        date: new Date().toLocaleDateString(),
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        needsAction: true,
+        open: "Review diff",
+        to: "/master-data-setup/instruments",
+      });
+
+      setSaveSuccessMessage("Instrument list submitted for approval.");
+      setTimeout(() => setSaveSuccessMessage(null), 4000);
+    } catch (err: any) {
+      setSaveErrorMessage(err.message || "Failed to submit instrument list.");
+      throw err;
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [hasErrors, isSubmitting, isSaving, changes, deletedRowIds, canonicalBaseline, serverBaseline, rows, loadApproval, loadServerRows, user]);
+
+  const handleContinue = async () => {
+    if (isSaving || isNavigating) return;
+    if (hasErrors) return;
+    setIsNavigating(true);
+    setSaveErrorMessage(null);
+    try {
+      if (canEdit && (changes.length > 0 || deletedRowIds.length > 0)) {
+        await saveInstruments(rows, deletedRowIds);
+        setDeletedRowIds([]);
+      }
+      navigate(STEPS[0].route);
+    } catch (err: any) {
+      setSaveErrorMessage(err.message || "Failed to save instrument changes before continuing.");
+    } finally {
+      setIsNavigating(false);
+    }
   };
 
-  const handleSubmit = async () => {
-    await saveInstruments(rows);
-    const updated = await submitInstrumentApproval();
-    setApproval(updated);
-  };
-
-  const handleDecide = async (decision: "approved" | "rejected", reason?: string) => {
+  const handleDecide = useCallback(async (decision: "approved" | "rejected", reason?: string) => {
     const updated = await decideInstrumentApproval(decision, reason);
     setApproval(updated);
-  };
+    await loadApproval();
+    if (decision === "approved") {
+      setSubmittedChanges([]);
+      try {
+        localStorage.removeItem("master_data_pending_diffs_instrument");
+        const currentRows = await getInstruments();
+        if (currentRows && currentRows.length > 0) {
+          setCanonicalBaseline(currentRows);
+          localStorage.setItem("master_data_approved_baseline_instrument", JSON.stringify(currentRows));
+        }
+      } catch {
+        // Ignore
+      }
+
+      useNotificationsStore.getState().addNotification({
+        id: `notif-inst-approved-${Date.now()}`,
+        category: "md",
+        md: { id: "MD-INST", line: "Instrument Master" },
+        actor: user?.username || "Approver",
+        actorRole: user?.role ? (USER_ROLE_LABELS[user.role] ?? user.role) : "Approver",
+        action: "Instrument list approved",
+        state: "approved",
+        comment: "Instrument master list approved and effective",
+        date: new Date().toLocaleDateString(),
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        needsAction: false,
+        open: "Open",
+        to: "/master-data-setup/instruments",
+      });
+    } else {
+      useNotificationsStore.getState().addNotification({
+        id: `notif-inst-rejected-${Date.now()}`,
+        category: "md",
+        md: { id: "MD-INST", line: "Instrument Master" },
+        actor: user?.username || "Approver",
+        actorRole: user?.role ? (USER_ROLE_LABELS[user.role] ?? user.role) : "Approver",
+        action: "Instrument list rejected",
+        state: "rejected",
+        comment: reason || "Returned for corrections",
+        date: new Date().toLocaleDateString(),
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        needsAction: true,
+        open: "Edit list",
+        to: "/master-data-setup/instruments",
+      });
+    }
+  }, [loadApproval, user]);
 
   const downloadPdf = () =>
     printListPdf({
@@ -196,6 +443,20 @@ export function InstrumentListPage() {
           ]}
         />
       ) : null}
+
+      {/* Success / Error notification alerts */}
+      {saveSuccessMessage && (
+        <div className="flex items-center gap-2 rounded-control border border-emerald-300 bg-emerald-50 p-3 text-small text-emerald-800">
+          <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+          <span>{saveSuccessMessage}</span>
+        </div>
+      )}
+      {saveErrorMessage && (
+        <div className="flex items-center gap-2 rounded-control border border-danger/30 bg-danger-soft p-3 text-small text-danger-ink">
+          <AlertCircle className="size-4 shrink-0 text-danger" />
+          <span>{saveErrorMessage}</span>
+        </div>
+      )}
 
       {/* Action and Search bar - Page 19 */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -309,7 +570,7 @@ export function InstrumentListPage() {
                       <td className="px-2 py-2 text-center align-middle">
                         <button
                           type="button"
-                          onClick={() => removeRow(r.sr)}
+                          onClick={() => handleRemoveRow(r.sr)}
                           className="inline-flex size-8 items-center justify-center rounded-control text-danger transition hover:bg-danger-soft focus:outline-none focus:ring-2 focus:ring-primary"
                           aria-label={`Remove row ${index + 1}`}
                         >
@@ -346,8 +607,13 @@ export function InstrumentListPage() {
         approval={approval}
         isLoading={isApprovalLoading}
         isSaving={isSaving}
+        isSubmitting={isSubmitting}
         hasErrors={hasErrors}
-        changes={changes}
+        changes={
+          Boolean(approval?.status && ["pending", "submitted", "in_review"].includes(approval.status.toLowerCase()))
+            ? (submittedChanges.length > 0 ? submittedChanges : changes)
+            : changes
+        }
         onSave={handleSave}
         onSubmit={handleSubmit}
         onDecide={handleDecide}
@@ -356,20 +622,36 @@ export function InstrumentListPage() {
       {canEdit ? (
         <StepFooter
           note={
-            issues ? (
+            isSaving ? (
+              <span className="flex items-center gap-1.5 text-primary font-medium">
+                <Loader2 className="size-3.5 animate-spin" /> Saving instrument changes…
+              </span>
+            ) : isSubmitting ? (
+              <span className="flex items-center gap-1.5 text-primary font-medium">
+                <Loader2 className="size-3.5 animate-spin" /> Submitting instruments for approval…
+              </span>
+            ) : isNavigating ? (
+              <span className="flex items-center gap-1.5 text-primary font-medium">
+                <Loader2 className="size-3.5 animate-spin" /> Saving changes…
+              </span>
+            ) : issues ? (
               <span className="text-danger-ink">
                 {issues} row(s) need a valid, unique ID — resolve to continue.
               </span>
             ) : (
-              <>
-                Autosaved · <span className="font-mono tabular-nums">{complete}</span> / {rows.length} rows complete
-              </>
+              <span className="text-subdued">
+                <span className="font-mono tabular-nums text-text">{complete}</span> / {rows.length} rows complete
+              </span>
             )
           }
           backTo={STEPS[2].route}
           backLabel="Equipment list"
           continueTo={STEPS[0].route}
           continueLabel="Continue to dependent data (Type)"
+          onContinue={handleContinue}
+          isContinuing={isNavigating}
+          disabled={hasErrors}
+          disabledReason={hasErrors ? "Fix errors in table before continuing" : undefined}
         />
       ) : (
         <StepFooter
