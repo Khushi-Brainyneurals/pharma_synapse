@@ -15,10 +15,12 @@ import {
   decideStageApproval,
   getOtherDocumentPreviewBlob,
   getOtherDocumentsChecklist,
+  getOtherStageDocumentPreviewBlob,
   getStageApprovalStatus,
   getStageChecklist,
   getStageDocumentPreviewBlob,
   submitStageApproval,
+  type MasterOtherDocStatus,
   type StageApprovalStatus,
 } from "../api/masterDataDocuments.api";
 import {
@@ -33,6 +35,8 @@ interface PreviewDoc {
   name: string;
   group: string;
   stageKey?: string;
+  isOther?: boolean;
+  otherId?: number;
   file: UploadedFile;
 }
 
@@ -43,6 +47,8 @@ export function PreviewPage() {
   const documentTypeId = useSetupStore((s) => s.documentTypeId);
   const typeMeta = getSelectedTypeMeta(dosageFormId, documentTypeId);
   const stageSections = useSetupStore((s) => s.stageSections);
+  const stageOthers = useSetupStore((s) => s.stageOthers);
+  const batchOthers = useSetupStore((s) => s.batchOthers);
   const batchDocs = useSetupStore((s) => s.batchDocs);
   const setStageChecklistData = useSetupStore((s) => s.setStageChecklistData);
   const setOtherChecklistData = useSetupStore((s) => s.setOtherChecklistData);
@@ -115,33 +121,132 @@ export function PreviewPage() {
     };
   }, [typeMeta.dosageBackend, typeMeta.docBackend, setStageChecklistData, setOtherChecklistData, setEquipmentRows, setInstrumentRows, refreshDocumentApproval]);
 
-  // Flatten every uploaded master into a grouped, searchable list.
+  // Flatten every uploaded master into a grouped, searchable list, including extra documents from database.
   const groups = useMemo(() => {
     const out: { group: string; docs: PreviewDoc[] }[] = [];
+
+    const STAGE_KEY_MAP: Record<string, string> = {
+      dispensing: "dispensing_rm",
+      dispensing_rm: "dispensing_rm",
+      granulation: "granulation",
+      compression: "compression",
+      inspection_uncoated: "uncoated_inspection",
+      uncoated_inspection: "uncoated_inspection",
+      dispensing_coating: "dispensing_coating",
+      coating: "coating",
+      inspection_coated: "coated_inspection",
+      coated_inspection: "coated_inspection",
+      batch_yield_reconciliation: "batch_yield_reconciliation",
+      reconciliation: "batch_yield_reconciliation",
+      packing: "packing",
+      primary_packing: "primary_packing",
+      secondary_packing: "secondary_packing",
+    };
+
+    const seenOtherIds = new Set<number>();
+
     for (const sec of stageSections) {
-      const docs = sec.docs
+      const stageKey = STAGE_KEY_MAP[sec.key] || sec.key;
+      const mandatoryDocs: PreviewDoc[] = sec.docs
         .filter((d) => uploads[d.code])
         .map((d) => ({
           code: d.code,
           name: d.name,
           group: sec.note ? `${sec.title} (${sec.note})` : sec.title,
-          stageKey: uploads[d.code]?.stageKey || sec.key,
+          stageKey: uploads[d.code]?.stageKey || stageKey,
+          isOther: false,
           file: uploads[d.code]!,
         }));
-      if (docs.length) out.push({ group: sec.note ? `${sec.title} (${sec.note})` : sec.title, docs });
+
+      const othersList: MasterOtherDocStatus[] = stageOthers[stageKey] || stageOthers[sec.key] || [];
+      const extraDocs: PreviewDoc[] = othersList.map((item) => {
+        seenOtherIds.add(item.id);
+        const isPdf = item.file_name.toLowerCase().endsWith(".pdf");
+        return {
+          code: `OTHER-${item.id}`,
+          name: item.label || item.file_name,
+          group: sec.note ? `${sec.title} (${sec.note})` : sec.title,
+          stageKey,
+          isOther: true,
+          otherId: item.id,
+          file: {
+            filename: item.file_name,
+            sizeKB: 24,
+            by: item.uploaded_by || "Reviewer QA",
+            at: item.uploaded_at ? new Date(item.uploaded_at).toLocaleDateString() : "Uploaded",
+            format: isPdf ? "PDF" : "DOCX",
+            stageKey,
+            otherId: item.id,
+          },
+        };
+      });
+
+      const allSecDocs = [...mandatoryDocs, ...extraDocs];
+      if (allSecDocs.length > 0) {
+        out.push({
+          group: sec.note ? `${sec.title} (${sec.note})` : sec.title,
+          docs: allSecDocs,
+        });
+      }
     }
-    const otherUploadedDocs = batchDocs
+
+    const otherUploadedDocs: PreviewDoc[] = batchDocs
       .filter((d) => batch[d.code])
-      .map((d) => ({ code: d.code, name: d.name, group: "Other documents", file: batch[d.code]! }));
-    if (otherUploadedDocs.length) out.push({ group: "Other documents", docs: otherUploadedDocs });
+      .map((d) => ({
+        code: d.code,
+        name: d.name,
+        group: "Other documents",
+        isOther: false,
+        file: batch[d.code]!,
+      }));
+
+    const remainingBatchOthers = (batchOthers || []).filter((item) => !seenOtherIds.has(item.id));
+    const batchExtraDocs: PreviewDoc[] = remainingBatchOthers.map((item) => {
+      const isPdf = item.file_name.toLowerCase().endsWith(".pdf");
+      return {
+        code: `OTHER-${item.id}`,
+        name: item.label || item.file_name,
+        group: "Other documents",
+        stageKey: "batch_yield_reconciliation",
+        isOther: true,
+        otherId: item.id,
+        file: {
+          filename: item.file_name,
+          sizeKB: 24,
+          by: item.uploaded_by || "Reviewer QA",
+          at: item.uploaded_at ? new Date(item.uploaded_at).toLocaleDateString() : "Uploaded",
+          format: isPdf ? "PDF" : "DOCX",
+          stageKey: "batch_yield_reconciliation",
+          otherId: item.id,
+        },
+      };
+    });
+
+    const allBatchDocs = [...otherUploadedDocs, ...batchExtraDocs];
+    if (allBatchDocs.length > 0) {
+      out.push({
+        group: "Other documents",
+        docs: allBatchDocs,
+      });
+    }
+
     return out;
-  }, [stageSections, batchDocs, uploads, batch]);
+  }, [stageSections, stageOthers, batchDocs, batch, batchOthers, uploads]);
 
   const allDocs = groups.flatMap((g) => g.docs);
   const q = query.trim().toLowerCase();
   const filteredGroups = groups
-    .map((g) => ({ ...g, docs: g.docs.filter((d) => !q || d.name.toLowerCase().includes(q) || d.code.toLowerCase().includes(q)) }))
-    .filter((g) => g.docs.length);
+    .map((g) => ({
+      ...g,
+      docs: g.docs.filter(
+        (d) =>
+          !q ||
+          d.name.toLowerCase().includes(q) ||
+          d.code.toLowerCase().includes(q) ||
+          d.file.filename.toLowerCase().includes(q),
+      ),
+    }))
+    .filter((g) => g.docs.length > 0);
 
   const stageTotal = stageSections.reduce((n, sec) => n + sec.docs.length, 0);
   const stageDone = stageSections.reduce((n, sec) => n + sec.docs.filter((d) => uploads[d.code]).length, 0);
@@ -188,11 +293,22 @@ export function PreviewPage() {
         }
 
         let blob: Blob | null = null;
-        const stageKey = targetDoc.stageKey || targetDoc.file.stageKey || DOC_CODE_TO_STAGE_KEY[targetDoc.code];
-        if (stageKey && targetDoc.group !== "Other documents") {
-          blob = await getStageDocumentPreviewBlob(typeMeta.dosageBackend, typeMeta.docBackend, stageKey, targetDoc.code);
+        if (targetDoc.isOther || targetDoc.otherId) {
+          const otherId = targetDoc.otherId || Number(targetDoc.code.replace(/^(OTHER-|OTHER-BATCH-)/, ""));
+          const stageKey = targetDoc.stageKey || targetDoc.file.stageKey || "batch_yield_reconciliation";
+          blob = await getOtherStageDocumentPreviewBlob(
+            typeMeta.dosageBackend,
+            typeMeta.docBackend,
+            stageKey,
+            otherId,
+          );
         } else {
-          blob = await getOtherDocumentPreviewBlob(typeMeta.dosageBackend, typeMeta.docBackend, targetDoc.code);
+          const stageKey = targetDoc.stageKey || targetDoc.file.stageKey || DOC_CODE_TO_STAGE_KEY[targetDoc.code];
+          if (stageKey && targetDoc.group !== "Other documents") {
+            blob = await getStageDocumentPreviewBlob(typeMeta.dosageBackend, typeMeta.docBackend, stageKey, targetDoc.code);
+          } else {
+            blob = await getOtherDocumentPreviewBlob(typeMeta.dosageBackend, typeMeta.docBackend, targetDoc.code);
+          }
         }
 
         if (isMounted) {
@@ -390,6 +506,7 @@ export function PreviewPage() {
                   <ul>
                     {g.docs.map((d) => {
                       const active = d.code === current;
+                      const isDocPreviewed = Boolean(previewed[d.code]);
                       return (
                         <li key={d.code}>
                           <button
@@ -399,15 +516,20 @@ export function PreviewPage() {
                               active ? "border-l-primary bg-accent-soft/50" : "border-l-transparent hover:bg-sunken/50"
                             }`}
                           >
-                            <Check className={`size-3.5 shrink-0 ${previewed[d.code] ? "text-approved-fg" : "text-subdued/40"}`} aria-hidden="true" />
+                            <Check className={`size-3.5 shrink-0 ${isDocPreviewed ? "text-approved-fg" : "text-subdued/40"}`} aria-hidden="true" />
                             <span className="min-w-0 flex-1">
                               <span className="block truncate text-small font-medium text-text">{d.name}</span>
                               <span className="block text-micro text-subdued">
                                 <Identifier>{d.code}</Identifier> · {formatSize(d.file.sizeKB)}
+                                {d.isOther ? (
+                                  <span className="ml-1.5 rounded bg-primary/10 px-1 py-0.5 text-[9px] font-semibold text-primary">
+                                    Extra
+                                  </span>
+                                ) : null}
                               </span>
                             </span>
                             <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] font-semibold text-subdued">{d.file.format}</span>
-                            {previewed[d.code] ? <Eye className="size-3.5 shrink-0 text-primary" aria-hidden="true" /> : null}
+                            {isDocPreviewed ? <Eye className="size-3.5 shrink-0 text-primary" aria-hidden="true" /> : null}
                           </button>
                         </li>
                       );
@@ -430,6 +552,11 @@ export function PreviewPage() {
                     <span className="rounded border border-border px-1.5 py-0.5 text-[10px] font-semibold text-subdued">
                       <Identifier>{currentDoc.code}</Identifier>
                     </span>
+                    {currentDoc.isOther ? (
+                      <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                        Extra Document
+                      </span>
+                    ) : null}
                   </p>
                   <p className="mt-0.5 text-micro text-subdued">
                     <Identifier>{currentDoc.file.filename}</Identifier> · {formatSize(currentDoc.file.sizeKB)} — {currentDoc.file.by} · {currentDoc.file.at}

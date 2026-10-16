@@ -34,14 +34,8 @@ export function BatchDocumentsPage() {
   const setUpload = useSetupStore((s) => s.setBatchUpload);
   const removeUpload = useSetupStore((s) => s.removeBatchUpload);
 
-  const [otherBatchDocs, setOtherBatchDocs] = useState<MasterOtherDocStatus[]>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
-  });
+  const otherBatchDocs = useSetupStore((s) => s.batchOthers);
+  const setOtherBatchDocs = useSetupStore((s) => s.setBatchOthers);
   const [isUploadingOther, setIsUploadingOther] = useState(false);
   const otherFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -49,23 +43,18 @@ export function BatchDocumentsPage() {
     try {
       const res = await getStageChecklist(typeMeta.dosageBackend, typeMeta.docBackend);
       if (res && Array.isArray(res.stages)) {
-        // Find others uploaded under batch reconciliation stage or any matching others
+        useSetupStore.getState().setStageChecklistData(res);
         const reconStage = res.stages.find(
           (s: any) => s.stage_key === "batch_yield_reconciliation" || s.stage_key === "reconciliation",
         );
         if (reconStage?.others && reconStage.others.length > 0) {
           setOtherBatchDocs(reconStage.others);
-          try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(reconStage.others));
-          } catch {
-            // ignore
-          }
         }
       }
     } catch {
       // Offline fallback
     }
-  }, [typeMeta.dosageBackend, typeMeta.docBackend]);
+  }, [typeMeta.dosageBackend, typeMeta.docBackend, setOtherBatchDocs]);
 
   useEffect(() => {
     let cancelled = false;
@@ -234,11 +223,6 @@ export function BatchDocumentsPage() {
           <p className="text-right">
             <span className={`font-mono text-small font-semibold tabular-nums ${done === total && total > 0 ? "text-approved-fg" : "text-draft-fg"}`}>
               {done} / {total}
-              {otherBatchDocs.length > 0 ? (
-                <span className="ml-1 text-[11px] font-semibold text-primary">
-                  (+{otherBatchDocs.length} extra)
-                </span>
-              ) : null}
             </span>
             <span className="block text-[10px] uppercase tracking-overline text-subdued">Uploaded</span>
           </p>
@@ -324,16 +308,7 @@ export function BatchDocumentsPage() {
       </section>
 
       <StepFooter
-        note={
-          <>
-            Autosaved · <span className="font-mono tabular-nums">{done}</span> / {total} mandatory uploaded
-            {otherBatchDocs.length > 0 ? (
-              <span className="ml-2 font-medium text-primary">
-                (+{otherBatchDocs.length} extra)
-              </span>
-            ) : null}
-          </>
-        }
+        note={<>Autosaved · <span className="font-mono tabular-nums">{done}</span> / {total} mandatory uploaded</>}
         backTo={STEPS[1].route}
         backLabel="Stage documents"
         continueTo={STEPS[5].route}

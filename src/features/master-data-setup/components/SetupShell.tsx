@@ -113,45 +113,12 @@ export function SetupShell({
   );
 }
 
-/** Per-step completion counts, read live from the draft. */
-function useStepMeta(): Record<StepKey, string> {
-  const dosageFormId = useSetupStore((s) => s.dosageFormId);
-  const documentTypeId = useSetupStore((s) => s.documentTypeId);
-  const stageSections = useSetupStore((s) => s.stageSections);
-  const batchDocs = useSetupStore((s) => s.batchDocs);
-  const uploads = useSetupStore((s) => s.uploads);
-  const batch = useSetupStore((s) => s.batchUploads);
-  const equipment = useSetupStore((s) => s.equipment);
-  const instrument = useSetupStore((s) => s.instrument);
-
-  const typeMeta = getSelectedTypeMeta(dosageFormId, documentTypeId);
-  const stageTotal = stageSections.reduce((n, sec) => n + sec.docs.length, 0);
-  const stageDone = stageSections.reduce((n, sec) => n + sec.docs.filter((d) => uploads[d.code]).length, 0);
-  const batchTotal = batchDocs.length;
-  const batchDone = batchDocs.filter((d) => batch[d.code]).length;
-  const equipDone = equipment.filter((r) => r.name.trim() && r.mcId.trim()).length;
-  const instrDone = instrument.filter((r) => r.name.trim() && r.instrumentId.trim()).length;
-  const totalUploaded = stageDone + batchDone;
-
-  return {
-    type: typeMeta.label,
-    stages: `${stageDone} / ${stageTotal}`,
-    equipment: `${equipDone} / ${equipment.length}`,
-    instruments: `${instrDone} / ${instrument.length}`,
-    batch: `${batchDone} / ${batchTotal}`,
-    preview: `${totalUploaded} documents`,
-    company: "Letterhead & logo",
-  };
-}
-
 /**
  * The two-sub-screen navigator: a "Static data" group (company + the equipment / instrument
  * masters) and a "Dependent data" group (the Type-keyed document formats + preview). Every
  * step is a direct link — a preparer navigates freely too, read-only.
  */
 function Stepper({ current }: { current: StepKey }) {
-  const meta = useStepMeta();
-
   return (
     <div className="flex flex-col gap-3 rounded-panel border border-border bg-surface p-3 lg:flex-row lg:items-stretch">
       {STEP_GROUPS.map((group, gi) => (
@@ -187,11 +154,8 @@ function Stepper({ current }: { current: StepKey }) {
                     >
                       {i + 1}
                     </span>
-                    <span className="flex flex-col leading-tight">
-                      <span className={`text-small font-medium ${active ? "text-text" : "text-subdued"}`}>
-                        {s.label}
-                      </span>
-                      <span className="font-mono text-[10px] tabular-nums text-subdued">{meta[key]}</span>
+                    <span className={`text-small font-medium ${active ? "text-text" : "text-subdued"}`}>
+                      {s.label}
                     </span>
                   </Link>
                 </li>

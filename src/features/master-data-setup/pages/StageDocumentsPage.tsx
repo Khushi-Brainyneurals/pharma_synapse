@@ -43,7 +43,8 @@ export function StageDocumentsPage() {
   const setUpload = useSetupStore((s) => s.setUpload);
   const removeUpload = useSetupStore((s) => s.removeUpload);
 
-  const [stageOthers, setStageOthers] = useState<Record<string, MasterOtherDocStatus[]>>({});
+  const stageOthers = useSetupStore((s) => s.stageOthers);
+  const setStageOthers = useSetupStore((s) => s.setStageOthers);
   const [activeStageKeyForOther, setActiveStageKeyForOther] = useState<string | null>(null);
   const [isUploadingOther, setIsUploadingOther] = useState(false);
   const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
@@ -53,7 +54,6 @@ export function StageDocumentsPage() {
   const sectionCount = (sec: StageSection) => sec.docs.filter((d) => uploads[d.code]).length;
   const totalDone = stageSections.reduce((n, sec) => n + sectionCount(sec), 0);
   const stageDocCount = stageSections.reduce((n, sec) => n + sec.docs.length, 0);
-  const totalExtraCount = Object.values(stageOthers).reduce((sum, list) => sum + (list?.length || 0), 0);
 
   const firstIncomplete = stageSections.find((sec) => sectionCount(sec) < sec.docs.length)?.key;
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
@@ -74,7 +74,7 @@ export function StageDocumentsPage() {
     } catch {
       /* fallback */
     }
-  }, [typeMeta.dosageBackend, typeMeta.docBackend, setStageChecklistData]);
+  }, [typeMeta.dosageBackend, typeMeta.docBackend, setStageChecklistData, setStageOthers]);
 
   useEffect(() => {
     let cancelled = false;
@@ -99,7 +99,7 @@ export function StageDocumentsPage() {
     return () => {
       cancelled = true;
     };
-  }, [typeMeta.dosageBackend, typeMeta.docBackend, setStageChecklistData]);
+  }, [typeMeta.dosageBackend, typeMeta.docBackend, setStageChecklistData, setStageOthers]);
 
   const setAll = (open: boolean) =>
     setExpanded(Object.fromEntries(stageSections.map((s) => [s.key, open])));
@@ -205,9 +205,6 @@ export function StageDocumentsPage() {
       <div className="flex items-center justify-between">
         <p className="text-micro font-semibold uppercase tracking-overline text-subdued">
           Stages — {typeMeta.label} · {stageSections.length} sections · {stageDocCount} mandatory documents
-          {totalExtraCount > 0 ? (
-            <span className="font-semibold text-primary"> · {totalExtraCount} extra document{totalExtraCount > 1 ? "s" : ""} uploaded</span>
-          ) : ""}
         </p>
         <div className="flex items-center gap-3 text-small font-semibold text-primary">
           <button type="button" onClick={() => setAll(true)} className="hover:underline">Expand all</button>
@@ -238,18 +235,12 @@ export function StageDocumentsPage() {
                   </span>
                   <span className="block text-micro text-subdued">
                     {total} documents · all mandatory · one file per document · PDF or DOCX
-                    {othersList.length > 0 ? ` · ${othersList.length} extra document${othersList.length > 1 ? "s" : ""}` : ""}
                   </span>
                 </span>
                 <span className="ml-auto flex items-center gap-3 whitespace-nowrap text-right">
                   <span className="flex flex-col">
                     <span className={`font-mono text-small font-semibold tabular-nums ${state === "done" ? "text-approved-fg" : state === "partial" ? "text-draft-fg" : "text-subdued"}`}>
                       {done} / {total}
-                      {othersList.length > 0 ? (
-                        <span className="ml-1 text-[11px] font-semibold text-primary">
-                          (+{othersList.length} extra)
-                        </span>
-                      ) : null}
                     </span>
                     <span className="text-[10px] uppercase tracking-overline text-subdued">
                       Uploaded
@@ -330,16 +321,7 @@ export function StageDocumentsPage() {
       </div>
 
       <StepFooter
-        note={
-          <>
-            Autosaved · <span className="font-mono tabular-nums">{totalDone}</span> / {stageDocCount} mandatory uploaded
-            {totalExtraCount > 0 ? (
-              <span className="ml-2 font-medium text-primary">
-                (+{totalExtraCount} extra document{totalExtraCount > 1 ? "s" : ""} saved in backend)
-              </span>
-            ) : null}
-          </>
-        }
+        note={<>Autosaved · <span className="font-mono tabular-nums">{totalDone}</span> / {stageDocCount} mandatory uploaded</>}
         backTo={STEPS[0].route}
         backLabel="Type"
         continueTo={STEPS[4].route}
