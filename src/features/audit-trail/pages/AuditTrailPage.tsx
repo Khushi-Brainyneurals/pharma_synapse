@@ -1,57 +1,71 @@
 import {
-  ArrowLeftRight,
+  Activity,
+  AlertCircle,
   CircleCheck,
   CircleX,
   Database,
   Download,
   Eye,
-  FilePlus2,
-  GitBranch,
   Globe,
   KeyRound,
+  Loader2,
   Lock,
-  LogIn,
   Printer,
   Search,
-  Send,
   ShieldCheck,
-  SlidersHorizontal,
   User as UserIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+  type FormEvent,
+  type ReactNode,
+} from "react";
+import { getApiErrorMessage } from "../../../shared/api/apiError";
+import { Callout } from "../../../shared/ui/Callout";
+import { Dialog } from "../../../shared/ui/Dialog";
 import { Identifier } from "../../../shared/ui/Identifier";
-import { StatusPill } from "../../review/components/StatusPill";
 import { useAuthStore } from "../../auth/state/auth.store";
 import { AppHeader } from "../../new-document/components/AppHeader";
 import { AppSidebar } from "../../new-document/components/AppSidebar";
-
-/**
- * Audit trail (reference screen #8) — the append-only, tamper-evident record of every
- * consequential action: who did what, to which entity, the before→after, and why.
- *
- * Design rule the screen encodes: review by exception. Every event chip carries colour +
- * icon + text; a sensitive row also carries a coloured left rule; "Exceptions only"
- * filters to them in one click. Records are never edited or deleted.
- *
- * There is no audit-event store in the backend yet, so the log is representative — the
- * columns, event taxonomy and exception rules match the design and bind to a real,
- * signed event feed when one lands.
- */
+import {
+  auditDateTime,
+  buildAuditParams,
+  getAuditLogs,
+  type AuditFilters,
+  type AuditRecord,
+} from "../api/auditTrail.api";
 
 type Tone = "neutral" | "danger" | "warn" | "success" | "info";
 
-const ACTIONS: Record<string, { label: string; tone: Tone; icon: React.ComponentType<{ className?: string }> }> = {
-  created: { label: "Document created", tone: "neutral", icon: FilePlus2 },
-  submitted: { label: "Submitted for review", tone: "info", icon: Send },
-  approved: { label: "Approved", tone: "success", icon: CircleCheck },
-  rejected: { label: "Review rejected", tone: "danger", icon: CircleX },
-  reassigned: { label: "Document reassigned", tone: "warn", icon: ArrowLeftRight },
-  version: { label: "Version created", tone: "neutral", icon: GitBranch },
-  masterdata: { label: "Master data changed", tone: "warn", icon: Database },
-  signin: { label: "Signed in", tone: "neutral", icon: LogIn },
-  failed: { label: "Failed sign-in · locked", tone: "warn", icon: Lock },
-  pwreveal: { label: "Password revealed", tone: "warn", icon: Eye },
-  exported: { label: "Audit exported", tone: "neutral", icon: Download },
+interface FilterForm {
+  actorId: string;
+  actorRole: string;
+  action: string;
+  result: string;
+  entity: string;
+  entityId: string;
+  ipAddress: string;
+  sessionId: string;
+  startDate: string;
+  endDate: string;
+}
+
+const EMPTY_FILTERS: FilterForm = {
+  actorId: "",
+  actorRole: "",
+  action: "",
+  result: "",
+  entity: "",
+  entityId: "",
+  ipAddress: "",
+  sessionId: "",
+  startDate: "",
+  endDate: "",
 };
 
 const TONE_CHIP: Record<Tone, string> = {
@@ -62,278 +76,325 @@ const TONE_CHIP: Record<Tone, string> = {
   info: "bg-inreview-bg text-inreview-fg",
 };
 
-type Entity =
-  | { type: "doc"; ref: string; version: string; state: string }
-  | { type: "masterdata"; label: string }
-  | { type: "session" }
-  | { type: "employee"; name: string };
+const BAD_RESULTS = new Set([
+  "error",
+  "failed",
+  "failure",
+  "rejected",
+  "denied",
+  "unauthorized",
+  "locked",
+]);
+const WARNING_RESULTS = new Set(["warning", "warn", "partial", "pending"]);
+const SUCCESS_RESULTS = new Set(["done", "success", "successful", "approved", "completed"]);
 
-interface AuditEvent {
-  id: string;
-  date: string;
-  time: string;
-  user: string;
-  userId: string;
-  role: string;
-  roleUnverified?: boolean;
-  action: keyof typeof ACTIONS;
-  entity: Entity;
-  change?: string;
-  reason: string;
-  exception?: "danger" | "warn";
+function actionPresentation(record: AuditRecord): {
+  tone: Tone;
+  Icon: ComponentType<{ className?: string; "aria-hidden"?: boolean | "true" | "false" }>;
+} {
+  const result = normalized(record.result);
+  if (BAD_RESULTS.has(result)) return { tone: "danger", Icon: CircleX };
+  if (WARNING_RESULTS.has(result)) return { tone: "warn", Icon: AlertCircle };
+  if (SUCCESS_RESULTS.has(result)) return { tone: "success", Icon: CircleCheck };
+  return { tone: "neutral", Icon: Activity };
 }
 
-const EVENTS: AuditEvent[] = [
-  { id: "#04923", date: "30 Jun 2026", time: "14:38:22", user: "System", userId: "U-SYS", role: "System", action: "created", entity: { type: "doc", ref: "BMR-TAB-0157", version: "v1.3", state: "draft" }, reason: "Auto-created from re-issue after rejection" },
-  { id: "#04922", date: "30 Jun 2026", time: "14:38:21", user: "Aarti Sharma", userId: "U-0427", role: "QA Reviewer", action: "rejected", entity: { type: "doc", ref: "BMR-TAB-0157", version: "v1.2", state: "rejected" }, change: "In review → Rejected", reason: "Compression force limit outside master formula", exception: "danger" },
-  { id: "#04921", date: "30 Jun 2026", time: "14:31:55", user: "Aarti Sharma", userId: "U-0427", role: "QA Reviewer", action: "signin", entity: { type: "session" }, reason: "Password verified" },
-  { id: "#04920", date: "30 Jun 2026", time: "13:12:08", user: "Meera Iyer", userId: "U-0611", role: "Approver", action: "masterdata", entity: { type: "masterdata", label: "Tablet hardness spec" }, change: "6.0 kp → 6.5 kp", reason: "Minimum hardness raised per periodic review", exception: "warn" },
-  { id: "#04919", date: "30 Jun 2026", time: "12:47:33", user: "Rajesh Kumar", userId: "U-0208", role: "Author", action: "pwreveal", entity: { type: "session" }, reason: "Credential field unmasked during config", exception: "warn" },
-  { id: "#04918", date: "30 Jun 2026", time: "11:59:41", user: "Rajesh Kumar", userId: "U-0208", role: "Author", action: "masterdata", entity: { type: "masterdata", label: "Dissolution apparatus DA-04" }, change: "Paddle 50 rpm → 75 rpm", reason: "Method update per revised STP", exception: "warn" },
-  { id: "#04917", date: "30 Jun 2026", time: "11:58:02", user: "Rajesh Kumar", userId: "U-0208", role: "Author", action: "signin", entity: { type: "session" }, reason: "Password verified" },
-  { id: "#04916", date: "30 Jun 2026", time: "10:22:17", user: "jdoe", userId: "unverified", role: "No session", roleUnverified: true, action: "failed", entity: { type: "employee", name: "jdoe" }, reason: "3 failed attempts — account locked", exception: "danger" },
-  { id: "#04915", date: "30 Jun 2026", time: "09:47:50", user: "Meera Iyer", userId: "U-0611", role: "Approver", action: "reassigned", entity: { type: "doc", ref: "BMR-TAB-0161", version: "v2", state: "in_review" }, change: "U-0427 → U-0356", reason: "Reviewer on leave — reassigned", exception: "warn" },
-  { id: "#04914", date: "30 Jun 2026", time: "09:31:04", user: "Aarti Sharma", userId: "U-0427", role: "QA Reviewer", action: "approved", entity: { type: "doc", ref: "BMR-TAB-0149", version: "v3", state: "approved" }, change: "In review → Approved", reason: "Meets validated ranges" },
-  { id: "#04913", date: "30 Jun 2026", time: "08:15:22", user: "Rajesh Kumar", userId: "U-0208", role: "Author", action: "created", entity: { type: "doc", ref: "BMR-TAB-0161", version: "v1", state: "draft" }, reason: "New BMR — Metformin HCl 500 mg" },
-  { id: "#04912", date: "29 Jun 2026", time: "17:40:11", user: "Sanjay Gupta", userId: "U-0356", role: "PR Reviewer", action: "submitted", entity: { type: "doc", ref: "BMR-TAB-0149", version: "v3", state: "in_review" }, change: "Generated → In review", reason: "Sent for QA + PR sign-off" },
-  { id: "#04911", date: "29 Jun 2026", time: "16:03:48", user: "S. Nair", userId: "U-0731", role: "Author", action: "version", entity: { type: "doc", ref: "BMR-TAB-0149", version: "v3", state: "draft" }, reason: "Re-issued after periodic review" },
-  { id: "#04910", date: "29 Jun 2026", time: "09:05:12", user: "K. Rao", userId: "U-0088", role: "Approver", action: "exported", entity: { type: "session" }, reason: "Quarterly audit export — 01 Apr–30 Jun" },
-];
-
-/** Plain-text description of an event's entity, for the printable report. */
-function entityText(e: AuditEvent): string {
-  if (e.entity.type === "doc") return `${e.entity.ref} · ${e.entity.version} · ${e.entity.state}`;
-  if (e.entity.type === "masterdata") return `Master data · ${e.entity.label}`;
-  if (e.entity.type === "employee") return `Employee · ${e.entity.name}`;
-  return "Session";
+function isException(record: AuditRecord): boolean {
+  const result = normalized(record.result);
+  return BAD_RESULTS.has(result) || WARNING_RESULTS.has(result);
 }
 
-/**
- * Build a self-contained, printable HTML report of the given events and open it for
- * print / Save-as-PDF. The header records WHO generated it and WHEN (the audit-export
- * requirement), and every row keeps its own who/when. No external PDF dependency — the
- * browser's print dialog produces the PDF.
- */
-function openAuditReport(events: AuditEvent[], generatedBy: { name: string; id: string; role: string }) {
+function normalized(value: string | null): string {
+  return value?.trim().toLowerCase() ?? "";
+}
+
+function display(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "—";
+  return String(value);
+}
+
+function formatTimestamp(value: string | null): { date: string; time: string } {
+  if (!value) return { date: "—", time: "—" };
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return { date: value, time: "—" };
+
+  return {
+    date: parsed.toLocaleDateString("en-GB", {
+      timeZone: "Asia/Kolkata",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }),
+    time: parsed.toLocaleTimeString("en-GB", {
+      timeZone: "Asia/Kolkata",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    }),
+  };
+}
+
+function jsonText(value: unknown): string {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function matchesSearch(record: AuditRecord, query: string): boolean {
+  if (!query) return true;
+  return [
+    record.id,
+    record.actor_id,
+    record.actor_role,
+    record.action,
+    record.result,
+    record.entity,
+    record.entity_id,
+    record.reason,
+    record.ip_address,
+    record.session_id,
+  ].some((value) => String(value ?? "").toLowerCase().includes(query));
+}
+
+function filterRequest(form: FilterForm): { filters?: AuditFilters; error?: string } {
+  if (form.startDate && form.endDate && form.startDate > form.endDate) {
+    return { error: "Start date must be on or before the end date." };
+  }
+
+  const startDate = form.startDate ? auditDateTime(form.startDate, "start") : undefined;
+  const endDate = form.endDate ? auditDateTime(form.endDate, "end") : undefined;
+  if ((form.startDate && !startDate) || (form.endDate && !endDate)) {
+    return { error: "Enter valid start and end dates." };
+  }
+
+  const sessionIdText = form.sessionId.trim();
+  if (sessionIdText && !/^\d+$/.test(sessionIdText)) {
+    return { error: "Session ID must be a whole number." };
+  }
+
+  const sessionId = sessionIdText ? Number(sessionIdText) : undefined;
+  if (sessionId !== undefined && !Number.isSafeInteger(sessionId)) {
+    return { error: "Session ID is outside the supported integer range." };
+  }
+
+  return {
+    filters: buildAuditParams({
+      actor_id: form.actorId,
+      actor_role: form.actorRole,
+      action: form.action,
+      result: form.result,
+      entity: form.entity,
+      entity_id: form.entityId,
+      ip_address: form.ipAddress,
+      session_id: sessionId,
+      start_date: startDate,
+      end_date: endDate,
+    }),
+  };
+}
+
+/** Open the currently visible records as a printable, escaped audit report. */
+function openAuditReport(
+  records: AuditRecord[],
+  generatedBy: { name: string; id: string; role: string },
+) {
   const now = new Date();
   const when = now.toLocaleString("en-GB", {
-    day: "2-digit", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
   });
-  const esc = (s: unknown) =>
-    String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] ?? c));
-
-  const rows = events
-    .map(
-      (e) => `<tr>
-        <td>${esc(e.date)} ${esc(e.time)}<div class="dim">${esc(e.id)}</div></td>
-        <td>${esc(e.user)}<div class="dim">${esc(e.userId)} · ${esc(e.role)}</div></td>
-        <td>${esc(ACTIONS[e.action]?.label ?? e.action)}</td>
-        <td>${esc(entityText(e))}</td>
-        <td>${esc(e.change ?? "—")}</td>
-        <td>${esc(e.reason)}</td>
-      </tr>`,
-    )
+  const esc = (value: unknown) =>
+    String(value ?? "").replace(/[&<>]/g, (character) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[character] ?? character,
+    );
+  const rows = records
+    .map((record) => {
+      const timestamp = formatTimestamp(record.timestamp);
+      const exactTimestamp = record.timestamp
+        ? `<div class="dim">${esc(record.timestamp)}</div>`
+        : "";
+      return `<tr>
+        <td>${esc(display(record.id))}</td>
+        <td>${esc(timestamp.date)} ${esc(timestamp.time)}${exactTimestamp}</td>
+        <td>${esc(display(record.actor_id))}</td>
+        <td>${esc(display(record.actor_role))}</td>
+        <td class="action-col">${esc(display(record.action))}</td>
+        <td>${esc(display(record.result))}</td>
+        <td>${esc(display(record.entity))}</td>
+        <td>${esc(display(record.entity_id))}</td>
+        <td class="reason-col">${esc(display(record.reason))}</td>
+        <td>${esc(display(record.ip_address))}</td>
+        <td>${esc(display(record.session_id))}</td>
+        <td><pre>${esc(jsonText(record.before))}</pre></td>
+        <td><pre>${esc(jsonText(record.after))}</pre></td>
+      </tr>`;
+    })
     .join("");
-
   const html = `<!doctype html><html><head><meta charset="utf-8" />
-    <title>Audit Trail — ${esc(when)}</title>
-    <style>
-      body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:24px;font-size:11px}
-      h1{font-size:18px;margin:0 0 6px}
-      .meta{color:#555;margin:0 0 3px}
-      .meta b{color:#111}
-      table{width:100%;border-collapse:collapse;margin-top:14px}
-      th,td{border:1px solid #999;padding:5px 7px;text-align:left;vertical-align:top}
-      th{background:#eee;font-size:9.5px;text-transform:uppercase;letter-spacing:.04em}
-      .dim{color:#777;font-size:9.5px;margin-top:1px}
-      .foot{margin-top:16px;color:#777;font-size:9.5px}
-      @media print{body{margin:10mm}}
-    </style></head><body>
-    <h1>Audit Trail</h1>
+    <title>Audit Trail — ${esc(when)}</title><style>
+    @page{size:landscape;margin:8mm}body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:20px;font-size:8px}h1{font-size:17px;margin:0 0 6px}
+    .meta{color:#555;margin:0 0 3px}table{width:1016px;border-collapse:collapse;margin-top:12px;table-layout:fixed}th,td{border:1px solid #999;padding:4px;text-align:left;vertical-align:top;overflow-wrap:anywhere;word-break:break-word}
+    th{background:#eee;font-size:7px;text-transform:uppercase}tr{break-inside:avoid-page}.id-col{width:40px}.timestamp-col{width:90px}.actor-col{width:70px}.role-col{width:55px}.action-col{width:120px}.result-col{width:50px}.entity-col{width:70px}.entity-id-col{width:85px}.reason-col{width:100px}.ip-col{width:65px}.session-col{width:45px}.before-col,.after-col{width:113px}.dim{color:#777;font-size:7px;margin-top:2px}pre{font-family:Consolas,monospace;font-size:7px;margin:0;max-width:100%;overflow-wrap:anywhere;white-space:pre-wrap;word-break:break-word}.foot{margin-top:12px;color:#777;font-size:8px}
+    @media print{body{margin:0}}
+    </style></head><body><h1>Audit Trail</h1>
     <p class="meta">Generated by <b>${esc(generatedBy.name)}</b> (${esc(generatedBy.id)}${generatedBy.role ? ` · ${esc(generatedBy.role)}` : ""}) on <b>${esc(when)}</b></p>
-    <p class="meta">${events.length} record(s) · Append-only — records are never edited or deleted.</p>
-    <table><thead><tr>
-      <th>Timestamp</th><th>User</th><th>Action</th><th>Entity</th><th>Change (old &rarr; new)</th><th>Reason</th>
-    </tr></thead><tbody>${rows}</tbody></table>
-    <div class="foot">PharmaDoc AI · Audit trail export · ${esc(when)}</div>
-    <script>window.onload=function(){window.focus();window.print();};<\/script>
-    </body></html>`;
-
-  const w = window.open("", "_blank", "width=1024,height=800");
-  if (!w) return;
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
+    <p class="meta">${records.length} record(s) · Append-only — records are never edited or deleted.</p>
+    <table><colgroup><col class="id-col" /><col class="timestamp-col" /><col class="actor-col" /><col class="role-col" /><col class="action-col" /><col class="result-col" /><col class="entity-col" /><col class="entity-id-col" /><col class="reason-col" /><col class="ip-col" /><col class="session-col" /><col class="before-col" /><col class="after-col" /></colgroup><thead><tr><th>ID</th><th>Timestamp</th><th>Actor ID</th><th>Role</th><th>Action</th><th>Result</th><th>Entity</th><th>Entity ID</th><th>Reason</th><th>IP address</th><th>Session ID</th><th>Previous data</th><th>Updated data</th></tr></thead><tbody>${rows || '<tr><td colspan="13">No records in this view.</td></tr>'}</tbody></table>
+    <div class="foot">PharmaDoc AI · Audit trail export · ${esc(when)}</div><script>window.onload=function(){window.focus();window.print();};<\/script></body></html>`;
+  const reportWindow = window.open("", "_blank", "width=1024,height=800");
+  if (!reportWindow) return;
+  reportWindow.document.open();
+  reportWindow.document.write(html);
+  reportWindow.document.close();
 }
 
 export function AuditTrailPage() {
   const user = useAuthStore((state) => state.user);
-  // Who is generating the export — printed in the report header (the audit-export requirement).
+  const [records, setRecords] = useState<AuditRecord[]>([]);
+  const [filters, setFilters] = useState<FilterForm>({ ...EMPTY_FILTERS });
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [filterError, setFilterError] = useState<string | null>(null);
+  const [appliedFilters, setAppliedFilters] = useState<AuditFilters>({});
+  const [selected, setSelected] = useState<AuditRecord | null>(null);
+  const requestRef = useRef<AbortController | null>(null);
+
+  const loadRecords = useCallback(async (requestFilters: AuditFilters) => {
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
+    setLoading(true);
+    setError(null);
+    try {
+      const nextRecords = await getAuditLogs(requestFilters, controller.signal);
+      if (!controller.signal.aborted) setRecords(nextRecords);
+    } catch (caught) {
+      if (!controller.signal.aborted) {
+        setRecords([]);
+        setError(getApiErrorMessage(caught, "Could not load the audit trail."));
+      }
+    } finally {
+      if (!controller.signal.aborted) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadRecords({});
+    return () => requestRef.current?.abort();
+  }, [loadRecords]);
+
+  const visibleRecords = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return records.filter((record) => matchesSearch(record, normalizedQuery));
+  }, [records, query]);
+
   const reportBy = {
     name: user?.displayName ?? user?.username ?? user?.id ?? "—",
     id: user?.id ?? "",
     role: user?.role ?? "",
   };
-  const [exceptionsOnly, setExceptionsOnly] = useState(false);
-  const [query, setQuery] = useState("");
-  const [actionFilter, setActionFilter] = useState("all");
-  const [userFilter, setUserFilter] = useState("all");
-  const [roleFilter, setRoleFilter] = useState("all");
 
-  const users = useMemo(() => Array.from(new Set(EVENTS.map((e) => e.user))), []);
-  const roles = useMemo(() => Array.from(new Set(EVENTS.map((e) => e.role))), []);
+  function updateFilter(key: keyof FilterForm, value: string) {
+    setFilters((current) => ({ ...current, [key]: value }));
+  }
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return EVENTS.filter((e) => (exceptionsOnly ? Boolean(e.exception) : true))
-      .filter((e) => (actionFilter === "all" ? true : e.action === actionFilter))
-      .filter((e) => (userFilter === "all" ? true : e.user === userFilter))
-      .filter((e) => (roleFilter === "all" ? true : e.role === roleFilter))
-      .filter((e) => {
-        if (!q) return true;
-        const entityText =
-          e.entity.type === "doc"
-            ? `${e.entity.ref} ${e.entity.version}`
-            : e.entity.type === "masterdata"
-              ? e.entity.label
-              : e.entity.type === "employee"
-                ? e.entity.name
-                : "session";
-        return (
-          e.reason.toLowerCase().includes(q) ||
-          e.id.toLowerCase().includes(q) ||
-          e.user.toLowerCase().includes(q) ||
-          entityText.toLowerCase().includes(q)
-        );
-      });
-  }, [exceptionsOnly, actionFilter, userFilter, roleFilter, query]);
+  function applyFilters(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const request = filterRequest(filters);
+    if (!request.filters) {
+      setFilterError(request.error ?? "Check the selected filters.");
+      return;
+    }
+    setFilterError(null);
+    setAppliedFilters(request.filters);
+    void loadRecords(request.filters);
+  }
+
+  function clearFilters() {
+    setFilters({ ...EMPTY_FILTERS });
+    setFilterError(null);
+    setAppliedFilters({});
+    setQuery("");
+    void loadRecords({});
+  }
 
   return (
     <div className="min-h-screen bg-background text-text">
       <AppHeader user={user} unit={user?.unitId ? { id: user.unitId } : null} title="Audit trail" />
-
       <div className="lg:grid lg:h-[calc(100vh-var(--topbar-h))] lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden">
         <AppSidebar user={user} />
-
-        <main className="min-w-0 min-h-0 p-4 lg:p-6 lg:h-full lg:overflow-y-auto">
-          <div className="mx-auto max-w-6xl space-y-4">
-            {/* Header */}
+        <main className="min-h-0 min-w-0 p-4 lg:h-full lg:overflow-y-auto lg:p-6">
+          <div className="mx-auto space-y-4">
             <header className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h1 className="text-h1 font-semibold">Audit trail</h1>
-                <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-small text-subdued">
-                  <span className="inline-flex items-center gap-1.5 rounded-pill border border-border bg-surface px-2.5 py-0.5">
-                    <Lock className="size-3.5" aria-hidden="true" />
-                    Append-only · records are never edited or deleted
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Globe className="size-3.5" aria-hidden="true" />
-                    Times shown in instance timezone · Asia/Kolkata (IST, UTC+05:30)
-                  </span>
-                </div>
               </div>
-              <span className="inline-flex items-center gap-1.5 rounded-pill border border-approved-fg/30 bg-approved-bg px-3 py-1 text-small font-semibold text-approved-fg">
-                <ShieldCheck className="size-4" aria-hidden="true" />
-                Integrity: verified
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <ReportButton icon={Download} label="Download PDF" title="Generate a PDF of these records and save it" onClick={() => openAuditReport(visibleRecords, reportBy)} />
+                <ReportButton icon={Printer} label="Print" title="Print these records" onClick={() => openAuditReport(visibleRecords, reportBy)} />
+              </div>
             </header>
 
-            {/* Filters */}
-            <div className="space-y-3 rounded-panel border border-border bg-surface p-4">
-              <div className="flex flex-wrap items-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setExceptionsOnly((v) => !v)}
-                  className={`inline-flex h-9 items-center gap-1.5 rounded-control border px-3 text-small font-semibold transition ${
-                    exceptionsOnly
-                      ? "border-primary bg-accent-soft text-primary-dark"
-                      : "border-border text-subdued hover:bg-muted"
-                  }`}
-                >
-                  <SlidersHorizontal className="size-4" aria-hidden="true" />
-                  Exceptions only
-                </button>
-                <Field label="Date range">
-                  <div className="flex h-9 items-center rounded-control border border-border bg-background px-3 font-mono text-small text-text">
-                    01 Jun — 30 Jun 2026
-                  </div>
-                </Field>
-                <Field label="User">
-                  <Select value={userFilter} onChange={setUserFilter} options={[{ value: "all", label: "All users" }, ...users.map((u) => ({ value: u, label: u }))]} />
-                </Field>
-                <Field label="Role">
-                  <Select value={roleFilter} onChange={setRoleFilter} options={[{ value: "all", label: "All roles" }, ...roles.map((r) => ({ value: r, label: r }))]} />
-                </Field>
-                <Field label="Action type">
-                  <Select
-                    value={actionFilter}
-                    onChange={setActionFilter}
-                    options={[{ value: "all", label: "All actions" }, ...Object.entries(ACTIONS).map(([k, v]) => ({ value: k, label: v.label }))]}
-                  />
-                </Field>
+            <form onSubmit={applyFilters} className="space-y-3 rounded-panel border border-border bg-surface p-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <FilterInput label="Start date" type="date" value={filters.startDate} onChange={(value) => updateFilter("startDate", value)} />
+                <FilterInput label="End date" type="date" value={filters.endDate} onChange={(value) => updateFilter("endDate", value)} />
+                <FilterInput label="Username" value={filters.actorId} onChange={(value) => updateFilter("actorId", value)} placeholder="e.g. demo_preparer" />
+                <FilterInput label="Role" value={filters.actorRole} onChange={(value) => updateFilter("actorRole", value)} placeholder="e.g. preparer" />
+                <FilterInput label="Action" value={filters.action} onChange={(value) => updateFilter("action", value)} placeholder="Action" />
               </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="relative min-w-[240px] flex-1">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <FilterInput label="Result" value={filters.result} onChange={(value) => updateFilter("result", value)} placeholder="e.g. done" />
+                <FilterInput label="Entity" value={filters.entity} onChange={(value) => updateFilter("entity", value)} placeholder="Entity type" />
+                <FilterInput label="Entity ID" value={filters.entityId} onChange={(value) => updateFilter("entityId", value)} placeholder="Entity identifier" />
+                <FilterInput label="IP address" value={filters.ipAddress} onChange={(value) => updateFilter("ipAddress", value)} placeholder="IP address" />
+                <FilterInput label="Session ID" inputMode="numeric" value={filters.sessionId} onChange={(value) => updateFilter("sessionId", value)} placeholder="Session ID" />
+              </div>
+              {filterError ? <p className="text-small text-danger" role="alert">{filterError}</p> : null}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+                <div className="relative min-w-[240px] max-w-[360px] flex-1">
                   <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-subdued" aria-hidden="true" />
-                  <input
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search reason, entry ID, entity or user…"
-                    className="h-9 w-full rounded-control border border-border bg-background pl-9 pr-3 text-small outline-none placeholder:text-subdued focus:border-primary focus:ring-2 focus:ring-primary/30"
-                  />
+                  <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search loaded reason, entry ID, entity or actor…" className="h-9 w-full rounded-control border border-border bg-background pl-9 pr-3 text-small outline-none placeholder:text-subdued focus:border-primary focus:ring-2 focus:ring-primary/30" />
                 </div>
-                <button
-                  type="button"
-                  onClick={() => openAuditReport(filtered, reportBy)}
-                  title="Generate a PDF of these records and save it"
-                  className="inline-flex h-9 items-center gap-1.5 rounded-control border border-border px-3 text-small font-semibold text-subdued transition hover:bg-muted"
-                >
-                  <Download className="size-4" aria-hidden="true" />
-                  Download PDF
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openAuditReport(filtered, reportBy)}
-                  title="Print these records"
-                  className="inline-flex h-9 items-center gap-1.5 rounded-control border border-border px-3 text-small font-semibold text-subdued transition hover:bg-muted"
-                >
-                  <Printer className="size-4" aria-hidden="true" />
-                  Print
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button type="submit" disabled={loading} className="inline-flex h-9 items-center rounded-control bg-primary px-4 text-small font-semibold text-white transition hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-60">
+                    {loading ? <Loader2 className="mr-1.5 size-4 animate-spin" aria-hidden="true" /> : null} Apply filters
+                  </button>
+                  <button type="button" onClick={clearFilters} disabled={loading} className="inline-flex h-9 items-center rounded-control border border-border px-3 text-small font-semibold text-subdued transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60">
+                    Clear filters
+                  </button>
+                </div>
               </div>
-            </div>
+            </form>
 
-            {/* Log */}
+            {error ? <Callout tone="danger" title="Audit trail unavailable"><p>{error}</p><button type="button" onClick={() => void loadRecords(appliedFilters)} className="mt-2 text-small font-semibold underline">Try again</button></Callout> : null}
+
             <div className="overflow-hidden rounded-panel border border-border bg-surface">
               <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
-                <p className="text-small font-semibold">
-                  Log <span className="font-normal text-subdued">{filtered.length} entries</span>
-                </p>
+                <p className="text-small font-semibold">Log <span className="font-normal text-subdued">{loading ? "loading…" : `${visibleRecords.length} entries`}</span></p>
                 <p className="hidden font-mono text-micro text-subdued sm:block">newest first</p>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[900px] text-small">
-                  <thead>
-                    <tr className="border-b border-border text-left text-micro uppercase tracking-overline text-subdued">
-                      <th className="px-4 py-2 font-medium">Timestamp</th>
-                      <th className="px-4 py-2 font-medium">User</th>
-                      <th className="px-4 py-2 font-medium">Action</th>
-                      <th className="px-4 py-2 font-medium">Entity</th>
-                      <th className="px-4 py-2 font-medium">Change (old → new)</th>
-                      <th className="px-4 py-2 font-medium">Reason</th>
-                    </tr>
-                  </thead>
+                <table className="w-full min-w-[980px] text-small px-8">
+                  <thead><tr className="border-b border-border text-left text-micro uppercase tracking-overline text-subdued">
+                    <th className="py-2 pl-6 pr-8 font-medium">Timestamp</th><th className="px-5 py-2 font-medium">Actor</th><th className="px-4 py-2 font-medium">Action</th><th className="px-4 py-2 font-medium">Result</th><th className="px-4 py-2 font-medium">Entity</th><th className="py-2 pl-4 pr-6 font-medium">Details</th>
+                  </tr></thead>
                   <tbody>
-                    {filtered.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="p-10 text-center text-subdued">
-                          No entries match this view.
-                        </td>
-                      </tr>
-                    ) : (
-                      filtered.map((e) => <AuditRow key={e.id} e={e} />)
-                    )}
+                    {loading ? <tr><td colSpan={6} className="p-10 text-center text-subdued"><span className="inline-flex items-center gap-2"><Loader2 className="size-4 animate-spin" aria-hidden="true" /> Loading audit records…</span></td></tr>
+                      : visibleRecords.length === 0 ? <tr><td colSpan={6} className="p-10 text-center text-subdued">{Object.keys(appliedFilters).length > 0 || query ? "No records match the selected filters." : "No audit records are available."}</td></tr>
+                        : visibleRecords.map((record, index) => <AuditRow key={`${String(record.id)}-${index}`} record={record} onView={() => setSelected(record)} />)}
                   </tbody>
                 </table>
               </div>
@@ -341,113 +402,58 @@ export function AuditTrailPage() {
           </div>
         </main>
       </div>
+      {selected ? <AuditDetails record={selected} onClose={() => setSelected(null)} /> : null}
     </div>
   );
 }
 
-function AuditRow({ e }: { e: AuditEvent }) {
-  const action = ACTIONS[e.action];
-  const Icon = action.icon;
-  const rule =
-    e.exception === "danger"
-      ? "border-l-2 border-l-rejected-fg"
-      : e.exception === "warn"
-        ? "border-l-2 border-l-draft-fg"
-        : "border-l-2 border-l-transparent";
+function AuditRow({ record, onView }: { record: AuditRecord; onView: () => void }) {
+  const presentation = actionPresentation(record);
+  const Icon = presentation.Icon;
+  const timestamp = formatTimestamp(record.timestamp);
+  const exception = isException(record);
   return (
-    <tr className={`border-b border-border/70 align-top last:border-0 hover:bg-sunken/40 ${rule}`}>
-      <td className="whitespace-nowrap px-4 py-3">
-        <p className="font-mono text-small tabular-nums text-text">{e.date}</p>
-        <p className="font-mono text-micro tabular-nums text-subdued">{e.time}</p>
-        <p className="font-mono text-micro text-subdued/70">{e.id}</p>
-      </td>
-      <td className="px-4 py-3">
-        <p className="font-medium text-text">{e.user}</p>
-        <p className="mt-0.5 flex items-center gap-1.5">
-          <Identifier className="text-micro text-subdued">{e.userId}</Identifier>
-          <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${e.roleUnverified ? "bg-danger-soft text-danger-ink" : "bg-muted text-subdued"}`}>
-            {e.role}
-          </span>
-        </p>
-      </td>
-      <td className="px-4 py-3">
-        <span className={`inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-micro font-semibold ${TONE_CHIP[action.tone]}`}>
-          <Icon className="size-3.5" aria-hidden="true" />
-          {action.label}
-        </span>
-      </td>
-      <td className="px-4 py-3">
-        <EntityCell entity={e.entity} />
-      </td>
-      <td className="px-4 py-3 font-mono text-micro tabular-nums text-text">{e.change ?? <span className="text-subdued">—</span>}</td>
-      <td className="max-w-[240px] px-4 py-3 text-subdued">{e.reason}</td>
+    <tr className={`border-b border-border/70 align-top last:border-0 hover:bg-sunken/40 ${exception ? "border-l-2 border-l-rejected-fg" : "border-l-2 border-l-transparent"}`}>
+      <td className="whitespace-nowrap py-3 pl-6 pr-8"><p className="font-mono text-small tabular-nums text-text">{timestamp.date}</p><p className="font-mono text-micro tabular-nums text-subdued">{timestamp.time}</p><p className="font-mono text-micro text-subdued/70">#{display(record.id)}</p></td>
+      <td className="px-5 py-3"><p className="font-medium text-text">{display(record.actor_id)}</p><p className="mt-0.5 flex items-center gap-1.5"><span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase text-subdued">{display(record.actor_role)}</span></p></td>
+      <td className="max-w-[300px] break-words px-4 py-3 text-text">{display(record.action)}</td>
+      <td className="max-w-[140px] px-4 py-3"><span className={`inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-micro font-semibold ${TONE_CHIP[presentation.tone]}`}><Icon className="size-3.5 shrink-0" aria-hidden="true" />{display(record.result)}</span></td>
+      <td className="px-4 py-3"><span className="inline-flex items-start gap-1.5 text-subdued"><Database className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" /><span><span className="text-text">{display(record.entity)}</span><br /><Identifier className="text-micro text-subdued">{display(record.entity_id)}</Identifier></span></span></td>
+      <td className="py-3 pl-4 pr-6"><button type="button" onClick={onView} className="inline-flex items-center gap-1.5 font-semibold text-primary hover:text-primary-dark"><Eye className="size-3.5" aria-hidden="true" /> View</button></td>
     </tr>
   );
 }
 
-function EntityCell({ entity }: { entity: Entity }) {
-  if (entity.type === "doc") {
-    return (
-      <span className="inline-flex flex-wrap items-center gap-1.5">
-        <Identifier className="text-text">{entity.ref}</Identifier>
-        <span className="font-mono text-micro text-subdued">· {entity.version}</span>
-        <StatusPill status={entity.state} />
-      </span>
-    );
-  }
-  if (entity.type === "masterdata") {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-subdued">
-        <Database className="size-3.5" aria-hidden="true" />
-        Master data · <span className="text-text">{entity.label}</span>
-      </span>
-    );
-  }
-  if (entity.type === "employee") {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-subdued">
-        <UserIcon className="size-3.5" aria-hidden="true" />
-        Employee · <Identifier className="text-text">{entity.name}</Identifier>
-      </span>
-    );
-  }
+function AuditDetails({ record, onClose }: { record: AuditRecord; onClose: () => void }) {
+  const timestamp = formatTimestamp(record.timestamp);
   return (
-    <span className="inline-flex items-center gap-1.5 text-subdued">
-      <KeyRound className="size-3.5" aria-hidden="true" />
-      Session
-    </span>
+    <Dialog title={`Audit record #${display(record.id)}`} size="xl" onClose={onClose}>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Detail label="User"><span className="inline-flex items-center gap-1.5"><UserIcon className="size-4 text-subdued" aria-hidden="true" />{display(record.actor_id)}</span></Detail>
+        <Detail label="Role">{display(record.actor_role)}</Detail><Detail label="Date & time">{timestamp.date} · {timestamp.time}</Detail>
+        <Detail label="Action">{display(record.action)}</Detail><Detail label="Result">{display(record.result)}</Detail><Detail label="Entity">{display(record.entity)}</Detail>
+        <Detail label="Entity ID">{display(record.entity_id)}</Detail><Detail label="IP address">{display(record.ip_address)}</Detail><Detail label="Session ID"><span className="inline-flex items-center gap-1.5"><KeyRound className="size-4 text-subdued" aria-hidden="true" />{display(record.session_id)}</span></Detail>
+      </div>
+      <div className="mt-5"><Detail label="Reason">{display(record.reason)}</Detail></div>
+      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+        <JsonDetail label="Previous data" value={record.before} /><JsonDetail label="Updated data" value={record.after} />
+      </div>
+    </Dialog>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="mb-1 text-micro font-medium uppercase tracking-overline text-subdued">{label}</p>
-      {children}
-    </div>
-  );
+function Detail({ label, children }: { label: string; children: ReactNode }) {
+  return <div className="min-w-0"><p className="text-micro font-medium uppercase tracking-overline text-subdued">{label}</p><div className="mt-1 break-words text-small text-text">{children}</div></div>;
 }
 
-function Select({
-  value,
-  onChange,
-  options,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  options: { value: string; label: string }[];
-}) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="h-9 rounded-control border border-border bg-background px-3 text-small outline-none focus:border-primary focus:ring-2 focus:ring-primary/30"
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
-  );
+function JsonDetail({ label, value }: { label: string; value: unknown }) {
+  return <div className="min-w-0"><p className="mb-1 text-micro font-medium uppercase tracking-overline text-subdued">{label}</p><pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-control border border-border bg-background p-3 font-mono text-micro text-text">{jsonText(value)}</pre></div>;
+}
+
+function FilterInput({ label, onChange, ...props }: { label: string; onChange: (value: string) => void; value: string; type?: string; inputMode?: "numeric"; placeholder?: string }) {
+  return <label className="block min-w-0"><span className="mb-1 block text-micro font-medium uppercase tracking-overline text-subdued">{label}</span><input {...props} onChange={(event) => onChange(event.target.value)} className="h-9 w-full min-w-0 rounded-control border border-border bg-background px-3 text-small outline-none placeholder:text-subdued focus:border-primary focus:ring-2 focus:ring-primary/30" /></label>;
+}
+
+function ReportButton({ icon: Icon, label, title, onClick }: { icon: ComponentType<{ className?: string; "aria-hidden"?: boolean | "true" | "false" }>; label: string; title: string; onClick: () => void }) {
+  return <button type="button" onClick={onClick} title={title} className="inline-flex h-9 items-center gap-1.5 rounded-control bg-accent-soft border border-primary/25 px-3 text-small font-semibold text-primary-dark transition hover:bg-primary hover:text-white"><Icon className="size-4" aria-hidden="true" />{label}</button>;
 }
