@@ -631,7 +631,7 @@ export function CoreInputsPage() {
                 </div>
               </div>
 
-              <div className="border-t border-border bg-surface px-5 py-4 sm:px-6">
+              <div className="border-t border-border rounded-panel bg-surface px-5 py-4 sm:px-6">
                 <div className="flex flex-col gap-3">
                   {isSubmitting ? (
                     <div

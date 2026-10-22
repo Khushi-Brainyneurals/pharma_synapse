@@ -141,7 +141,10 @@ export function StageInputPage() {
     [master, stageLabel],
   );
   const filteredInstruments = useMemo(
-    () => filterByStage(master?.instruments ?? [], stageLabel),
+    () => [
+      ...filterByStage(master?.instruments ?? [], stageLabel),
+      ...filterByStage(master?.instruments ?? [], "General Insrument"),
+    ],
     [master, stageLabel],
   );
 

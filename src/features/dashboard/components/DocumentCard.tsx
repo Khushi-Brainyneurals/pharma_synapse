@@ -103,10 +103,12 @@ export function DocumentCard({ item, onDelete, onCancel }: {
       {item.is_overdue ? <p className="text-small text-danger">Overdue · {item.days_in_step} days in this step</p> : null}
       {item.pending_with ? <p className="text-small text-subdued">Pending with {item.pending_with}</p> : null}
       {item.note ? <p className="text-small text-subdued">{item.note}</p> : null}
-      <div className="mt-auto flex flex-wrap items-center gap-3 border-t border-border pt-3">
-        <Link className="text-small font-semibold text-primary-dark hover:underline" to={target}>{action}</Link>
-        {perms.can_delete ? <button type="button" onClick={() => onDelete(item)} className="text-small text-danger hover:underline">Delete draft</button> : null}
-        {perms.can_cancel ? <button type="button" onClick={() => onCancel(item)} className="text-small text-danger hover:underline">Cancel record</button> : null}
+      <div className="mt-auto flex flex-wrap justify-end gap-3 border-t border-border pt-3">
+        <Link className="inline-flex items-center text-small font-semibold h-8 px-3 border border-primary text-primary-dark rounded-control hover:bg-primary-dark hover:text-white transition" to={target}>
+          {action}
+        </Link>
+        {/* {perms.can_delete ? <button type="button" onClick={() => onDelete(item)} className="text-small text-danger hover:underline">Delete draft</button> : null}
+        {perms.can_cancel ? <button type="button" onClick={() => onCancel(item)} className="text-small text-danger hover:underline">Cancel record</button> : null} */}
       </div>
     </article>
   );
