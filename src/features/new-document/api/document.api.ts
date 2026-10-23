@@ -42,6 +42,7 @@ export async function getDocument(documentId: string): Promise<DocumentDetail> {
     document_id: data.document_id || data.job_id || documentId,
     dosage_form: data.dosage_form || data.product_type || null,
     doc_type: data.doc_type || null,
+    pvp_mode: data.pvp_mode ?? null,
     status: data.status || "draft",
     bmr_number: data.bmr_number || data.document_no || null,
     draft_id: data.draft_id || null,
@@ -69,6 +70,7 @@ export async function getOptions(): Promise<OptionsResponse> {
     commercial_modes: data.commercial_modes || [],
     supported_dosage_forms: data.product_types || [],
     supported_doc_types: data.doc_types || [],
+    pvp_source_options: data.pvp_source_options || [],
   };
 }
 

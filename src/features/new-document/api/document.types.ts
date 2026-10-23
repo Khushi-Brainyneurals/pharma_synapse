@@ -26,6 +26,7 @@ export interface DocumentDetail {
   document_id: string;
   dosage_form: string | null;
   doc_type: string | null;
+  pvp_mode?: string | null;
   status: string;
   bmr_number: string | null;
   /** Backend-assigned draft identifier, e.g. "BMR1-00" — present before the MFC is read. */
@@ -52,4 +53,11 @@ export interface OptionsResponse {
   commercial_modes: string[];
   supported_dosage_forms: string[];
   supported_doc_types: string[];
+  pvp_source_options: PvpSourceOption[];
+}
+
+export interface PvpSourceOption {
+  key: string;
+  label: string;
+  source_doc_type: string;
 }

@@ -1,5 +1,6 @@
 import { LucideIcon } from "lucide-react";
 import type { AuthenticatedUser } from "../../auth/api/auth.types";
+import type { PvpSourceOption } from "../api/document.types";
 
 export interface UnitContext {
   id: string;
@@ -36,11 +37,13 @@ export interface DocumentSelectorConfig {
 export interface DocumentSelectorState {
   dosageFormId: string | null;
   documentTypeId: string | null;
+  pvpSourceKey: string | null;
 }
 
 export interface DocumentSelectorContext {
   user: AuthenticatedUser;
   unit: UnitContext | null;
+  pvpSourceOptions: PvpSourceOption[];
   config: DocumentSelectorConfig;
 }
 

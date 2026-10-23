@@ -18,6 +18,8 @@ export interface CoreInputsDraft {
   batchSize: string;
   batchType: string;
   commercialMode: string;
+  sourceDocumentId?: string;
+  buAvailable?: boolean | null;
 }
 
 const KEY_PREFIX = "bmr.client.coreInputs.draft.";
@@ -32,7 +34,9 @@ function storageAvailable(): boolean {
 
 /** True when at least one field carries a value worth persisting. */
 export function isDraftEmpty(draft: CoreInputsDraft): boolean {
-  return Object.values(draft).every((value) => !value || !value.trim());
+  return Object.values(draft).every((value) =>
+    typeof value === "string" ? !value.trim() : value == null,
+  );
 }
 
 export function loadCoreInputsDraft(documentId: string): CoreInputsDraft | null {
@@ -51,6 +55,8 @@ export function loadCoreInputsDraft(documentId: string): CoreInputsDraft | null 
       batchSize: parsed.batchSize ?? "",
       batchType: parsed.batchType ?? "",
       commercialMode: parsed.commercialMode ?? "",
+      sourceDocumentId: parsed.sourceDocumentId ?? "",
+      buAvailable: parsed.buAvailable ?? null,
     };
   } catch {
     window.localStorage.removeItem(keyFor(documentId));

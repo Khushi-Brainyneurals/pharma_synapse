@@ -2,6 +2,7 @@ export interface CreateBmrDocumentRequest {
   dosage_form: string;
   doc_type: string;
   user: string;
+  pvp_mode?: string;
 }
 
 export interface CreateBmrDocumentResponse {
@@ -18,9 +19,12 @@ export type CommercialMode = "revision" | "validation";
 interface SourceSlotBase {
   kind: string;
   label: string;
-  required: boolean;
-  accept: string[];
-  max_bytes: number;
+  required?: boolean;
+  required_when?: { field: string; equals: string | number | boolean };
+  input?: "file" | "boolean" | "document_reference" | "text" | string;
+  accept?: string[];
+  max_bytes?: number;
+  allowed_doc_types?: string[];
 }
 
 export interface RegularSourceSlot extends SourceSlotBase {
@@ -35,7 +39,7 @@ export interface RepeatableSourceSlot extends SourceSlotBase {
 export type SourceSlot = RegularSourceSlot | RepeatableSourceSlot;
 
 export interface SourceSlotsResponse {
-  document_id: string;
+  document_id?: string;
   product_type: string;
   doc_type: string;
   slots: SourceSlot[];
@@ -50,6 +54,10 @@ export interface CoreInputsResponse {
   address_id: number | null;
   address: string | null;
   core_input_files: Record<string, string>;
+  source_document_id?: string | null;
+  source_doc_type?: string | null;
+  pvp_mode?: string | null;
+  bu_available?: boolean | null;
 }
 
 export interface SetCoreInputsPayload {
@@ -57,9 +65,13 @@ export interface SetCoreInputsPayload {
   /** Only backend-advertised fields are appended; omitted files remain stored server-side. */
   sourceFiles: Record<string, File | null>;
   multipartFields: string[];
-  batchSize: number;
-  batchType: BatchType;
+  batchSize?: number;
+  batchType?: BatchType;
   commercialMode?: CommercialMode | "";
+  sourceDocumentId?: string;
+  buAvailable?: boolean;
+  /** PVP submits only the backend driven source fields; BMR/BPR retain their old fields. */
+  pvp?: boolean;
   addressId?: number | null;
   user?: string;
 }
@@ -67,7 +79,25 @@ export interface SetCoreInputsPayload {
 export interface SetCoreInputsResponse {
   document_id: string;
   status: "core_inputs_set";
-  batch_size: number;
-  batch_type: string;
-  commercial_mode: string;
+  batch_size?: number | null;
+  batch_type?: string | null;
+  commercial_mode?: string | null;
+  source_document_id?: string | null;
+  source_doc_type?: string | null;
+  pvp_mode?: string | null;
+  bu_available?: boolean | null;
+}
+
+export interface PvpSourceRecord {
+  job_id: string;
+  source_doc_type?: string;
+  doc_type?: string;
+  document_no?: string;
+  bmr_number?: string;
+  draft_id?: string;
+  product_name?: string;
+  product?: string;
+  batch_size?: number | string;
+  status?: string;
+  [key: string]: unknown;
 }

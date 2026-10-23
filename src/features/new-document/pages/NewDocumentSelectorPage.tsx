@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react";
+import { FileText } from "lucide-react";
 import type { KeyboardEvent } from "react";
 import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -20,6 +20,7 @@ import type { DocumentOption, DocumentSelectorState } from "../model/documentSel
 const INITIAL_SELECTION: DocumentSelectorState = {
   dosageFormId: null,
   documentTypeId: null,
+  pvpSourceKey: null,
 };
 
 export function NewDocumentSelectorPage() {
@@ -38,9 +39,27 @@ export function NewDocumentSelectorPage() {
   const selectedDocumentType = config?.documentTypes.find(
     (option) => option.id === selection.documentTypeId,
   );
+  const isPvp = selectedDocumentType?.backendValue === "pvp";
+  const pvpSourceOptions = context?.pvpSourceOptions ?? [];
+  const pvpSourceCardOptions: DocumentOption[] = pvpSourceOptions.map(
+    ({ key, label, source_doc_type }) => ({
+      id: key,
+      backendValue: key,
+      label,
+      description: `Source document type: ${source_doc_type.toUpperCase()}`,
+      available: true,
+      icon: selectedDocumentType?.icon ?? FileText,
+    }),
+  );
+  const hasValidPvpSource = pvpSourceOptions.some(
+    (option) => option.key === selection.pvpSourceKey,
+  );
   const canCreate = user?.role === USER_ROLES.PREPARED_BY;
   const isSelectionComplete = Boolean(
-    selectedDosageForm?.available && selectedDocumentType?.available && context?.unit,
+    selectedDosageForm?.available &&
+      selectedDocumentType?.available &&
+      context?.unit &&
+      (!isPvp || hasValidPvpSource),
   );
   const hasAvailableDocumentTypes = Boolean(
     config?.documentTypes.some((option) => option.available),
@@ -181,6 +200,36 @@ export function NewDocumentSelectorPage() {
           </div>
         </section>
 
+        {isPvp ? (
+          <section aria-busy={isCreating}>
+            <h2 className="text-h3 font-semibold">PVP Source</h2>
+            <div
+              className="mt-3 grid gap-3 md:grid-cols-2"
+              role="radiogroup"
+              aria-label="PVP Source"
+              onKeyDown={(event) =>
+                handleRadioGroupKeyDown(
+                  event,
+                  pvpSourceCardOptions,
+                  selection.pvpSourceKey,
+                  selectPvpSource,
+                )
+              }
+            >
+              {pvpSourceCardOptions.map((option) => (
+                <DocumentOptionCard
+                  key={option.id}
+                  option={option}
+                  groupName="pvp-source"
+                  isSelected={selection.pvpSourceKey === option.id}
+                  isDisabled={isCreating}
+                  onSelect={selectPvpSource}
+                />
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         <SelectionSummary
           dosageForm={selectedDosageForm}
           documentType={selectedDocumentType}
@@ -228,8 +277,12 @@ export function NewDocumentSelectorPage() {
     navigate,
     selectedDocumentType,
     selectedDosageForm,
+    selection.pvpSourceKey,
     selection.documentTypeId,
     selection.dosageFormId,
+    hasValidPvpSource,
+    isPvp,
+    pvpSourceCardOptions,
     user,
   ]);
 
@@ -240,7 +293,17 @@ export function NewDocumentSelectorPage() {
 
   function selectDocumentType(optionId: string) {
     setCreationError(null);
-    setSelection((current) => ({ ...current, documentTypeId: optionId }));
+    const option = config?.documentTypes.find((item) => item.id === optionId);
+    setSelection((current) => ({
+      ...current,
+      documentTypeId: optionId,
+      pvpSourceKey: option?.backendValue === "pvp" ? current.pvpSourceKey : null,
+    }));
+  }
+
+  function selectPvpSource(sourceKey: string) {
+    setCreationError(null);
+    setSelection((current) => ({ ...current, pvpSourceKey: sourceKey }));
   }
 
   async function handleCreate() {
@@ -248,6 +311,7 @@ export function NewDocumentSelectorPage() {
       !context?.unit ||
       !selectedDosageForm?.available ||
       !selectedDocumentType?.available ||
+      (isPvp && !hasValidPvpSource) ||
       createInFlightRef.current
     ) {
       return;
@@ -262,10 +326,11 @@ export function NewDocumentSelectorPage() {
         dosage_form: selectedDosageForm.backendValue,
         doc_type: selectedDocumentType.backendValue,
         user: user?.username ?? user?.id ?? "api",
+        ...(isPvp ? { pvp_mode: selection.pvpSourceKey ?? "" } : {}),
       });
 
       navigate(getDocumentInputsRoute(document.document_id), {
-        state: { document },
+        state: { document, pvpMode: selection.pvpSourceKey },
       });
     } catch (requestError) {
       setCreationError(

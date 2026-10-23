@@ -6,6 +6,7 @@ import type {
   CreateBmrDocumentResponse,
   SetCoreInputsPayload,
   SetCoreInputsResponse,
+  PvpSourceRecord,
   SourceSlotsResponse,
 } from "./documents.types";
 
@@ -42,6 +43,20 @@ export async function getCoreInputs(documentId: string): Promise<CoreInputsRespo
   }
 }
 
+export async function getPvpSourceRecords(mode: string): Promise<PvpSourceRecord[]> {
+  const response = await httpClient.get<unknown>("/api/documents/pvp-source-records", {
+    params: { mode },
+  });
+  const data = response.data;
+  if (Array.isArray(data)) return data as PvpSourceRecord[];
+  if (data && typeof data === "object") {
+    const body = data as { records?: unknown; items?: unknown; source_records?: unknown };
+    const records = body.records ?? body.items ?? body.source_records;
+    if (Array.isArray(records)) return records as PvpSourceRecord[];
+  }
+  return [];
+}
+
 export async function setCoreInputs(
   payload: SetCoreInputsPayload,
 ): Promise<SetCoreInputsResponse> {
@@ -56,19 +71,26 @@ export async function setCoreInputs(
     }
   });
 
-  formData.append("batch_size", String(payload.batchSize));
-  formData.append("batch_type", payload.batchType);
+  if (payload.pvp) {
+    if (payload.sourceDocumentId) formData.append("source_document_id", payload.sourceDocumentId);
+    if (payload.buAvailable != null) formData.append("bu_available", String(payload.buAvailable));
+  } else {
+    formData.append("batch_size", String(payload.batchSize));
+    formData.append("batch_type", payload.batchType ?? "");
 
-  if (payload.batchType === "commercial" && payload.commercialMode) {
-    formData.append("commercial_mode", payload.commercialMode);
+    if (payload.batchType === "commercial" && payload.commercialMode) {
+      formData.append("commercial_mode", payload.commercialMode);
+    }
   }
 
-  if (payload.addressId != null) {
-    formData.append("address_id", String(payload.addressId));
-  }
+  if (!payload.pvp) {
+    if (payload.addressId != null) {
+      formData.append("address_id", String(payload.addressId));
+    }
 
-  if (payload.user) {
-    formData.append("user", payload.user);
+    if (payload.user) {
+      formData.append("user", payload.user);
+    }
   }
 
   const response = await httpClient.put<SetCoreInputsResponse>(

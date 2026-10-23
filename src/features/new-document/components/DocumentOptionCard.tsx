@@ -47,7 +47,7 @@ export function DocumentOptionCard({
       aria-describedby={
         isUnavailable ? `${groupName}-${option.id}-tooltip` : undefined
       }
-      className={`group relative z-0 w-full overflow-visible rounded-card border p-4 text-left transition hover:z-20 focus-visible:z-20 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+      className={`group relative z-0 w-full overflow-visible rounded-card border p-4 text-left transition hover:z-20 ${
         isSelected
           ? "border-primary bg-accent-soft"
           : "border-border bg-surface hover:border-primary/40 hover:bg-muted/40"
@@ -98,7 +98,7 @@ export function DocumentOptionCard({
 
             {isSelected ? (
               <CheckCircle2
-                className="size-5 shrink-0 text-primary"
+                className="size-4 shrink-0 text-primary"
                 aria-hidden="true"
               />
             //  ) : isUnavailable ? (
@@ -110,7 +110,7 @@ export function DocumentOptionCard({
           </span>
 
           {option.description ? (
-            <span className="mt-2 block text-small leading-5 text-subdued">
+            <span className="mt-1 block text-small leading-5 text-subdued">
               {option.description}
             </span>
           ) : null}

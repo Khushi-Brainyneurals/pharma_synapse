@@ -29,6 +29,7 @@ export async function loadDocumentSelectorContext(
   return {
     user,
     unit,
+    pvpSourceOptions: options.pvp_source_options,
     config: {
       dosageForms,
       documentTypes: scenario === "empty-config" ? [] : documentTypes,
