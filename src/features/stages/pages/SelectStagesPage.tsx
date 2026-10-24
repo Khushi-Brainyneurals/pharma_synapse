@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Check,
   ChevronDown,
+  Copy,
   Loader2,
   SlidersHorizontal,
   SquarePen,
@@ -24,6 +25,7 @@ import { getStageForm, saveStageInputs } from "../../stage-input/api/stageInputs
 import type { StageForm } from "../../stage-input/api/stageInputs.types";
 import { SchemaStagePanel } from "../../stage-input/components/SchemaStagePanel";
 import { schemaHasAssetInputs, validateSchema } from "../../stage-input/model/schemaForm";
+import { hasSharedParameterValues, repeatSharedParameterValues } from "../model/sharedParamRepeat";
 
 interface StageUi {
   checked: boolean;
@@ -128,12 +130,27 @@ export function SelectStagesPage() {
     }
   }, [document, documentId, forms, options]);
 
+  const ensureStageAndPreviousLoaded = useCallback(async (key: string) => {
+    const index = options.findIndex((option) => option.key === key);
+    const previous = options.slice(0, index).reverse().find((option) => ui[option.key]?.checked);
+    const requests = [ensureStageLoaded(key)];
+    if (previous && ui[previous.key]?.checked && ui[previous.key]?.saved) {
+      requests.push(ensureStageLoaded(previous.key));
+    }
+    await Promise.all(requests);
+  }, [ensureStageLoaded, options, ui]);
+
   const setFieldValue = useCallback((stageKey: string, fieldKey: string, value: unknown) => {
     setUi((cur) => ({ ...cur, [stageKey]: { ...cur[stageKey], saved: false } }));
     setValues((cur) => ({
       ...cur,
       [stageKey]: { ...(cur[stageKey] ?? {}), [fieldKey]: value },
     }));
+  }, []);
+
+  const setStageValues = useCallback((stageKey: string, nextValues: Record<string, unknown>) => {
+    setUi((cur) => ({ ...cur, [stageKey]: { ...cur[stageKey], saved: false } }));
+    setValues((cur) => ({ ...cur, [stageKey]: nextValues }));
   }, []);
 
   const toggleStage = useCallback((stageKey: string) => {
@@ -266,7 +283,16 @@ return (
                   </div>
 
                   <div>
-                    {options.map((stage, index) => (
+                    {options.map((stage, index) => {
+                      const previousStage = options.slice(0, index).reverse()
+                        .find((option) => ui[option.key]?.checked);
+                      const canRepeatValues = Boolean(
+                        previousStage
+                        && ui[previousStage.key]?.checked
+                        && ui[previousStage.key]?.saved
+                        && hasSharedParameterValues(values[previousStage.key]),
+                      );
+                      return (
                       <StageRow
                         key={stage.key}
                         stage={stage}
@@ -284,17 +310,26 @@ return (
                         }
                         onToggle={() => {
                           toggleStage(stage.key);
-                          if (!ui[stage.key]?.checked) void ensureStageLoaded(stage.key).catch(() => undefined);
+                          if (!ui[stage.key]?.checked) void ensureStageAndPreviousLoaded(stage.key).catch(() => undefined);
                         }}
                         onExpand={() => {
                           expand(stage.key);
-                          if (!ui[stage.key]?.open) void ensureStageLoaded(stage.key).catch(() => undefined);
+                          if (!ui[stage.key]?.open) void ensureStageAndPreviousLoaded(stage.key).catch(() => undefined);
                         }}
                         onFieldChange={(fieldKey, value) => setFieldValue(stage.key, fieldKey, value)}
+                        repeatFromLabel={canRepeatValues ? previousStage?.label : undefined}
+                        onRepeatValues={() => {
+                          if (!previousStage) return;
+                          const sourceValues = values[previousStage.key];
+                          const currentValues = values[stage.key] ?? {};
+                          const repeated = repeatSharedParameterValues(sourceValues, currentValues);
+                          if (repeated !== currentValues) setStageValues(stage.key, repeated);
+                        }}
                         onContinue={() => void continueStage(stage.key)}
                         onCancel={() => expand(stage.key)}
                       />
-                    ))}
+                      );
+                    })}
                   </div>
 
                 </div>
@@ -356,6 +391,8 @@ function StageRow({
   onToggle,
   onExpand,
   onFieldChange,
+  repeatFromLabel,
+  onRepeatValues,
   onContinue,
   onCancel,
 }: {
@@ -371,6 +408,8 @@ function StageRow({
   onToggle: () => void;
   onExpand: () => void;
   onFieldChange: (fieldKey: string, value: unknown) => void;
+  repeatFromLabel?: string;
+  onRepeatValues: () => void;
   onContinue: () => void;
   onCancel: () => void;
 }) {
@@ -451,15 +490,30 @@ function StageRow({
           ) : loadError ? (
             <div className="flex items-start gap-2 rounded-control border border-danger/30 bg-danger-soft p-3 text-small text-danger"><AlertCircle className="mt-0.5 size-4 shrink-0" />{loadError}</div>
           ) : form?.schema ? (
-            <SchemaStagePanel
-              schema={form.schema}
-              values={values}
-              layers={layers}
-              stageKey={stage.key}
-              scopeLabel={stage.key === "dispensing_coating" ? "Coating type" : "Layer"}
-              showScopeSelection={false}
-              onChange={onFieldChange}
-            />
+            <>
+              {repeatFromLabel ? (
+                <div className="mb-3 flex flex-wrap justify-end items-center gap-2">
+                  <span className="text-micro text-subdued">Shared parameters from {repeatFromLabel}</span>
+                  <button
+                    type="button"
+                    onClick={onRepeatValues}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-control border border-border-strong bg-surface px-3 text-small font-semibold text-primary-dark transition hover:bg-accent-soft"
+                  >
+                    <Copy className="size-3.5" aria-hidden="true" />
+                    Repeat Values
+                  </button>
+                </div>
+              ) : null}
+              <SchemaStagePanel
+                schema={form.schema}
+                values={values}
+                layers={layers}
+                stageKey={stage.key}
+                scopeLabel={stage.key === "dispensing_coating" ? "Coating type" : "Layer"}
+                showScopeSelection={false}
+                onChange={onFieldChange}
+              />
+            </>
           ) : (
             <p className="text-small text-subdued">Open this stage again to load its inputs.</p>
           )}

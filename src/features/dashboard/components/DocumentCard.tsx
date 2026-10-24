@@ -27,6 +27,12 @@ const STEP_ALIASES: Record<string, string> = {
 };
 
 export function resolveDocumentRoute(item: DashboardItem): string {
+  // A generated document that is ready to be submitted should open the generated
+  // document viewer, which loads the artifact from GET /api/documents/{id}/preview.
+  if (item.state_label.trim().toLowerCase() === "submit for review") {
+    return "generate";
+  }
+
   const candidate = (item.resume_step || item.state || "").trim().toLowerCase();
   if (STEP_ALIASES[candidate]) {
     return STEP_ALIASES[candidate];
@@ -58,9 +64,12 @@ export function DocumentCard({ item, onDelete, onCancel }: {
     can_correct: false,
   };
   const resumeStep = item.resume_step ?? item.state ?? "inputs";
+  const isSubmitForReview = item.state_label.trim().toLowerCase() === "submit for review";
   const isPendingReview = ["submitted", "in_review", "in_approval", "qa_review", "pr_review"].includes(item.status);
   const resolvedStep = resolveDocumentRoute(item);
-  const step = perms.can_correct
+  const step = isSubmitForReview
+    ? "generate"
+    : perms.can_correct
     ? "cover-bom"
     : isPendingReview
     ? "review"
@@ -73,7 +82,7 @@ export function DocumentCard({ item, onDelete, onCancel }: {
   const defaultTarget = item.resume_step === "stage-input" && item.resume_stage_key
     ? `/documents/${encodeURIComponent(item.document_id || "new")}/stage-input?stage=${encodeURIComponent(item.resume_stage_key)}`
     : `/documents/${encodeURIComponent(item.document_id || "new")}/${step}`;
-  const target = remembered ?? defaultTarget;
+  const target = isSubmitForReview ? defaultTarget : remembered ?? defaultTarget;
 
   const action = perms.can_correct
     ? "Correct & resubmit"

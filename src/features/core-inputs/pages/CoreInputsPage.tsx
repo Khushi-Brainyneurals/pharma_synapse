@@ -726,7 +726,7 @@ export function CoreInputsPage() {
                         className="inline-flex min-h-10 items-center justify-center rounded-control bg-primary px-5 py-2.5 text-small font-semibold text-white transition hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-muted disabled:text-subdued"
                         disabled={!canSubmit}
                       >
-                        {success ? "Saved" : "Generate page-1 preview"}
+                        {success ? "Saved" : "Generate Cover page"}
                       </button>
                       <Link
                         className="inline-flex min-h-10 items-center justify-center rounded-control border border-primary bg-white px-5 py-2.5 text-small font-semibold text-primary-dark transition hover:bg-accent-soft focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
@@ -742,12 +742,7 @@ export function CoreInputsPage() {
                       <Info className="mt-0.5 size-4 shrink-0 text-subdued" aria-hidden="true" />
                       {primaryReason}
                     </p>
-                  ) : (
-                    <p className="inline-flex items-start gap-2 text-small text-subdued">
-                      <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
-                      Core inputs are saved here; OCR is not run on this screen.
-                    </p>
-                  )}
+                  ) : null}
                 </div>
               </div>
             </form>
