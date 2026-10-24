@@ -1,34 +1,37 @@
+import { lazy, Suspense, type ReactNode, Component } from "react";
 import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { env } from "../shared/config/env";
-import { DashboardPage } from "../features/dashboard/pages/DashboardPage";
-import { CoreInputsPage } from "../features/core-inputs/pages/CoreInputsPage";
-import { NewDocumentSelectorPage } from "../features/new-document/pages/NewDocumentSelectorPage";
-import { CoverBomPage } from "../features/bom/pages/CoverBomPage";
-import { CompanyInfoPage } from "../features/company/pages/CompanyInfoPage";
-import { MasterDataPage } from "../features/master-data/pages/MasterDataPage";
-import { DocumentReviewPage } from "../features/review/pages/DocumentReviewPage";
-import { ReviewQueuePage } from "../features/review/pages/ReviewQueuePage";
-import { VersionHistoryPage } from "../features/version-history/pages/VersionHistoryPage";
-import { NotificationsPage } from "../features/notifications/pages/NotificationsPage";
-import { AuditTrailPage } from "../features/audit-trail/pages/AuditTrailPage";
-import { TypePage as MdSetupTypePage } from "../features/master-data-setup/pages/TypePage";
-import { StageDocumentsPage as MdStageDocsPage } from "../features/master-data-setup/pages/StageDocumentsPage";
-import { EquipmentListPage as MdEquipmentPage } from "../features/master-data-setup/pages/EquipmentListPage";
-import { InstrumentListPage as MdInstrumentPage } from "../features/master-data-setup/pages/InstrumentListPage";
-import { BatchDocumentsPage as MdBatchDocsPage } from "../features/master-data-setup/pages/BatchDocumentsPage";
-import { PreviewPage as MdPreviewPage } from "../features/master-data-setup/pages/PreviewPage";
-import { GenerateSubmitPage } from "../features/generate/pages/GenerateSubmitPage";
-import { StageInputPage } from "../features/stage-input/pages/StageInputPage";
-import { SelectStagesPage } from "../features/stages/pages/SelectStagesPage";
 import { LoginPage } from "../features/auth/pages/LoginPage";
 import { SetPasswordPage } from "../features/auth/pages/SetPasswordPage";
-import { EmployeesPage } from "../features/employees/pages/EmployeesPage";
+import { useAuthStore } from "../features/auth/state/auth.store";
 import { EmployeeAdminRoute } from "../features/employees/routing/EmployeeAdminRoute";
 import { LoginStatesPage } from "../features/auth/pages/LoginStatesPage";
 import { ProtectedRoute } from "../features/auth/routing/ProtectedRoute";
+import { AppHeader } from "../features/new-document/components/AppHeader";
+import { AppSidebar } from "../features/new-document/components/AppSidebar";
 import { ROUTES } from "./routing/routes";
 
-import { Component, type ReactNode } from "react";
+const DashboardPage = lazy(() => import("../features/dashboard/pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
+const CoreInputsPage = lazy(() => import("../features/core-inputs/pages/CoreInputsPage").then((m) => ({ default: m.CoreInputsPage })));
+const NewDocumentSelectorPage = lazy(() => import("../features/new-document/pages/NewDocumentSelectorPage").then((m) => ({ default: m.NewDocumentSelectorPage })));
+const CoverBomPage = lazy(() => import("../features/bom/pages/CoverBomPage").then((m) => ({ default: m.CoverBomPage })));
+const CompanyInfoPage = lazy(() => import("../features/company/pages/CompanyInfoPage").then((m) => ({ default: m.CompanyInfoPage })));
+const MasterDataPage = lazy(() => import("../features/master-data/pages/MasterDataPage").then((m) => ({ default: m.MasterDataPage })));
+const DocumentReviewPage = lazy(() => import("../features/review/pages/DocumentReviewPage").then((m) => ({ default: m.DocumentReviewPage })));
+const ReviewQueuePage = lazy(() => import("../features/review/pages/ReviewQueuePage").then((m) => ({ default: m.ReviewQueuePage })));
+const VersionHistoryPage = lazy(() => import("../features/version-history/pages/VersionHistoryPage").then((m) => ({ default: m.VersionHistoryPage })));
+const NotificationsPage = lazy(() => import("../features/notifications/pages/NotificationsPage").then((m) => ({ default: m.NotificationsPage })));
+const AuditTrailPage = lazy(() => import("../features/audit-trail/pages/AuditTrailPage").then((m) => ({ default: m.AuditTrailPage })));
+const MdSetupTypePage = lazy(() => import("../features/master-data-setup/pages/TypePage").then((m) => ({ default: m.TypePage })));
+const MdStageDocsPage = lazy(() => import("../features/master-data-setup/pages/StageDocumentsPage").then((m) => ({ default: m.StageDocumentsPage })));
+const MdEquipmentPage = lazy(() => import("../features/master-data-setup/pages/EquipmentListPage").then((m) => ({ default: m.EquipmentListPage })));
+const MdInstrumentPage = lazy(() => import("../features/master-data-setup/pages/InstrumentListPage").then((m) => ({ default: m.InstrumentListPage })));
+const MdBatchDocsPage = lazy(() => import("../features/master-data-setup/pages/BatchDocumentsPage").then((m) => ({ default: m.BatchDocumentsPage })));
+const MdPreviewPage = lazy(() => import("../features/master-data-setup/pages/PreviewPage").then((m) => ({ default: m.PreviewPage })));
+const GenerateSubmitPage = lazy(() => import("../features/generate/pages/GenerateSubmitPage").then((m) => ({ default: m.GenerateSubmitPage })));
+const StageInputPage = lazy(() => import("../features/stage-input/pages/StageInputPage").then((m) => ({ default: m.StageInputPage })));
+const SelectStagesPage = lazy(() => import("../features/stages/pages/SelectStagesPage").then((m) => ({ default: m.SelectStagesPage })));
+const EmployeesPage = lazy(() => import("../features/employees/pages/EmployeesPage").then((m) => ({ default: m.EmployeesPage })));
 
 interface ErrorBoundaryProps { children: ReactNode }
 interface ErrorBoundaryState { hasError: boolean; error: Error | null }
@@ -48,7 +51,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           <div className="max-w-md w-full rounded-card border border-danger/30 bg-surface p-6 shadow-modal">
             <h2 className="text-h2 font-semibold text-danger mb-2">Something went wrong</h2>
             <p className="text-small text-subdued mb-4">
-              {this.state.error?.message ?? "An unexpected rendering error occurred."}
+              {isChunkLoadError(this.state.error)
+                ? "This page could not be downloaded. Check your connection and reload to try again."
+                : this.state.error?.message ?? "An unexpected rendering error occurred."}
             </p>
             <button
               onClick={() => {
@@ -57,7 +62,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               }}
               className="inline-flex h-9 items-center justify-center rounded-control bg-primary px-4 text-small font-semibold text-white hover:bg-primary-dark"
             >
-              Reload Dashboard
+              Reload page
             </button>
           </div>
         </div>
@@ -75,36 +80,63 @@ export function App() {
         <Route path={ROUTES.setPassword} element={<SetPasswordPage />} />
         {env.isDev ? <Route path="/login/states" element={<LoginStatesPage />} /> : null}
         <Route element={<ProtectedRoute />}>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path={ROUTES.newDocument} element={<NewDocumentSelectorPage />} />
-          <Route path={ROUTES.documentInputs} element={<CoreInputsPage />} />
+          <Route path="/" element={<LazyPage><DashboardPage /></LazyPage>} />
+          <Route path={ROUTES.newDocument} element={<LazyPage><NewDocumentSelectorPage /></LazyPage>} />
+          <Route path={ROUTES.documentInputs} element={<LazyPage><CoreInputsPage /></LazyPage>} />
           <Route path={ROUTES.documentPreview} element={<LegacyPreviewRedirect />} />
-          <Route path={ROUTES.documentCoverBom} element={<CoverBomPage />} />
-          <Route path={ROUTES.documentStages} element={<SelectStagesPage />} />
-          <Route path={ROUTES.documentStageInput} element={<StageInputPage />} />
-          <Route path={ROUTES.documentGenerate} element={<GenerateSubmitPage />} />
-          <Route path={ROUTES.companyInfo} element={<CompanyInfoPage />} />
-          <Route path={ROUTES.masterData} element={<MasterDataPage />} />
-          <Route path={ROUTES.queue} element={<ReviewQueuePage />} />
+          <Route path={ROUTES.documentCoverBom} element={<LazyPage><CoverBomPage /></LazyPage>} />
+          <Route path={ROUTES.documentStages} element={<LazyPage><SelectStagesPage /></LazyPage>} />
+          <Route path={ROUTES.documentStageInput} element={<LazyPage><StageInputPage /></LazyPage>} />
+          <Route path={ROUTES.documentGenerate} element={<LazyPage><GenerateSubmitPage /></LazyPage>} />
+          <Route path={ROUTES.companyInfo} element={<LazyPage><CompanyInfoPage /></LazyPage>} />
+          <Route path={ROUTES.masterData} element={<LazyPage><MasterDataPage /></LazyPage>} />
+          <Route path={ROUTES.queue} element={<LazyPage><ReviewQueuePage /></LazyPage>} />
           <Route element={<EmployeeAdminRoute />}>
-            <Route path={ROUTES.employees} element={<EmployeesPage />} />
+            <Route path={ROUTES.employees} element={<LazyPage><EmployeesPage /></LazyPage>} />
           </Route>
-          <Route path={ROUTES.documentReview} element={<DocumentReviewPage />} />
+          <Route path={ROUTES.documentReview} element={<LazyPage><DocumentReviewPage /></LazyPage>} />
           <Route path="/session" element={<Navigate to="/" replace />} />
-          <Route path={ROUTES.versionHistory} element={<VersionHistoryPage />} />
-          <Route path={ROUTES.notifications} element={<NotificationsPage />} />
-          <Route path={ROUTES.auditTrail} element={<AuditTrailPage />} />
-          <Route path={ROUTES.masterDataSetup} element={<MdSetupTypePage />} />
-          <Route path="/master-data-setup/stages" element={<MdStageDocsPage />} />
-          <Route path="/master-data-setup/equipment" element={<MdEquipmentPage />} />
-          <Route path="/master-data-setup/instruments" element={<MdInstrumentPage />} />
-          <Route path="/master-data-setup/batch-docs" element={<MdBatchDocsPage />} />
-          <Route path="/master-data-setup/preview" element={<MdPreviewPage />} />
+          <Route path={ROUTES.versionHistory} element={<LazyPage><VersionHistoryPage /></LazyPage>} />
+          <Route path={ROUTES.notifications} element={<LazyPage><NotificationsPage /></LazyPage>} />
+          <Route path={ROUTES.auditTrail} element={<LazyPage><AuditTrailPage /></LazyPage>} />
+          <Route path={ROUTES.masterDataSetup} element={<LazyPage><MdSetupTypePage /></LazyPage>} />
+          <Route path="/master-data-setup/stages" element={<LazyPage><MdStageDocsPage /></LazyPage>} />
+          <Route path="/master-data-setup/equipment" element={<LazyPage><MdEquipmentPage /></LazyPage>} />
+          <Route path="/master-data-setup/instruments" element={<LazyPage><MdInstrumentPage /></LazyPage>} />
+          <Route path="/master-data-setup/batch-docs" element={<LazyPage><MdBatchDocsPage /></LazyPage>} />
+          <Route path="/master-data-setup/preview" element={<LazyPage><MdPreviewPage /></LazyPage>} />
         </Route>
         <Route path="*" element={<Navigate to={ROUTES.login} replace />} />
       </Routes>
     </ErrorBoundary>
   );
+}
+
+function LazyPage({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<RouteLoadingFallback />}>{children}</Suspense>;
+}
+
+function RouteLoadingFallback() {
+  const user = useAuthStore((state) => state.user);
+
+  return (
+    <div className="min-h-screen bg-background text-text">
+      <AppHeader user={user} unit={null} isLoadingUnit title="Loading page" />
+      <div className="lg:grid lg:h-[calc(100vh-var(--topbar-h))] lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden">
+        <AppSidebar user={user} />
+        <main className="flex min-h-[calc(100vh-var(--topbar-h))] min-w-0 items-center justify-center bg-background px-6 lg:h-full" aria-live="polite" aria-busy="true">
+          <div className="flex items-center gap-3 rounded-control px-4 py-3 text-small text-subdued">
+            <span className="size-4 animate-spin rounded-full border-2 border-primary/25 border-t-primary" aria-hidden="true" />
+            <span>Loading page…</span>
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function isChunkLoadError(error: Error | null): boolean {
+  return Boolean(error && /dynamically imported module|dynamic import|loading chunk|chunkloaderror|importing a module script failed/i.test(error.message));
 }
 
 /** Old saved/bookmarked preview URLs now skip directly to Cover + BOM. */
