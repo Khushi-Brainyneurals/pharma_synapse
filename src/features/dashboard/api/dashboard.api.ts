@@ -35,6 +35,7 @@ export interface DashboardItem {
     can_review: boolean;
     can_approve: boolean;
     can_correct: boolean;
+    can_finalize?: boolean;
   };
   created_at: string | null;
   updated_at: string | null;
@@ -70,8 +71,8 @@ function normalizeDashboardItem(raw: any): DashboardItem {
   const state = String(raw.state ?? raw.status ?? "draft");
   const state_label = String(raw.state_label ?? (status === "draft" ? "Draft" : status));
   const isDraft = status === "draft" || state === "draft";
-  const isUnderReview = status === "under_review" || status === "in_review" || status === "submitted";
-  const isReturned = status === "returned" || status === "rejected" || status === "returned_for_correction";
+  const isUnderReview = ["under_review", "in_review", "submitted", "qa_review", "pr_review", "in_approval", "pending_approval"].includes(status);
+  const isReturned = status === "returned" || status === "returned_for_correction";
   const isApproved = status === "approved" || status === "pending_approval";
 
   const permissions = raw.permissions ?? {
@@ -81,6 +82,7 @@ function normalizeDashboardItem(raw: any): DashboardItem {
     can_review: Boolean(raw.can_review ?? isUnderReview),
     can_approve: Boolean(raw.can_approve ?? isApproved),
     can_correct: Boolean(raw.can_correct ?? isReturned),
+    can_finalize: Boolean(raw.can_finalize ?? status === "approved_for_print"),
   };
 
   return {

@@ -18,6 +18,7 @@ const CoverBomPage = lazy(() => import("../features/bom/pages/CoverBomPage").the
 const CompanyInfoPage = lazy(() => import("../features/company/pages/CompanyInfoPage").then((m) => ({ default: m.CompanyInfoPage })));
 const MasterDataPage = lazy(() => import("../features/master-data/pages/MasterDataPage").then((m) => ({ default: m.MasterDataPage })));
 const DocumentReviewPage = lazy(() => import("../features/review/pages/DocumentReviewPage").then((m) => ({ default: m.DocumentReviewPage })));
+const DocumentFinalizePage = lazy(() => import("../features/review/pages/DocumentFinalizePage").then((m) => ({ default: m.DocumentFinalizePage })));
 const ReviewQueuePage = lazy(() => import("../features/review/pages/ReviewQueuePage").then((m) => ({ default: m.ReviewQueuePage })));
 const VersionHistoryPage = lazy(() => import("../features/version-history/pages/VersionHistoryPage").then((m) => ({ default: m.VersionHistoryPage })));
 const NotificationsPage = lazy(() => import("../features/notifications/pages/NotificationsPage").then((m) => ({ default: m.NotificationsPage })));
@@ -95,6 +96,7 @@ export function App() {
             <Route path={ROUTES.employees} element={<LazyPage><EmployeesPage /></LazyPage>} />
           </Route>
           <Route path={ROUTES.documentReview} element={<LazyPage><DocumentReviewPage /></LazyPage>} />
+          <Route path={ROUTES.documentFinalize} element={<LazyPage><DocumentFinalizePage /></LazyPage>} />
           <Route path="/session" element={<Navigate to="/" replace />} />
           <Route path={ROUTES.versionHistory} element={<LazyPage><VersionHistoryPage /></LazyPage>} />
           <Route path={ROUTES.notifications} element={<LazyPage><NotificationsPage /></LazyPage>} />

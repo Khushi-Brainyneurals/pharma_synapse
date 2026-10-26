@@ -24,7 +24,9 @@ const PARAMETER_DISPLAY: Record<string, { label: string; unit: string }> = {
 
 export function SchemaStagePanel({ schema, values, layers, stageKey, scopeLabel = "Layer", showScopeSelection = true, onChange }: Props) {
   const root = resolveSchema(schema, schema);
-  const fields = Object.entries(root.properties || {}).filter(([key]) => !HIDDEN_SECTIONS.has(key));
+  const fields = Object.entries(root.properties || {}).filter(([key]) =>
+    !HIDDEN_SECTIONS.has(key) && !(stageKey === "compression" && key === "ipqc_table"),
+  );
 
   if (fields.length === 0) {
     return <p className="text-small text-subdued">No process parameters are required for this stage.</p>;

@@ -23,7 +23,10 @@ export async function getBom(documentId: string, signal?: AbortSignal): Promise<
     `/api/documents/${encodeURIComponent(documentId)}`,
     { signal },
   );
-  const data = response.data;
+  return mapBomResponse(response.data, documentId);
+}
+
+export function mapBomResponse(data: any, documentId: string): BomResponse {
   return {
     document_id: data.job_id || data.document_id || documentId,
     doc_type: String(data.doc_type || "bmr").toLowerCase() === "bpr" ? "bpr" : "bmr",

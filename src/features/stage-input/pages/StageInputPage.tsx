@@ -26,6 +26,11 @@ import {
 import { filterByStage } from "../model/stageMatch";
 
 type Mode = "equipment" | "instrument";
+type StageInputTab = Mode | "ipqc";
+
+function equipmentCppFrequencyKey(entry: EquipmentEntry, cpp: string): string {
+  return `${entryIdentity(entry)}\u0000${cpp}`;
+}
 
 export function StageInputPage() {
   const { documentId = "" } = useParams();
@@ -46,6 +51,8 @@ export function StageInputPage() {
 
   // The current draft entry being built in the form.
   const [mode, setMode] = useState<Mode>("equipment");
+  const [activeTab, setActiveTab] = useState<StageInputTab>("equipment");
+  const [cppFrequencyValues, setCppFrequencyValues] = useState<Record<string, string>>({});
   const [name, setName] = useState("");
   const [id, setId] = useState("");
   // The processing sub-stage chosen for the machine (equipment only), e.g. "Wet Granulation".
@@ -65,6 +72,7 @@ export function StageInputPage() {
     [assetScopes],
   );
   const isCoatingScoped = coatingScopes.length > 0;
+  const isCompression = forStage.toLowerCase() === "compression";
   const activeScope = assetScopes.find((scope) => scope.key === activeScopeKey) ?? assetScopes[0];
   const activeCppScope = coatingScopes.find((scope) => scope.key === activeCppScopeKey)
     ?? coatingScopes[0];
@@ -89,6 +97,8 @@ export function StageInputPage() {
     setMaster(null);
     setStageForm(null);
     setEntries([]);
+    setCppFrequencyValues({});
+    setActiveTab("equipment");
     setActiveScopeKey("");
     setName("");
     setId("");
@@ -122,7 +132,11 @@ export function StageInputPage() {
         const firstCoatingScope = scopes.find((scope) => scope.key.startsWith("coat:"));
         setActiveScopeKey(selectionScope?.key || "");
         setActiveCppScopeKey(firstCoatingScope?.key || "");
-        setEntries(scopes.flatMap((scope) => entriesFromScope(scope, form.values, forStage)));
+        const loadedEntries = scopes.flatMap((scope) => entriesFromScope(scope, form.values, forStage));
+        setEntries(loadedEntries);
+        setCppFrequencyValues(form.schema
+          ? loadCppFrequencies(loadedEntries, form.values, form.schema, md.equipments)
+          : {});
         const firstMode = selectionScope?.schema.properties?.equipment_list ? "equipment" : "instrument";
         setMode(firstMode);
       } catch (caught) {
@@ -192,6 +206,11 @@ export function StageInputPage() {
 
   const stages = equipment?.steps.map((item) => ({ stage: item.step, cpps: item.cpp })) ?? [];
   const cpps = stages.find((s) => s.stage === procStage)?.cpps ?? [];
+  const ipqcTableRows = Array.isArray(stageForm?.values.ipqc_table)
+    ? stageForm.values.ipqc_table as Record<string, unknown>[]
+    : [];
+  const fixedIpqcParameters = stageForm?.schema?.x_ui_reference?.fixed_ipqc_parameters ?? [];
+  const frequencyOptions = stageForm?.schema?.x_ui_reference?.frequency_options ?? [];
   const currentCpp = isCoatingScoped
     ? cppByScope[activeCppScope?.key || ""] ?? {}
     : cpp;
@@ -356,10 +375,35 @@ export function StageInputPage() {
           .map(toPayloadRow);
       }
     }
+    if (isCompression && stageForm.schema.properties?.ipqc_table) {
+      nextValues.ipqc_table = buildIpqcRows(
+        stageForm.values.ipqc_table,
+        stageForm.schema,
+        all,
+        master?.equipments ?? [],
+        cppFrequencyValues,
+      );
+    }
     await saveStageInputs(documentId, forStage, nextValues, stageForm.schema);
     setStageForm({ ...stageForm, values: nextValues, has_saved_values: true });
     return all;
-  }, [entries, canAdd, hasIncompleteDraft, buildDraftEntries, documentId, forStage, stageForm, assetScopes]);
+  }, [entries, canAdd, hasIncompleteDraft, buildDraftEntries, documentId, forStage, stageForm, assetScopes, isCompression, master, cppFrequencyValues]);
+
+  const setIpqcFrequency = useCallback((index: number, frequency: string) => {
+    setStageForm((current) => {
+      if (!current) return current;
+      const rows = Array.isArray(current.values.ipqc_table)
+        ? current.values.ipqc_table as Record<string, unknown>[]
+        : [];
+      const nextRows = rows.map((row, rowIndex) => rowIndex === index ? { ...row, frequency } : row);
+      return { ...current, values: { ...current.values, ipqc_table: nextRows }, has_saved_values: true };
+    });
+  }, []);
+
+  const cppFrequencyFor = (entry: EquipmentEntry, cppName: string) => {
+    const key = equipmentCppFrequencyKey(entry, cppName);
+    return cppFrequencyValues[key] ?? "";
+  };
 
   // Save and STAY — persist, keep the saved list, and clear the form so the user can
   // record another equipment / instrument for this stage.
@@ -438,7 +482,7 @@ export function StageInputPage() {
               </div>
             ) : (
               <>
-                {assetScopes.length > 1 && !isCoatingScoped ? (
+                {activeTab !== "ipqc" && assetScopes.length > 1 && !isCoatingScoped ? (
                   <section className="w-full overflow-hidden rounded-control border border-border bg-surface">
                     <div className="px-2">
                       <div
@@ -474,7 +518,106 @@ export function StageInputPage() {
                   </section>
                 ) : null}
 
-                {visibleEntries.length > 0 ? (
+                {isCompression ? (
+                  <div className="overflow-hidden">
+                    <div className="inline-flex max-w-full flex-wrap items-center gap-0.5 self-start rounded-pill border border-border bg-sunken p-0.5" role="tablist" aria-label="Compression stage inputs">
+                      {(["equipment", "instrument", "ipqc"] as StageInputTab[]).map((tab) => {
+                        const supported = tab === "equipment"
+                          ? assetScopes.some((scope) => Boolean(scope.schema.properties?.equipment_list))
+                          : tab === "instrument"
+                            ? assetScopes.some((scope) => Boolean(scope.schema.properties?.instrument_list))
+                            : true;
+                        if (!supported) return null;
+                        const active = activeTab === tab;
+                        return (
+                          <button
+                            key={tab}
+                            type="button"
+                            role="tab"
+                            aria-selected={active}
+                            onClick={() => {
+                              setActiveTab(tab);
+                              if (tab === "equipment" || tab === "instrument") switchMode(tab);
+                            }}
+                            className={`rounded-pill px-6 py-1.5 text-small font-semibold capitalize transition ${active ? "bg-primary text-white shadow-sm" : "text-subdued hover:text-text"}`}
+                          >
+                            {tab === "ipqc" ? "IPQC Table" : tab}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+
+                {activeTab === "ipqc" && isCompression ? (
+                  <section className="space-y-5">
+                    <section className="overflow-hidden rounded-card border border-border bg-surface">
+                      <div className="border-b border-border px-5 py-3 text-small font-semibold">Default Parameters</div>
+                      {fixedIpqcParameters.length === 0 ? (
+                        <p className="px-5 py-4 text-small text-subdued">No default IPQC parameters are defined by this schema.</p>
+                      ) : (
+                        <div className="divide-y divide-sunken">
+                          {fixedIpqcParameters.map((parameter, index) => {
+                            const storedIndex = ipqcTableRows.findIndex((row) => row.parameter === parameter);
+                            const frequency = String(ipqcTableRows[storedIndex]?.frequency ?? "");
+                            return (
+                            <div key={`${parameter}-${index}`} className="grid items-center gap-3 px-5 py-3 sm:grid-cols-[1fr_240px]">
+                              <span className="text-small font-medium">{parameter}</span>
+                              <select
+                                value={frequency}
+                                onChange={(event) => setIpqcFrequency(storedIndex, event.target.value)}
+                                className="h-9 rounded-control border border-border-strong bg-surface px-3 text-small"
+                              >
+                                <option value="">Select frequency…</option>
+                                {frequencyOptions.map((frequency) => <option key={frequency} value={frequency}>{frequency}</option>)}
+                              </select>
+                            </div>
+                          );})}
+                        </div>
+                      )}
+                    </section>
+
+                    {entries.filter((entry) => entry.mode === "equipment").map((entry, entryIndex) => {
+                      const masterEntry = master?.equipments.find((item) => item.name_of_machine === entry.name && item.machine_id_no === entry.id);
+                      const availableCpps = masterEntry?.steps.find((step) => step.step === entry.proc_stage)?.cpp ?? Object.keys(entry.cpp);
+                      return (
+                        <section key={`${entryIdentity(entry)}-${entryIndex}`} className="overflow-hidden rounded-card border border-border bg-surface">
+                          <div className="border-b border-border px-5 py-4">
+                            <h2 className="text-small font-semibold">{entry.name}</h2>
+                            <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1 text-micro text-subdued">
+                              {entry.id ? <span>Equipment ID: <span className="font-mono text-text">{entry.id}</span></span> : null}
+                              <span>Processing Stage: <span className="text-text">{cleanStageName(entry.proc_stage) || "—"}</span></span>
+                            </div>
+                          </div>
+                          {availableCpps.length === 0 ? (
+                            <p className="px-5 py-4 text-small text-subdued">No CPPs are available for this equipment and processing stage.</p>
+                          ) : (
+                            <div className="divide-y divide-sunken">
+                              {availableCpps.map((cppName) => {
+                                const frequencyKey = equipmentCppFrequencyKey(entry, cppName);
+                                return (
+                                  <div key={cppName} className="grid items-center gap-3 px-5 py-3 sm:grid-cols-[1fr_240px]">
+                                    <span className="text-small font-medium">{cppName}</span>
+                                    <select
+                                      value={cppFrequencyValues[frequencyKey] ?? ""}
+                                      onChange={(event) => setCppFrequencyValues((current) => ({ ...current, [frequencyKey]: event.target.value }))}
+                                      className="h-9 rounded-control border border-border-strong bg-surface px-3 text-small"
+                                    >
+                                      <option value="">Select frequency…</option>
+                                      {frequencyOptions.map((frequency) => <option key={frequency} value={frequency}>{frequency}</option>)}
+                                    </select>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </section>
+                      );
+                    })}
+                  </section>
+                ) : null}
+
+                {activeTab !== "ipqc" && visibleEntries.length > 0 ? (
                   <section className="overflow-hidden rounded-card border border-border bg-surface">
                     <div className="border-b border-border px-5 py-3 text-small font-semibold capitalize">
                       Added {mode} · {visibleEntries.length}
@@ -516,14 +659,14 @@ export function StageInputPage() {
                   </section>
                 ) : null}
 
-                {assetScopes.length === 0 ? (
+                {activeTab !== "ipqc" && assetScopes.length === 0 ? (
                   <div className="rounded-card border border-border bg-surface p-5 text-small text-subdued">
                     This stage does not define equipment or instrument inputs.
                   </div>
                 ) : null}
 
                 {/* type toggle */}
-                {supportsEquipment || supportsInstrument ? <div className="inline-flex w-[210px] max-w-full self-start rounded-pill border border-border bg-sunken p-0.5">
+                {activeTab !== "ipqc" && !isCompression && (supportsEquipment || supportsInstrument) ? <div className="inline-flex w-[210px] max-w-full self-start rounded-pill border border-border bg-sunken p-0.5">
                   {(["equipment", "instrument"] as Mode[]).filter((m) => m === "equipment" ? supportsEquipment : supportsInstrument).map((m) => (
                     <button
                       key={m}
@@ -539,7 +682,7 @@ export function StageInputPage() {
                 </div> : null}
 
                 {/* selection */}
-                {supportsEquipment || supportsInstrument ? <section className="rounded-card border border-border bg-surface p-5">
+                {activeTab !== "ipqc" && (supportsEquipment || supportsInstrument) ? <section className="rounded-card border border-border bg-surface p-5">
                   <h2 className="mb-4 text-micro font-bold uppercase tracking-wide text-subdued">
                     {mode === "equipment" ? "Equipment" : "Instrument"} selection
                   </h2>
@@ -582,7 +725,7 @@ export function StageInputPage() {
                 </section> : null}
 
                 {/* processing stage (equipment only) */}
-                {mode === "equipment" && equipmentHasProcessing ? (
+                {activeTab !== "ipqc" && mode === "equipment" && equipmentHasProcessing ? (
                   <section className="rounded-card border border-border bg-surface p-5">
                     <h2 className="mb-3 text-micro font-bold uppercase tracking-wide text-subdued">
                       Processing stage
@@ -617,7 +760,7 @@ export function StageInputPage() {
                 ) : null}
 
                 {/* CPP (equipment only) */}
-                {mode === "equipment" && equipmentHasProcessing ? (
+                {activeTab !== "ipqc" && mode === "equipment" && equipmentHasProcessing ? (
                   <section className="rounded-card border border-border bg-surface p-5">
                     <div className="mb-3 flex items-baseline gap-2">
                       <h2 className="text-small font-semibold">
@@ -707,7 +850,7 @@ export function StageInputPage() {
                   </section>
                 ) : null}
 
-                {supportsEquipment || supportsInstrument ? <div className="flex flex-wrap justify-end gap-2.5">
+                {activeTab !== "ipqc" && (supportsEquipment || supportsInstrument) ? <div className="flex flex-wrap justify-end gap-2.5">
                   <button
                     type="button"
                     onClick={() => void saveStay()}
@@ -811,6 +954,74 @@ function entriesFromScope(
       scope: scope.key,
     })),
   ];
+}
+
+function cppNamesForEntry(entry: EquipmentEntry, equipments: EquipmentMaster[]): string[] {
+  const equipment = equipments.find((item) =>
+    item.name_of_machine === entry.name && item.machine_id_no === entry.id,
+  );
+  return equipment?.steps.find((step) => step.step === entry.proc_stage)?.cpp ?? Object.keys(entry.cpp);
+}
+
+function loadCppFrequencies(
+  entries: EquipmentEntry[],
+  values: Record<string, unknown>,
+  schema: NonNullable<StageForm["schema"]>,
+  equipments: EquipmentMaster[],
+): Record<string, string> {
+  const rows = Array.isArray(values.ipqc_table) ? values.ipqc_table as Record<string, unknown>[] : [];
+  const fixedCount = schema.x_ui_reference?.fixed_ipqc_parameters?.length ?? 0;
+  const cppRows = rows.slice(fixedCount);
+  const frequencies: Record<string, string> = {};
+  const legacyPrefix = "__equipment_cpp_frequency__:";
+
+  for (const row of cppRows) {
+    const parameter = String(row.parameter || "");
+    if (!parameter.startsWith(legacyPrefix)) continue;
+    try {
+      const [name, id, procStage, cpp] = JSON.parse(parameter.slice(legacyPrefix.length)) as string[];
+      const entry = entries.find((item) => item.mode === "equipment"
+        && item.name === name && item.id === id && item.proc_stage === procStage);
+      if (entry && cpp) frequencies[equipmentCppFrequencyKey(entry, cpp)] = String(row.frequency ?? "");
+    } catch {
+      // Ignore malformed legacy rows; current payload rows contain only the CPP name.
+    }
+  }
+
+  const availableRows = cppRows.filter((row) => !String(row.parameter || "").startsWith(legacyPrefix));
+  const consumed = new Set<number>();
+  for (const entry of entries.filter((item) => item.mode === "equipment")) {
+    for (const cpp of cppNamesForEntry(entry, equipments)) {
+      const key = equipmentCppFrequencyKey(entry, cpp);
+      if (frequencies[key] !== undefined) continue;
+      const rowIndex = availableRows.findIndex((row, index) =>
+        !consumed.has(index) && String(row.parameter || "") === cpp,
+      );
+      if (rowIndex < 0) continue;
+      consumed.add(rowIndex);
+      frequencies[key] = String(availableRows[rowIndex].frequency ?? "");
+    }
+  }
+  return frequencies;
+}
+
+function buildIpqcRows(
+  currentValue: unknown,
+  schema: NonNullable<StageForm["schema"]>,
+  entries: EquipmentEntry[],
+  equipments: EquipmentMaster[],
+  frequencies: Record<string, string>,
+): Record<string, unknown>[] {
+  const rows = Array.isArray(currentValue) ? currentValue as Record<string, unknown>[] : [];
+  const fixedCount = schema.x_ui_reference?.fixed_ipqc_parameters?.length ?? 0;
+  const defaultRows = rows.slice(0, fixedCount);
+  const cppRows = entries
+    .filter((entry) => entry.mode === "equipment")
+    .flatMap((entry) => cppNamesForEntry(entry, equipments).map((cpp) => ({
+      parameter: cpp,
+      frequency: frequencies[equipmentCppFrequencyKey(entry, cpp)] ?? "",
+    })));
+  return [...defaultRows, ...cppRows];
 }
 
 /**

@@ -91,7 +91,13 @@ export function ReviewQueuePage() {
                   <li key={item.document_id}>
                     <button
                       type="button"
-                      onClick={() => navigate(`/documents/${item.document_id}/review`)}
+                      onClick={() => {
+                        const id = encodeURIComponent(item.document_id);
+                        const returned = ["returned", "returned_for_correction"].includes(item.status);
+                        if (isPreparer && returned) navigate(`/documents/${id}/stages`);
+                        else if (isPreparer && item.status === "approved_for_print") navigate(`/documents/${id}/finalize`);
+                        else navigate(`/documents/${id}/review`);
+                      }}
                       className="w-full rounded-panel border border-border bg-surface p-4 text-left transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">

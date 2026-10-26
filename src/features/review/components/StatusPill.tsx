@@ -27,10 +27,17 @@ const TONE: Record<string, string> = {
   // In review — out of the author's hands, not yet approved.
   submitted: "bg-inreview-bg text-inreview-fg",
   in_review: "bg-inreview-bg text-inreview-fg",
+  qa_review: "bg-inreview-bg text-inreview-fg",
+  pr_review: "bg-inreview-bg text-inreview-fg",
+  in_approval: "bg-inreview-bg text-inreview-fg",
   pending_approval: "bg-inreview-bg text-inreview-fg",
+  returned: "bg-draft-bg text-draft-fg",
+  returned_for_correction: "bg-draft-bg text-draft-fg",
 
   // Terminal states.
   approved: "bg-approved-bg text-approved-fg",
+  approved_for_print: "bg-approved-bg text-approved-fg",
+  finalized: "bg-approved-bg text-approved-fg",
   rejected: "bg-rejected-bg text-rejected-fg",
 
   // Failures are validation feedback, not a lifecycle state — hence danger, not rejected.

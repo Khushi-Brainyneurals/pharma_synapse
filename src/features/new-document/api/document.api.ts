@@ -33,7 +33,7 @@ export async function getDocument(documentId: string): Promise<DocumentDetail> {
   };
   const stepKey = String(resumeStep).toLowerCase().trim();
   const activeIdx = stepMap[stepKey] ?? stepMap[resumeStep] ?? 1;
-  const isSubmitted = ["submitted", "in_review", "in_approval", "approved", "rejected", "approved_for_print"].includes(data.status);
+  const isSubmitted = ["submitted", "in_review", "qa_review", "pr_review", "in_approval", "pending_approval", "approved", "rejected", "approved_for_print", "finalized"].includes(data.status);
   const completedSteps = isSubmitted
     ? stepOrder
     : stepOrder.slice(0, activeIdx);

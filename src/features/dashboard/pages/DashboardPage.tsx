@@ -379,11 +379,13 @@ export function DashboardPage() {
                             >
                               Active
                             </span>
-                          ) : card.count > 0 ? (
-                            <span
-                              className={`size-2 rounded-full ${meta.pillActive} ring-2 ring-white`}
-                            />
-                          ) : null}
+                          ) 
+                          // : card.count > 0 ? (
+                          //   <span
+                          //     className={`size-2 rounded-full ${meta.pillActive} ring-2 ring-white`}
+                          //   />
+                          // ) 
+                          : null}
                         </div>
 
                         <div>
@@ -436,7 +438,7 @@ export function DashboardPage() {
                 options={docTypes}
               />
 
-              <div className="flex flex-col">
+              {/* <div className="flex flex-col">
                 <label htmlFor="filter-status" className={filterLabelClass}>
                   Status
                 </label>
@@ -461,7 +463,7 @@ export function DashboardPage() {
                     Superseded &amp; cancelled ({data?.retained_count ?? 0})
                   </option>
                 </select>
-              </div>
+              </div> */}
 
               <div className="ml-auto flex items-center gap-4 pb-1">
                 {/* Two numbers, deliberately: the size of the status group, and how many

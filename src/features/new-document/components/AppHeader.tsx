@@ -29,8 +29,8 @@ export function AppHeader({ user, unit, isLoadingUnit = false, title = "New docu
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <img src="/pharmasynapse-lockup.svg" alt="PharmaDoc AI Logo" className="h-5 w-21 mt-1" />
         <div className="flex min-w-0 items-center gap-2">
-          <span className="text-muted-foreground">|</span>
-          <span className="truncate text-h2 font-semibold">
+          <span className="text-muted-foreground font-semibold">|</span>
+          <span className="truncate text-h3 font-semibold">
             {title}
           </span>
         </div>

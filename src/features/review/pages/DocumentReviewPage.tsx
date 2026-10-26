@@ -6,25 +6,20 @@ import {
   Loader2,
   Lock,
   MessageSquarePlus,
-  Pencil,
-  RotateCcw,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { getApiErrorMessage } from "../../../shared/api/apiError";
 import { useAuthStore } from "../../auth/state/auth.store";
-import { getBom } from "../../bom/api/bom.api";
 import type { BomResponse } from "../../bom/api/bom.types";
 import { FullDocumentBody } from "../../bom/components/FullDocumentBody";
 import { downloadDocument } from "../../generate/api/generate.api";
 import { AppHeader } from "../../new-document/components/AppHeader";
 import { AppSidebar } from "../../new-document/components/AppSidebar";
-import { useDocument } from "../../new-document/hooks/useDocument";
 import {
   approveDocument,
-  getReviewState,
-  resubmitDocument,
+  getReviewPageData,
   ROLE_LABELS,
   submitReview,
   type ReviewState,
@@ -40,30 +35,28 @@ interface Comment {
 
 export function DocumentReviewPage() {
   const { documentId = "" } = useParams();
+  const location = useLocation();
+  const dashboardPermissions = (location.state as { dashboardPermissions?: { can_review?: boolean; can_approve?: boolean } } | null)?.dashboardPermissions;
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
-  const { document: documentState } = useDocument(documentId);
 
   const [state, setState] = useState<ReviewState | null>(null);
   const [bom, setBom] = useState<BomResponse | null>(null);
+  const [documentState, setDocumentState] = useState<{ bmr_number: string | null; header_footer_size: number | null } | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [confirming, setConfirming] = useState<"approved" | "rejected" | null>(null);
-
-  const [editMode, setEditMode] = useState(false);
+  const [confirming, setConfirming] = useState<"approved" | "returned" | "rejected" | null>(null);
   const [commentDraft, setCommentDraft] = useState("");
   const [comments, setComments] = useState<Comment[]>([]);
 
   const load = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [reviewState, bomData] = await Promise.all([
-        getReviewState(documentId),
-        getBom(documentId).catch(() => null),
-      ]);
-      setState(reviewState);
-      setBom(bomData);
+      const pageData = await getReviewPageData(documentId);
+      setState(pageData.reviewState);
+      setBom(pageData.bom);
+      setDocumentState(pageData.document);
       setError(null);
     } catch (caught) {
       setError(getApiErrorMessage(caught, "Could not load this document."));
@@ -77,6 +70,8 @@ export function DocumentReviewPage() {
   }, [load]);
 
   const isApprover = user?.role === "approver";
+  const isQaReviewer = user?.role === "reviewer_qa";
+  const isPrReviewer = user?.role === "reviewer_pr";
 
   const addComment = () => {
     const text = commentDraft.trim();
@@ -86,44 +81,47 @@ export function DocumentReviewPage() {
   };
 
   const decide = useCallback(
-    async (decision: "approved" | "rejected") => {
+    async (decision: "approved" | "returned" | "rejected") => {
       setIsBusy(true);
       setError(null);
-      // The reviewer's added comments travel with the decision (a rejection must carry one).
-      const joined = comments.map((c) => c.text).join(" · ");
+      const reason = comments.map((c) => c.text).join(" · ");
       try {
-        const next = isApprover
-          ? await approveDocument(documentId, decision, joined)
-          : await submitReview(documentId, decision, joined);
-        setState(next);
+        if (isApprover) {
+          await approveDocument(documentId, decision, reason);
+        } else {
+          await submitReview(documentId, isQaReviewer ? "reviewer_qa" : "reviewer_pr", decision === "rejected" ? "returned" : decision, reason);
+        }
         setComments([]);
         setConfirming(null);
+        navigate("/");
       } catch (caught) {
         setError(getApiErrorMessage(caught, "Could not record your decision."));
       } finally {
         setIsBusy(false);
       }
     },
-    [comments, documentId, isApprover],
+    [comments, documentId, isApprover, isQaReviewer, navigate],
   );
 
-  const resubmit = useCallback(async () => {
-    setIsBusy(true);
-    setError(null);
-    try {
-      setState(await resubmitDocument(documentId));
-    } catch (caught) {
-      setError(getApiErrorMessage(caught, "Could not re-submit."));
-    } finally {
-      setIsBusy(false);
-    }
-  }, [documentId]);
-
-  // A rejection must say why — mirror the server rule so the UI doesn't let the user hit a wall.
-  const rejectNeedsReason = confirming === "rejected" && comments.length === 0;
-  const canResubmit =
-    state?.status === "rejected" &&
-    (user?.role === "preparer" || user?.role === "admin" || user?.role === "superadmin");
+  const qaPending = state?.qa_review_status != null
+    ? state.qa_review_status === "pending"
+    : state?.pending_roles.includes("reviewer_qa") || dashboardPermissions?.can_review === true;
+  const prPending = state?.pr_review_status != null
+    ? state.pr_review_status === "pending"
+    : state?.pending_roles.includes("reviewer_pr") || dashboardPermissions?.can_review === true;
+  const closedForReview = ["returned", "returned_for_correction", "in_approval", "pending_approval", "approved", "approved_for_print", "rejected", "finalized"].includes(state?.status ?? "");
+  const reviewWindowOpen = !closedForReview && (
+    ["submitted", "in_review", "qa_review", "pr_review"].includes(state?.status ?? "") || dashboardPermissions?.can_review === true
+  );
+  const terminalState = ["rejected", "approved_for_print", "finalized"].includes(state?.status ?? "");
+  const reviewerCanAct = Boolean(!terminalState && (state?.can_act || dashboardPermissions?.can_review) && (
+    (reviewWindowOpen && isQaReviewer && (dashboardPermissions?.can_review ?? state?.can_act ?? false) && qaPending) ||
+    (reviewWindowOpen && isPrReviewer && (dashboardPermissions?.can_review ?? state?.can_act ?? false) && prPending)
+  ));
+  // The backend only places approver-eligible documents in this role's dashboard.
+  // Do not duplicate the QA/PR approval gate in the client.
+  const roleCanAct = Boolean(!terminalState && (isApprover || reviewerCanAct));
+  const reasonRequired = confirming !== null && confirming !== "approved" && comments.length === 0;
   const hasDoc = Boolean(bom && bom.ingredients.length > 0);
 
   return (
@@ -176,21 +174,16 @@ export function DocumentReviewPage() {
                   <StatusPill status={state.status} />
                 </header>
 
-                {state.status === "rejected" && state.reject_reason ? (
+                {state.status === "rejected" ? (
                   <div className="rounded-panel border border-danger/30 bg-danger-soft p-4">
                     <p className="text-small font-semibold text-danger">Rejected</p>
-                    <p className="mt-1 text-small text-subdued">{state.reject_reason}</p>
-                    {canResubmit ? (
-                      <button
-                        type="button"
-                        onClick={() => void resubmit()}
-                        disabled={isBusy}
-                        className="mt-3 inline-flex items-center gap-2 rounded-control border border-border bg-surface px-3 py-1.5 text-small font-semibold transition hover:bg-muted disabled:opacity-60"
-                      >
-                        <RotateCcw className="size-4" aria-hidden="true" />
-                        Fix and re-submit
-                      </button>
-                    ) : null}
+                    <p className="mt-1 text-small text-subdued">{state.reject_reason || "This document is permanently closed."}</p>
+                  </div>
+                ) : null}
+                {state.return_reason ? (
+                  <div className="rounded-panel border border-draft-fg/30 bg-draft-bg p-4">
+                    <p className="text-small font-semibold text-draft-fg">Returned for correction</p>
+                    <p className="mt-1 text-small text-subdued">{state.return_reason}</p>
                   </div>
                 ) : null}
 
@@ -199,14 +192,7 @@ export function DocumentReviewPage() {
                   {/* The same page-7 document the preparer built. */}
                   <section className="min-w-0">
                     {hasDoc ? (
-                      <div
-                        contentEditable={editMode}
-                        suppressContentEditableWarning
-                        spellCheck={false}
-                        className={`space-y-4 outline-none ${
-                          editMode ? "rounded-card ring-2 ring-primary/40" : ""
-                        }`}
-                      >
+                      <div className="space-y-4 outline-none">
                         <FullDocumentBody bom={bom as BomResponse} headerInches={documentState?.header_footer_size ?? 0.5} />
                       </div>
                     ) : (
@@ -224,18 +210,6 @@ export function DocumentReviewPage() {
                       <div className="mt-3 flex flex-col gap-2">
                         <button
                           type="button"
-                          onClick={() => setEditMode((v) => !v)}
-                          className={`inline-flex items-center justify-center gap-2 rounded-control border px-3 py-2 text-small font-semibold transition ${
-                            editMode
-                              ? "border-primary bg-accent-soft text-primary-dark"
-                              : "border-border text-subdued hover:bg-muted"
-                          }`}
-                        >
-                          <Pencil className="size-4" aria-hidden="true" />
-                          {editMode ? "Editing — click to finish" : "Edit document"}
-                        </button>
-                        <button
-                          type="button"
                           onClick={() =>
                             void downloadDocument(documentId, `${documentState?.bmr_number ?? documentId.slice(0)}.docx`)
                           }
@@ -245,16 +219,12 @@ export function DocumentReviewPage() {
                           Download .docx
                         </button>
                       </div>
-                      {editMode ? (
-                        <p className="mt-2 text-micro text-subdued">
-                          Inline edits are a visual draft for markup — send them to the preparer as a rejection comment.
-                        </p>
-                      ) : null}
                     </section>
 
                     {/* Add comment */}
+                    {roleCanAct ? (
                     <section className="rounded-panel border border-border bg-surface p-4">
-                      <h2 className="text-small font-semibold uppercase tracking-overline text-subdued">Comments</h2>
+                      <h2 className="text-small font-semibold uppercase tracking-overline text-subdued">Review reason</h2>
                       {comments.length > 0 ? (
                         <ul className="mt-3 space-y-2">
                           {comments.map((c, i) => (
@@ -267,7 +237,7 @@ export function DocumentReviewPage() {
                           ))}
                         </ul>
                       ) : (
-                        <p className="mt-2 text-micro text-subdued">No comments yet. Add notes for the preparer.</p>
+                        <p className="mt-2 text-micro text-subdued">Add a reason for a return or rejection.</p>
                       )}
                       <div className="mt-3">
                         <textarea
@@ -291,16 +261,17 @@ export function DocumentReviewPage() {
                         </button>
                       </div>
                     </section>
+                    ) : null}
 
                     {/* Decision */}
-                    {state.can_act ? (
+                    {roleCanAct ? (
                       <section className="rounded-panel border border-border bg-surface p-4">
                         <h2 className="text-small font-semibold uppercase tracking-overline text-subdued">
                           {isApprover ? "Sign off" : "Your decision"}
                         </h2>
-                        {rejectNeedsReason ? (
+                        {reasonRequired ? (
                           <p className="mt-2 text-micro text-danger">
-                            A rejection needs at least one comment — the preparer has to know what to fix.
+                            A reason is required for return or rejection.
                           </p>
                         ) : null}
                         <div className="mt-3 flex flex-col gap-2">
@@ -317,14 +288,24 @@ export function DocumentReviewPage() {
                             )}
                             {confirming === "approved" ? "Confirm approve" : isApprover ? "Approve & sign" : "Approve"}
                           </button>
+                          {isApprover ? (
+                            <button
+                              type="button"
+                              onClick={() => (confirming === "rejected" ? void decide("rejected") : setConfirming("rejected"))}
+                              disabled={isBusy || (confirming === "rejected" && reasonRequired)}
+                              className="inline-flex items-center justify-center gap-2 rounded-control border border-danger/40 px-4 py-2 text-small font-semibold text-danger transition hover:bg-danger-soft disabled:opacity-50"
+                            >
+                              <X className="size-4" aria-hidden="true" />
+                              {confirming === "rejected" ? "Confirm reject" : "Reject permanently"}
+                            </button>
+                          ) : null}
                           <button
                             type="button"
-                            onClick={() => (confirming === "rejected" ? void decide("rejected") : setConfirming("rejected"))}
-                            disabled={isBusy || rejectNeedsReason}
-                            className="inline-flex items-center justify-center gap-2 rounded-control border border-danger/40 px-4 py-2 text-small font-semibold text-danger transition hover:bg-danger-soft disabled:opacity-50"
+                            onClick={() => (confirming === "returned" ? void decide("returned") : setConfirming("returned"))}
+                            disabled={isBusy || (confirming === "returned" && reasonRequired)}
+                            className="inline-flex items-center justify-center gap-2 rounded-control border border-border px-4 py-2 text-small font-semibold text-subdued transition hover:bg-muted disabled:opacity-50"
                           >
-                            <X className="size-4" aria-hidden="true" />
-                            {confirming === "rejected" ? "Confirm reject" : "Reject"}
+                            {confirming === "returned" ? "Confirm return" : "Return for correction"}
                           </button>
                           {confirming ? (
                             <button
@@ -390,7 +371,7 @@ function ReviewHistory({ state }: { state: ReviewState }) {
               <p className="text-small">
                 <span className="font-semibold">{ROLE_LABELS[review.role] ?? review.role}</span>{" "}
                 <span className="text-subdued">
-                  {review.decision === "approved" ? "approved" : "rejected"} · {review.reviewer}
+                  {review.decision === "approved" ? "approved" : review.decision === "returned" ? "returned" : "rejected"} · {review.reviewer}
                 </span>
               </p>
               {review.comment ? <p className="mt-1 text-small text-subdued">{review.comment}</p> : null}

@@ -13,7 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { DocumentViewer } from "../../../shared/document/DocumentViewer";
 import { DocxViewer } from "../../preview/components/DocxViewer";
 import { getApiErrorCode, getApiErrorMessage } from "../../../shared/api/apiError";
@@ -39,9 +39,12 @@ const SUBMITTED_STATUSES = ["submitted", "qa_review", "pr_review", "in_review", 
 
 export function GenerateSubmitPage() {
   const { documentId = "" } = useParams();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const readyForReview = searchParams.get("readyForReview") === "1";
   const user = useAuthStore((state) => state.user);
   const { goToStep } = useStepNavigation(documentId);
-  const { document: documentState, reload: reloadDocument } = useDocument(documentId);
+  const { document: documentState } = useDocument(documentId);
 
   const [state, setState] = useState<GenerationStatus | null>(null);
   const [generationProgress, setGenerationProgress] = useState<GenerateProgress | null>(null);
@@ -59,6 +62,20 @@ export function GenerateSubmitPage() {
     window.scrollTo(0, 0);
     mainRef.current?.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
   }, [documentId, previewBlob]);
+
+  useEffect(() => {
+    const status = documentState?.status;
+    if (!status) return;
+    if (user?.role !== "preparer") {
+      navigate(`/documents/${encodeURIComponent(documentId)}/review`, { replace: true });
+    } else if (["returned", "returned_for_correction"].includes(status)) {
+      navigate(`/documents/${encodeURIComponent(documentId)}/stages`, { replace: true });
+    } else if (status === "approved_for_print") {
+      navigate(`/documents/${encodeURIComponent(documentId)}/finalize`, { replace: true });
+    } else if (SUBMITTED_STATUSES.includes(status) || status === "finalized") {
+      navigate(`/documents/${encodeURIComponent(documentId)}/review`, { replace: true });
+    }
+  }, [documentId, documentState?.status, navigate, user?.role]);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current !== null) {
@@ -170,32 +187,52 @@ export function GenerateSubmitPage() {
   }, [documentId, startPolling]);
 
   useEffect(() => {
+    if (readyForReview) {
+      // The dashboard's "Submit for review" state means generation is complete.
+      // Trust that state and fetch the artifact directly instead of polling progress.
+      stopPolling();
+      setGenerationProgress({
+        document_id: documentId,
+        status: "done",
+        percent: 100,
+        step: "Document ready for review",
+        result: null,
+        error: null,
+      });
+      setState({
+        document_id: documentId,
+        status: "generated",
+        has_artifact: true,
+        artifact_size: null,
+        error_message: null,
+      });
+      return stopPolling;
+    }
+
     // Select Stages has already started the build with POST /generate. This page only
     // observes that build; when progress reports `done`, the preview effect below runs.
     void startPolling();
     return stopPolling;
-  }, [startPolling, stopPolling]);
+  }, [documentId, readyForReview, startPolling, stopPolling]);
 
   const submit = useCallback(async () => {
     setIsBusy(true);
     setError(null);
     try {
       await submitDocument(documentId);
-      await loadStatus();
-      await reloadDocument();
       setConfirmSubmit(false);
-      // This document is done — forget its remembered step, so "New document" starts a
-      // fresh one and the card opens on the review screen the submission moved it to.
-      // (Submitting doesn't change the route, so ProtectedRoute won't re-save this page.)
+      // Forget the saved wizard step so the dashboard opens the submitted review record
+      // instead of restoring this generation page.
       if (user?.username) {
         clearDocumentLocation(user.username, documentId);
       }
+      navigate("/");
     } catch (caught) {
       setError(getApiErrorMessage(caught, "Could not submit the document."));
     } finally {
       setIsBusy(false);
     }
-  }, [documentId, loadStatus, reloadDocument, user?.username]);
+  }, [documentId, navigate, user?.username]);
 
   const status = state?.status;
   const isSubmitted = Boolean(status && SUBMITTED_STATUSES.includes(status));

@@ -17,6 +17,7 @@ export const ROUTES = {
   employees: "/settings/employees",
   setPassword: "/set-password",
   documentReview: "/documents/:documentId/review",
+  documentFinalize: "/documents/:documentId/finalize",
 } as const;
 
 export function getDocumentInputsRoute(documentId: string) {

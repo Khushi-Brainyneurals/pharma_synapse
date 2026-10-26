@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, ".", "VITE_");
-  const target = env.VITE_API_BASE_URL || "http://54.161.100.46:8000";
+  const target = env.VITE_API_BASE_URL || "http://54.91.64.250:8000";
   return {
     plugins: [react()],
     server: {
