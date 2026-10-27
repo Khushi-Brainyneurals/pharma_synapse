@@ -3,9 +3,9 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getApiErrorMessage } from "../../../shared/api/apiError";
 import { useAuthStore } from "../../auth/state/auth.store";
-import { AppHeader } from "../../new-document/components/AppHeader";
-import { AppSidebar } from "../../new-document/components/AppSidebar";
-import { FullDocumentBody } from "../../bom/components/FullDocumentBody";
+import { AppHeader } from "../../../app/layout/AppHeader";
+import { AppSidebar } from "../../../app/layout/AppSidebar";
+import { FullDocumentBody } from "../../document-workflows/bmr-bpr/bom/components/FullDocumentBody";
 import { finalizeDocument, getReviewPageData, type FinalizeAttachment, type ReviewPageData } from "../api/review.api";
 
 export function DocumentFinalizePage() {
@@ -120,7 +120,7 @@ export function DocumentFinalizePage() {
                   <Field label="CCN number" value={ccnNo} onChange={setCcnNo} />
                   <label className="flex flex-col gap-1.5 text-small font-medium">
                     CCN approval date
-                    <input type="date" value={ccnApprovalDate} onChange={(event) => setCcnApprovalDate(event.target.value)} className="h-10 rounded-control border border-border bg-surface px-3 font-normal focus:outline-none focus:ring-1 focus:ring-primary/25" />
+                    <input type="date" value={ccnApprovalDate} onChange={(event) => setCcnApprovalDate(event.target.value)} className="h-10 rounded-control text-text border border-border bg-surface px-3 font-normal focus:outline-none focus:ring-1 focus:ring-primary/25" />
                   </label>
                 </div>
 

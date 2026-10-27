@@ -2,8 +2,8 @@ import { ArrowRight, Eye, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../auth/state/auth.store";
-import { AppHeader } from "../../new-document/components/AppHeader";
-import { AppSidebar } from "../../new-document/components/AppSidebar";
+import { AppHeader } from "../../../app/layout/AppHeader";
+import { AppSidebar } from "../../../app/layout/AppSidebar";
 import {
   NOTIF_STATE_BADGE,
   useNotificationsStore,

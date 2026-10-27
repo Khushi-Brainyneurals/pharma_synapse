@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { DOCUMENT_TYPE_OPTIONS, DOSAGE_FORM_OPTIONS } from "../../new-document/model/documentSelector.config";
+import { DOCUMENT_TYPE_OPTIONS, DOSAGE_FORM_OPTIONS } from "../../document-workflows/selection/model/documentSelector.config";
 import type { MasterOtherDocStatus, OtherDocumentsChecklistResponse, StageChecklistGroup, StageChecklistResponse, StageSlot } from "../api/masterDataDocuments.api";
 import {
   BATCH_DOCS,

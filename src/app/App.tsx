@@ -7,14 +7,14 @@ import { useAuthStore } from "../features/auth/state/auth.store";
 import { EmployeeAdminRoute } from "../features/employees/routing/EmployeeAdminRoute";
 import { LoginStatesPage } from "../features/auth/pages/LoginStatesPage";
 import { ProtectedRoute } from "../features/auth/routing/ProtectedRoute";
-import { AppHeader } from "../features/new-document/components/AppHeader";
-import { AppSidebar } from "../features/new-document/components/AppSidebar";
+import { AppHeader } from "./layout/AppHeader";
+import { AppSidebar } from "./layout/AppSidebar";
 import { ROUTES } from "./routing/routes";
 
 const DashboardPage = lazy(() => import("../features/dashboard/pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
-const CoreInputsPage = lazy(() => import("../features/core-inputs/pages/CoreInputsPage").then((m) => ({ default: m.CoreInputsPage })));
-const NewDocumentSelectorPage = lazy(() => import("../features/new-document/pages/NewDocumentSelectorPage").then((m) => ({ default: m.NewDocumentSelectorPage })));
-const CoverBomPage = lazy(() => import("../features/bom/pages/CoverBomPage").then((m) => ({ default: m.CoverBomPage })));
+const CoreInputsPage = lazy(() => import("../features/document-workflows/bmr-bpr/inputs/pages/CoreInputsPage").then((m) => ({ default: m.CoreInputsPage })));
+const NewDocumentSelectorPage = lazy(() => import("../features/document-workflows/selection/pages/NewDocumentSelectorPage").then((m) => ({ default: m.NewDocumentSelectorPage })));
+const CoverBomPage = lazy(() => import("../features/document-workflows/bmr-bpr/bom/pages/CoverBomPage").then((m) => ({ default: m.CoverBomPage })));
 const CompanyInfoPage = lazy(() => import("../features/company/pages/CompanyInfoPage").then((m) => ({ default: m.CompanyInfoPage })));
 const MasterDataPage = lazy(() => import("../features/master-data/pages/MasterDataPage").then((m) => ({ default: m.MasterDataPage })));
 const DocumentReviewPage = lazy(() => import("../features/review/pages/DocumentReviewPage").then((m) => ({ default: m.DocumentReviewPage })));
@@ -29,9 +29,9 @@ const MdEquipmentPage = lazy(() => import("../features/master-data-setup/pages/E
 const MdInstrumentPage = lazy(() => import("../features/master-data-setup/pages/InstrumentListPage").then((m) => ({ default: m.InstrumentListPage })));
 const MdBatchDocsPage = lazy(() => import("../features/master-data-setup/pages/BatchDocumentsPage").then((m) => ({ default: m.BatchDocumentsPage })));
 const MdPreviewPage = lazy(() => import("../features/master-data-setup/pages/PreviewPage").then((m) => ({ default: m.PreviewPage })));
-const GenerateSubmitPage = lazy(() => import("../features/generate/pages/GenerateSubmitPage").then((m) => ({ default: m.GenerateSubmitPage })));
-const StageInputPage = lazy(() => import("../features/stage-input/pages/StageInputPage").then((m) => ({ default: m.StageInputPage })));
-const SelectStagesPage = lazy(() => import("../features/stages/pages/SelectStagesPage").then((m) => ({ default: m.SelectStagesPage })));
+const GenerateSubmitPage = lazy(() => import("../features/document-workflows/bmr-bpr/generate/pages/GenerateSubmitPage").then((m) => ({ default: m.GenerateSubmitPage })));
+const StageInputPage = lazy(() => import("../features/document-workflows/bmr-bpr/stage-input/pages/StageInputPage").then((m) => ({ default: m.StageInputPage })));
+const SelectStagesPage = lazy(() => import("../features/document-workflows/bmr-bpr/stages/pages/SelectStagesPage").then((m) => ({ default: m.SelectStagesPage })));
 const EmployeesPage = lazy(() => import("../features/employees/pages/EmployeesPage").then((m) => ({ default: m.EmployeesPage })));
 
 interface ErrorBoundaryProps { children: ReactNode }

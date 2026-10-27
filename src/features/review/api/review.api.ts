@@ -1,6 +1,6 @@
 import { httpClient } from "../../../shared/api/httpClient";
-import { mapBomResponse } from "../../bom/api/bom.api";
-import type { BomResponse } from "../../bom/api/bom.types";
+import { mapBomResponse } from "../../document-workflows/bmr-bpr/bom/api/bom.api";
+import type { BomResponse } from "../../document-workflows/bmr-bpr/bom/api/bom.types";
 
 export interface QueueItem {
   document_id: string;

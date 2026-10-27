@@ -14,8 +14,8 @@ import { useNavigate } from "react-router-dom";
 import { getApiErrorMessage } from "../../../shared/api/apiError";
 import { Identifier } from "../../../shared/ui/Identifier";
 import { useAuthStore } from "../../auth/state/auth.store";
-import { AppHeader } from "../../new-document/components/AppHeader";
-import { AppSidebar } from "../../new-document/components/AppSidebar";
+import { AppHeader } from "../../../app/layout/AppHeader";
+import { AppSidebar } from "../../../app/layout/AppSidebar";
 import { canEditCompanyInfo } from "../access";
 import {
   EMPTY_FOOTER_TEMPLATE_NOS,

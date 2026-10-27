@@ -12,11 +12,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { getApiErrorMessage } from "../../../shared/api/apiError";
 import { useAuthStore } from "../../auth/state/auth.store";
-import type { BomResponse } from "../../bom/api/bom.types";
-import { FullDocumentBody } from "../../bom/components/FullDocumentBody";
-import { downloadDocument } from "../../generate/api/generate.api";
-import { AppHeader } from "../../new-document/components/AppHeader";
-import { AppSidebar } from "../../new-document/components/AppSidebar";
+import type { BomResponse } from "../../document-workflows/bmr-bpr/bom/api/bom.types";
+import { FullDocumentBody } from "../../document-workflows/bmr-bpr/bom/components/FullDocumentBody";
+import { downloadDocument } from "../../document-workflows/bmr-bpr/generate/api/generate.api";
+import { AppHeader } from "../../../app/layout/AppHeader";
+import { AppSidebar } from "../../../app/layout/AppSidebar";
 import {
   approveDocument,
   getReviewPageData,

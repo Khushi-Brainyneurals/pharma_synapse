@@ -30,8 +30,8 @@ import { Callout } from "../../../shared/ui/Callout";
 import { Dialog } from "../../../shared/ui/Dialog";
 import { Identifier } from "../../../shared/ui/Identifier";
 import { useAuthStore } from "../../auth/state/auth.store";
-import { AppHeader } from "../../new-document/components/AppHeader";
-import { AppSidebar } from "../../new-document/components/AppSidebar";
+import { AppHeader } from "../../../app/layout/AppHeader";
+import { AppSidebar } from "../../../app/layout/AppSidebar";
 import {
   auditDateTime,
   buildAuditParams,

@@ -8,7 +8,7 @@ import { SetupShell } from "../components/SetupShell";
 import { type UploadedFile } from "../model/setup.model";
 import { getSelectedTypeMeta, useSetupStore } from "../state/setupStore";
 import { useAuthStore } from "../../auth/state/auth.store";
-import { DocxViewer } from "../../preview/components/DocxViewer";
+import { DocxViewer } from "../../document-workflows/shared/components/DocxViewer";
 import { DocumentViewer } from "../../../shared/document/DocumentViewer";
 import {
   DOC_CODE_TO_STAGE_KEY,

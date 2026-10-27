@@ -1,5 +1,5 @@
-import { DocumentOptionCard } from "../../new-document/components/DocumentOptionCard";
-import { DOCUMENT_TYPE_OPTIONS, DOSAGE_FORM_OPTIONS } from "../../new-document/model/documentSelector.config";
+import { DocumentOptionCard } from "../../document-workflows/selection/components/DocumentOptionCard";
+import { DOCUMENT_TYPE_OPTIONS, DOSAGE_FORM_OPTIONS } from "../../document-workflows/selection/model/documentSelector.config";
 import { SetupShell } from "../components/SetupShell";
 import { StepFooter } from "../components/StepFooter";
 import { STEPS } from "../model/setup.model";

@@ -21,8 +21,8 @@ import { getApiErrorMessage } from "../../../shared/api/apiError";
 import { ROUTES } from "../../../app/routing/routes";
 import { useAuthStore } from "../../auth/state/auth.store";
 import { clearDocumentLocation } from "../../auth/storage/resumeLocation";
-import { AppHeader } from "../../new-document/components/AppHeader";
-import { AppSidebar } from "../../new-document/components/AppSidebar";
+import { AppHeader } from "../../../app/layout/AppHeader";
+import { AppSidebar } from "../../../app/layout/AppSidebar";
 import {
   cancelRecord,
   deleteDraft,

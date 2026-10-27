@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight, Download, FileText, Loader2, X } from "lucid
 import { useEffect, useState } from "react";
 import { Dialog } from "../../../shared/ui/Dialog";
 import { Identifier } from "../../../shared/ui/Identifier";
-import { DocxViewer } from "../../preview/components/DocxViewer";
+import { DocxViewer } from "../../document-workflows/shared/components/DocxViewer";
 import { DocumentViewer } from "../../../shared/document/DocumentViewer";
 import {
   getOtherDocumentPreviewBlob,
