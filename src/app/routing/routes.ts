@@ -24,6 +24,18 @@ export function getDocumentInputsRoute(documentId: string) {
   return `/documents/${encodeURIComponent(documentId)}/inputs`;
 }
 
+export function getDocumentSelectRoute(documentId: string) {
+  return `/documents/${encodeURIComponent(documentId)}/pvp-pvr/select-document`;
+}
+
+export function getPvpCoverDetailsRoute(documentId: string) {
+  return `/documents/${encodeURIComponent(documentId)}/pvp-pvr/cover-details`;
+}
+
+export function getPvpProcessBomRoute(documentId: string) {
+  return `/documents/${encodeURIComponent(documentId)}/pvp-pvr/process-bom`;
+}
+
 export function getDocumentCoverBomRoute(documentId: string) {
   return `/documents/${encodeURIComponent(documentId)}/cover-bom`;
 }

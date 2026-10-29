@@ -1,6 +1,6 @@
 import { AlertCircle, FileText, Loader2, FileUp, X } from "lucide-react";
 import { useId, useState, type ChangeEvent, type DragEvent } from "react";
-import { FormError } from "../../../../../shared/ui/FormError";
+import { FormError } from "../../../../shared/ui/FormError";
 
 export type FileUploadStatus = "idle" | "uploading" | "attached" | "failed" | "locked";
 

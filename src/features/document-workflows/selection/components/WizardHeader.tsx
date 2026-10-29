@@ -1,6 +1,9 @@
 import { DocumentStepper } from "./DocumentStepper";
 import { SelectionStrip } from "./SelectionStrip";
-import { DOCUMENT_SELECTOR_STEPS } from "../model/documentSelector.config";
+import {
+  getDocumentWorkflowSteps,
+  getWorkflowStepId,
+} from "../model/documentSelector.config";
 
 interface WizardHeaderProps {
   activeStepId: string;
@@ -33,15 +36,17 @@ export function WizardHeader({
   dosageForm,
   docType,
 }: WizardHeaderProps) {
-  const total = DOCUMENT_SELECTOR_STEPS.length;
-  const stepNumber = DOCUMENT_SELECTOR_STEPS.findIndex((step) => step.id === activeStepId) + 1;
+  const steps = getDocumentWorkflowSteps(docType);
+  const workflowStepId = getWorkflowStepId(activeStepId, docType);
+  const total = steps.length;
+  const stepNumber = steps.findIndex((step) => step.id === workflowStepId) + 1;
 
   return (
     <div className="rounded-panel bg-surface">
       <div className="px-4 py-4 sm:px-6 lg:px-8">
         <DocumentStepper
-          steps={DOCUMENT_SELECTOR_STEPS}
-          activeStepId={activeStepId}
+          steps={steps}
+          activeStepId={workflowStepId}
           completedStepIds={completedStepIds}
           onStepClick={onStepClick}
         />

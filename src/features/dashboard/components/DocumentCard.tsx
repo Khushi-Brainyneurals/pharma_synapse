@@ -41,6 +41,10 @@ export function resolveDocumentRoute(item: DashboardItem): string {
   }
 
   const candidate = (item.resume_step || item.state || "").trim().toLowerCase();
+  if (isPvpPvrCoreInputs(item, candidate, stateLabel)) {
+    return "pvp-pvr/select-document";
+  }
+  if (isPvpPvrDocument(item)) return "pvp-pvr/cover-details";
   if (STEP_ALIASES[candidate]) {
     return STEP_ALIASES[candidate];
   }
@@ -54,6 +58,19 @@ export function resolveDocumentRoute(item: DashboardItem): string {
   if (label.includes("input") || label.includes("draft")) return "inputs";
 
   return "inputs";
+}
+
+function isPvpPvrCoreInputs(item: DashboardItem, candidate: string, stateLabel: string) {
+  const documentType = (item.doc_type ?? "").trim().toLowerCase();
+  const isPvpPvr = documentType.includes("pvp") || documentType.includes("pvr");
+  const isCoreInputs = ["inputs", "core_inputs", "core_input"].includes(candidate) ||
+    stateLabel === "core inputs continue" || stateLabel === "core inputs";
+  return isPvpPvr && isCoreInputs;
+}
+
+function isPvpPvrDocument(item: DashboardItem) {
+  const documentType = (item.doc_type ?? "").trim().toLowerCase();
+  return documentType.includes("pvp") || documentType.includes("pvr");
 }
 
 export function DocumentCard({ item, onDelete, onCancel }: {
@@ -80,6 +97,12 @@ export function DocumentCard({ item, onDelete, onCancel }: {
     item.permissions?.can_finalize || item.status === "approved_for_print" || item.state_label.trim().toLowerCase() === "approved for print"
   );
   const resolvedStep = resolveDocumentRoute(item);
+  const forcePvpSelectDocument = isPvpPvrCoreInputs(
+    item,
+    (item.resume_step || item.state || "").trim().toLowerCase(),
+    item.state_label.trim().toLowerCase(),
+  );
+  const forcePvpCoverDetails = isPvpPvrDocument(item) && !forcePvpSelectDocument;
   const step = isSubmitForReview
     ? "generate"
     : isReturned
@@ -90,6 +113,8 @@ export function DocumentCard({ item, onDelete, onCancel }: {
     ? "cover-bom"
     : isPendingReview
     ? "review"
+    : forcePvpCoverDetails
+    ? "pvp-pvr/cover-details"
     : perms.can_edit
     ? resolvedStep
     : "review";
@@ -99,7 +124,7 @@ export function DocumentCard({ item, onDelete, onCancel }: {
   const defaultTarget = !isSubmitForReview && !isReturned && item.resume_step === "stage-input" && item.resume_stage_key
     ? `/documents/${encodeURIComponent(item.document_id || "new")}/stage-input?stage=${encodeURIComponent(item.resume_stage_key)}`
     : `/documents/${encodeURIComponent(item.document_id || "new")}/${step}${isSubmitForReview ? "?readyForReview=1" : ""}`;
-  const target = isSubmitForReview || isReturned || isFinalizable || isPendingReview || item.status === "rejected"
+  const target = forcePvpSelectDocument || forcePvpCoverDetails || isSubmitForReview || isReturned || isFinalizable || isPendingReview || item.status === "rejected"
     ? defaultTarget
     : remembered ?? defaultTarget;
 

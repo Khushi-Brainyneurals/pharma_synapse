@@ -14,6 +14,9 @@ import { ROUTES } from "./routing/routes";
 const DashboardPage = lazy(() => import("../features/dashboard/pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
 const CoreInputsPage = lazy(() => import("../features/document-workflows/bmr-bpr/inputs/pages/CoreInputsPage").then((m) => ({ default: m.CoreInputsPage })));
 const NewDocumentSelectorPage = lazy(() => import("../features/document-workflows/selection/pages/NewDocumentSelectorPage").then((m) => ({ default: m.NewDocumentSelectorPage })));
+const PvpSelectDocumentPage = lazy(() => import("../features/document-workflows/pvp-pvr/select-document/pages/SelectDocumentPage").then((m) => ({ default: m.SelectDocumentPage })));
+const PvpCoverDetailsPage = lazy(() => import("../features/document-workflows/pvp-pvr/cover-details/pages/PvpCoverDetailsPage").then((m) => ({ default: m.PvpCoverDetailsPage })));
+const PvpProcessBomPage = lazy(() => import("../features/document-workflows/pvp-pvr/process-bom/pages/PvpProcessBomPage").then((m) => ({ default: m.PvpProcessBomPage })));
 const CoverBomPage = lazy(() => import("../features/document-workflows/bmr-bpr/bom/pages/CoverBomPage").then((m) => ({ default: m.CoverBomPage })));
 const CompanyInfoPage = lazy(() => import("../features/company/pages/CompanyInfoPage").then((m) => ({ default: m.CompanyInfoPage })));
 const MasterDataPage = lazy(() => import("../features/master-data/pages/MasterDataPage").then((m) => ({ default: m.MasterDataPage })));
@@ -84,6 +87,9 @@ export function App() {
           <Route path="/" element={<LazyPage><DashboardPage /></LazyPage>} />
           <Route path={ROUTES.newDocument} element={<LazyPage><NewDocumentSelectorPage /></LazyPage>} />
           <Route path={ROUTES.documentInputs} element={<LazyPage><CoreInputsPage /></LazyPage>} />
+          <Route path="/documents/:documentId/pvp-pvr/select-document" element={<LazyPage><PvpSelectDocumentPage /></LazyPage>} />
+          <Route path="/documents/:documentId/pvp-pvr/cover-details" element={<LazyPage><PvpCoverDetailsPage /></LazyPage>} />
+          <Route path="/documents/:documentId/pvp-pvr/process-bom" element={<LazyPage><PvpProcessBomPage /></LazyPage>} />
           <Route path={ROUTES.documentPreview} element={<LegacyPreviewRedirect />} />
           <Route path={ROUTES.documentCoverBom} element={<LazyPage><CoverBomPage /></LazyPage>} />
           <Route path={ROUTES.documentStages} element={<LazyPage><SelectStagesPage /></LazyPage>} />

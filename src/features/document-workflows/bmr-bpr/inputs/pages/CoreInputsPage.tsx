@@ -20,7 +20,6 @@ import { getApiErrorMessage } from "../../../../../shared/api/apiError";
 import { useAuthStore } from "../../../../auth/state/auth.store";
 import {
   getCoreInputs,
-  getPvpSourceRecords,
   getSourceSlots,
   setCoreInputs,
 } from "../../../selection/api/documents.api";
@@ -32,7 +31,6 @@ import type {
   SourceSlot,
   SourceSlotsResponse,
   SetCoreInputsResponse,
-  PvpSourceRecord,
 } from "../../../selection/api/documents.types";
 import { AppHeader } from "../../../../../app/layout/AppHeader";
 import { AppSidebar } from "../../../../../app/layout/AppSidebar";
@@ -42,7 +40,7 @@ import { useDocument } from "../../../selection/hooks/useDocument";
 import { useDocumentSelectorData } from "../../../selection/hooks/useDocumentSelectorData";
 import { useStepNavigation } from "../../../selection/hooks/useStepNavigation";
 import { DOCUMENT_SELECTOR_STEPS } from "../../../selection/model/documentSelector.config";
-import { FileUploadCard, type FileUploadStatus } from "../components/FileUploadCard";
+import { FileUploadCard, type FileUploadStatus } from "../../../shared/components/FileUploadCard";
 import {
   clearCoreInputsDraft,
   loadCoreInputsDraft,
@@ -52,7 +50,6 @@ import {
 
 type CoreInputsLocationState = {
   document?: CreateBmrDocumentResponse;
-  pvpMode?: string | null;
 };
 
 type FileField = string;
@@ -61,8 +58,6 @@ interface CoreInputsFormState {
   batchSize: string;
   batchType: BatchType | "";
   commercialMode: CommercialMode | "";
-  sourceDocumentId: string;
-  buAvailable: boolean | null;
 }
 
 type CoreInputsErrors = Partial<Record<string, string>>;
@@ -74,7 +69,6 @@ interface SourceUploadField {
   accept: string[];
   maxBytes: number;
   isRepeatable: boolean;
-  requiredWhen?: { field: string; equals: string | number | boolean };
 }
 
 type FileAttachState = {
@@ -86,8 +80,6 @@ const INITIAL_FORM_STATE: CoreInputsFormState = {
   batchSize: "",
   batchType: "",
   commercialMode: "",
-  sourceDocumentId: "",
-  buAvailable: null,
 };
 
 const BATCH_TYPE_OPTIONS = [
@@ -110,7 +102,6 @@ export function CoreInputsPage() {
   const state = location.state as CoreInputsLocationState | null;
   const document = state?.document;
   const { document: saved } = useDocument(documentId);
-  const isPvp = (saved?.doc_type ?? document?.doc_type ?? "").toLowerCase() === "pvp";
   const { goToStep } = useStepNavigation(documentId);
   // Start from any autosaved draft (typed-but-not-submitted values from a previous
   // visit — they survive a reload or logout). Files can't be restored; text fields can.
@@ -123,10 +114,6 @@ export function CoreInputsPage() {
   const [sourceSlotsError, setSourceSlotsError] = useState<string | null>(null);
   const [sourceSlotsRequest, setSourceSlotsRequest] = useState(0);
   const [storedCoreInputs, setStoredCoreInputs] = useState<CoreInputsResponse | null>(null);
-  const pvpMode = storedPvpMode(state?.pvpMode, storedCoreInputs?.pvp_mode, saved?.pvp_mode);
-  const [pvpSourceRecords, setPvpSourceRecords] = useState<PvpSourceRecord[]>([]);
-  const [pvpSourceError, setPvpSourceError] = useState<string | null>(null);
-  const [isLoadingPvpSources, setIsLoadingPvpSources] = useState(false);
   const [isLoadingCoreInputs, setIsLoadingCoreInputs] = useState(Boolean(documentId));
   const [coreInputsLoadError, setCoreInputsLoadError] = useState<string | null>(null);
   const [coreInputsRequest, setCoreInputsRequest] = useState(0);
@@ -167,29 +154,8 @@ export function CoreInputsPage() {
       commercialMode:
         current.commercialMode ||
         ((storedCoreInputs.commercial_mode as CommercialMode) ?? ""),
-      sourceDocumentId: current.sourceDocumentId || storedCoreInputs.source_document_id || "",
-      buAvailable: current.buAvailable ?? storedCoreInputs.bu_available ?? null,
     }));
   }, [storedCoreInputs]);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!isPvp || !pvpMode) {
-      setPvpSourceRecords([]);
-      setPvpSourceError(null);
-      setIsLoadingPvpSources(false);
-      return () => { cancelled = true; };
-    }
-    setIsLoadingPvpSources(true);
-    setPvpSourceError(null);
-    void getPvpSourceRecords(pvpMode)
-      .then((records) => { if (!cancelled) setPvpSourceRecords(records); })
-      .catch((error) => {
-        if (!cancelled) setPvpSourceError(getApiErrorMessage(error, "Unable to load source BMR/BPR records."));
-      })
-      .finally(() => { if (!cancelled) setIsLoadingPvpSources(false); });
-    return () => { cancelled = true; };
-  }, [isPvp, pvpMode]);
 
   // Autosave the typed values so leaving the flow (or logging out) doesn't lose them.
   // Stops once submitted — at that point the data lives on the server and the draft is
@@ -307,17 +273,15 @@ export function CoreInputsPage() {
   }, []);
 
   const sourceFields = useMemo(
-    () => expandSourceSlots(sourceSlots, { bu_available: form.buAvailable }),
-    [form.buAvailable, sourceSlots],
+    () => expandSourceSlots(sourceSlots, { batch_type: form.batchType, commercial_mode: form.commercialMode }),
+    [form.batchType, form.commercialMode, sourceSlots],
   );
-  const visibleSourceFields = sourceFields.filter((field) =>
-    !(isPvp && field.requiredWhen?.field === "bu_available" && form.buAvailable === true),
-  );
+  const visibleSourceFields = sourceFields;
   const regularSourceFields = visibleSourceFields.filter((field) => !field.isRepeatable);
   const repeatableSourceFields = visibleSourceFields.filter((field) => field.isRepeatable);
   const errors = useMemo(
-    () => validateCoreInputs(form, documentId, fileIssues, savedFiles, sourceFiles, sourceFields, isPvp, sourceSlots),
-    [documentId, fileIssues, form, isPvp, savedFiles, sourceFields, sourceFiles, sourceSlots],
+    () => validateCoreInputs(form, documentId, fileIssues, savedFiles, sourceFiles, sourceFields),
+    [documentId, fileIssues, form, savedFiles, sourceFields, sourceFiles],
   );
   const hasUploadingFile = Object.values(fileAttachState).some(
     (stateValue) => stateValue?.status === "uploading",
@@ -327,7 +291,6 @@ export function CoreInputsPage() {
   const canSubmit =
     Boolean(sourceSlots) &&
     !isLoadingSourceSlots &&
-    (!isPvp || (!isLoadingPvpSources && !pvpSourceError)) &&
     !isLoadingCoreInputs &&
     !sourceSlotsError &&
     !coreInputsLoadError &&
@@ -343,8 +306,6 @@ export function CoreInputsPage() {
     isLoadingCoreInputs,
     coreInputsLoadError,
     sourceFields,
-    isPvp ? isLoadingPvpSources : false,
-    isPvp ? pvpSourceError : null,
   );
 
   function setFile(field: FileField, file: File | null) {
@@ -425,14 +386,11 @@ export function CoreInputsPage() {
       savedFiles,
       sourceFiles,
       sourceFields,
-      isPvp,
-      sourceSlots,
     );
     if (
       !sourceSlots ||
       sourceSlotsError ||
       Object.keys(nextErrors).length > 0 ||
-      (isPvp && (isLoadingPvpSources || Boolean(pvpSourceError))) ||
       hasUploadingFile ||
       submitInFlightRef.current
     ) {
@@ -442,7 +400,7 @@ export function CoreInputsPage() {
     const batchType = form.batchType;
     const batchSize = parseWholeNumber(form.batchSize);
 
-    if (!isPvp && (!batchType || batchSize === null)) {
+    if (!batchType || batchSize === null) {
       return;
     }
 
@@ -454,13 +412,9 @@ export function CoreInputsPage() {
         documentId,
         sourceFiles,
         multipartFields: sourceSlots.multipart_fields,
-        ...(isPvp
-          ? { pvp: true, sourceDocumentId: form.sourceDocumentId, buAvailable: form.buAvailable ?? undefined }
-          : {
-              batchSize: batchSize ?? undefined,
-              batchType: batchType || undefined,
-              commercialMode: batchType === "commercial" ? form.commercialMode : "",
-            }),
+        batchSize: batchSize ?? undefined,
+        batchType: batchType || undefined,
+        commercialMode: batchType === "commercial" ? form.commercialMode : "",
         addressId: storedCoreInputs?.address_id,
         user: user?.username ?? user?.id,
       });
@@ -497,11 +451,11 @@ export function CoreInputsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-text">
+    <div className="flex min-h-screen flex-col bg-background text-text lg:fixed lg:inset-0 lg:h-dvh lg:min-h-0 lg:overflow-hidden">
       <AppHeader user={user} unit={context?.unit ?? null} isLoadingUnit={isLoadingContext} />
-      <div className="lg:grid lg:h-[calc(100vh-var(--topbar-h))] lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden lg:grid lg:grid-rows-[minmax(0,1fr)] lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden">
         <AppSidebar user={user} />
-        <main className="min-w-0 px-4 py-6 sm:px-6 lg:h-full lg:overflow-y-auto lg:px-8">
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 sm:px-6 lg:h-full lg:px-8">
           <section className="mx-auto rounded-panel border border-border bg-surface shadow-sm">
             <div className="p-5 sm:p-6">
               <DocumentStepper
@@ -605,34 +559,6 @@ export function CoreInputsPage() {
                     </div>
                   ) : (
                     <>
-                      {isPvp ? (
-                        <PvpReferenceInputs
-                          slots={sourceSlots?.slots ?? []}
-                          records={pvpSourceRecords}
-                          sourceDocumentId={form.sourceDocumentId}
-                          sourceDocType={storedCoreInputs?.source_doc_type ?? ""}
-                          buAvailable={form.buAvailable}
-                          errors={visibleErrors}
-                          disabled={isSubmitting || Boolean(success)}
-                          loading={isLoadingPvpSources}
-                          loadError={pvpSourceError}
-                          onSourceDocumentChange={(value) => {
-                            setForm((current) => ({ ...current, sourceDocumentId: value }));
-                            setFileTouched((current) => ({ ...current, source_document_id: true }));
-                            setApiError(null);
-                          }}
-                          onBuAvailableChange={(value) => {
-                            setForm((current) => ({ ...current, buAvailable: value }));
-                            if (value) {
-                              setSourceFiles((current) => ({ ...current, bu: null }));
-                              setFileIssues((current) => ({ ...current, bu: undefined }));
-                              setFileAttachState((current) => ({ ...current, bu: { status: "idle", progress: 0 } }));
-                            }
-                            setFileTouched((current) => ({ ...current, bu_available: true }));
-                            setApiError(null);
-                          }}
-                        />
-                      ) : null}
                       {regularSourceFields.map((sourceField) => (
                         <SourceFileUpload
                           key={sourceField.field}
@@ -658,7 +584,7 @@ export function CoreInputsPage() {
                     </>
                   )}
 
-                  {!isPvp ? <TextField
+                  <TextField
                     id="batch-size"
                     label="Batch size"
                     value={form.batchSize}
@@ -669,9 +595,9 @@ export function CoreInputsPage() {
                     helper="Everything scales to this in numbers."
                     onBlur={() => setTouched((current) => ({ ...current, batchSize: true }))}
                     onChange={handleBatchSizeChange}   // ← changed
-                  /> : null}
+                  />
 
-                  {!isPvp ? <SelectField
+                  <SelectField
                     id="batch-type"
                     label="Batch type"
                     value={form.batchType}
@@ -683,9 +609,9 @@ export function CoreInputsPage() {
                     helper="Sample values - list is per-client configuration."
                     onBlur={() => setTouched((current) => ({ ...current, batchType: true }))}
                     onChange={handleFieldChange("batchType")}
-                  /> : null}
+                  />
 
-                  {!isPvp && form.batchType === "commercial" ? (
+                  {form.batchType === "commercial" ? (
                     <SelectField
                       id="commercial-mode"
                       label="Commercial mode"
@@ -703,7 +629,7 @@ export function CoreInputsPage() {
                     />
                   ) : null}
 
-                  {!isPvp && batchSizeWarning ? (
+                  {batchSizeWarning ? (
                     <StatusBanner tone="warning" title="Batch size check" message={batchSizeWarning} />
                   ) : null}
                 </div>
@@ -783,89 +709,6 @@ function SourceFileUpload({
       onChange={onChange}
     />
   );
-}
-
-function PvpReferenceInputs({
-  slots,
-  records,
-  sourceDocumentId,
-  sourceDocType,
-  buAvailable,
-  errors,
-  disabled,
-  loading,
-  loadError,
-  onSourceDocumentChange,
-  onBuAvailableChange,
-}: {
-  slots: SourceSlot[];
-  records: PvpSourceRecord[];
-  sourceDocumentId: string;
-  sourceDocType: string;
-  buAvailable: boolean | null;
-  errors: CoreInputsErrors;
-  disabled: boolean;
-  loading: boolean;
-  loadError: string | null;
-  onSourceDocumentChange: (value: string) => void;
-  onBuAvailableChange: (value: boolean | null) => void;
-}) {
-  return <>
-    {slots.filter((slot) => slot.input === "document_reference").map((slot) => (
-      <div className="space-y-2" key={"field" in slot ? slot.field : slot.kind}>
-        <label className="block text-sm font-semibold text-text" htmlFor="source-document-id">
-          {slot.label}{slot.required ? <span className="ml-1 text-danger">*</span> : null}
-        </label>
-        <select
-          id="source-document-id"
-          value={sourceDocumentId}
-          disabled={disabled || loading}
-          aria-invalid={Boolean(errors.source_document_id)}
-          onBlur={() => {}}
-          onChange={(event) => onSourceDocumentChange(event.target.value)}
-          className={`min-h-10 w-full rounded-control border bg-surface px-3 py-2 text-sm text-text shadow-sm ${errors.source_document_id ? "border-danger" : "border-border"}`}
-        >
-          <option value="">{loading ? "Loading source documents..." : "Select a source BMR or BPR..."}</option>
-          {sourceDocumentId && !records.some((record) => String(record.job_id) === sourceDocumentId) ? (
-            <option value={sourceDocumentId}>{`${sourceDocType ? `${sourceDocType.toUpperCase()} · ` : "Saved source · "}${sourceDocumentId}`}</option>
-          ) : null}
-          {records.filter((record) => !slot.allowed_doc_types?.length || slot.allowed_doc_types.includes(String(record.source_doc_type ?? record.doc_type ?? "").toLowerCase())).map((record) => (
-            <option key={record.job_id} value={record.job_id}>{formatPvpSourceLabel(record)}</option>
-          ))}
-        </select>
-        {loadError ? <p className="text-small text-danger-ink">{loadError}</p> : null}
-        {errors.source_document_id ? <p className="text-small text-danger-ink">{errors.source_document_id}</p> : null}
-      </div>
-    ))}
-    {slots.filter((slot) => slot.input === "boolean").map((slot) => (
-      <div key={"field" in slot ? slot.field : slot.kind}>
-        <label className="block text-sm font-semibold text-text" htmlFor="bu-available">
-          {slot.label}{slot.required ? <span className="ml-1 text-danger">*</span> : null}
-        </label>
-        <select
-          id="bu-available"
-          value={buAvailable == null ? "" : String(buAvailable)}
-          disabled={disabled}
-          aria-invalid={Boolean(errors.bu_available)}
-          onChange={(event) => onBuAvailableChange(event.target.value === "" ? null : event.target.value === "true")}
-          className={`mt-2 min-h-10 w-full rounded-control border bg-surface px-3 py-2 text-sm text-text shadow-sm ${errors.bu_available ? "border-danger" : "border-border"}`}
-        >
-          <option value="">Select an option...</option>
-          <option value="true">Yes</option>
-          <option value="false">No</option>
-        </select>
-        {errors.bu_available ? <p className="mt-1 text-small text-danger-ink">{errors.bu_available}</p> : null}
-      </div>
-    ))}
-  </>;
-}
-
-function formatPvpSourceLabel(record: PvpSourceRecord) {
-  const title = record.document_no ?? record.bmr_number ?? record.draft_id ?? record.job_id;
-  const product = record.product_name ?? record.product;
-  const type = record.source_doc_type ?? record.doc_type;
-  return [title, product, type ? String(type).toUpperCase() : null, record.batch_size != null ? `Batch ${record.batch_size}` : null]
-    .filter(Boolean).join(" · ");
 }
 
 function OptionalDocuments({
@@ -1061,8 +904,6 @@ function toDraft(form: CoreInputsFormState): CoreInputsDraft {
     batchSize: form.batchSize,
     batchType: form.batchType,
     commercialMode: form.commercialMode,
-    sourceDocumentId: form.sourceDocumentId,
-    buAvailable: form.buAvailable,
   };
 }
 
@@ -1076,8 +917,6 @@ function mergeDraft(base: CoreInputsFormState, draft: CoreInputsDraft | null): C
     batchSize: draft.batchSize,
     batchType: draft.batchType as BatchType | "",
     commercialMode: draft.commercialMode as CommercialMode | "",
-    sourceDocumentId: draft.sourceDocumentId ?? "",
-    buAvailable: draft.buAvailable ?? null,
   };
 }
 
@@ -1088,8 +927,6 @@ function validateCoreInputs(
   savedFiles: Map<string, string>,
   sourceFiles: Record<string, File | null>,
   sourceFields: SourceUploadField[],
-  isPvp = false,
-  sourceSlots: SourceSlotsResponse | null = null,
 ): CoreInputsErrors {
   const errors: CoreInputsErrors = {};
 
@@ -1098,10 +935,7 @@ function validateCoreInputs(
   }
 
   sourceFields.forEach((sourceField) => {
-    const conditionMet = sourceField.requiredWhen
-      ? formFieldValue(form, sourceField.requiredWhen.field) === sourceField.requiredWhen.equals
-      : false;
-    const required = sourceField.required || conditionMet;
+    const required = sourceField.required;
     if (fileIssues[sourceField.field]) {
       errors[sourceField.field] = fileIssues[sourceField.field];
     } else if (
@@ -1112,14 +946,6 @@ function validateCoreInputs(
       errors[sourceField.field] = `Attach ${sourceField.label}.`;
     }
   });
-
-  if (isPvp) {
-    const referenceRequired = findSlot(sourceSlots, "source_document_id")?.required ?? true;
-    const booleanRequired = findSlot(sourceSlots, "bu_available")?.required ?? true;
-    if (referenceRequired && !form.sourceDocumentId) errors.source_document_id = "Select a source BMR or BPR.";
-    if (booleanRequired && form.buAvailable == null) errors.bu_available = "Select whether the BU is already available.";
-    return errors;
-  }
 
   const batchSize = parseWholeNumber(form.batchSize);
   if (!form.batchSize.trim()) {
@@ -1237,15 +1063,10 @@ function getPrimaryDisabledReason(
   isLoadingCoreInputs: boolean,
   coreInputsLoadError: string | null,
   sourceFields: SourceUploadField[],
-  isLoadingPvpSources = false,
-  pvpSourceError: string | null = null,
 ) {
   if (isLoadingSourceSlots) {
     return "Loading source document requirements.";
   }
-
-  if (isLoadingPvpSources) return "Loading source BMR/BPR records.";
-  if (pvpSourceError) return "Source BMR/BPR records must load before you can continue.";
 
   if (sourceSlotsError) {
     return "Source document requirements must load before you can continue.";
@@ -1265,10 +1086,6 @@ function getPrimaryDisabledReason(
 
   if (errors.form) {
     return errors.form;
-  }
-
-  if (errors.source_document_id || errors.bu_available) {
-    return "Complete the required PVP fields to continue.";
   }
 
   const sourceFileWithError = sourceFields.find((field) => errors[field.field]);
@@ -1308,7 +1125,6 @@ function expandSourceSlots(
             accept: slot.accept ?? [],
             maxBytes: slot.max_bytes ?? Number.MAX_SAFE_INTEGER,
             isRepeatable: true,
-            requiredWhen: slot.required_when,
           });
         }
       }
@@ -1323,7 +1139,6 @@ function expandSourceSlots(
         accept: slot.accept ?? [],
         maxBytes: slot.max_bytes ?? Number.MAX_SAFE_INTEGER,
         isRepeatable: false,
-        requiredWhen: slot.required_when,
       });
     }
   });
@@ -1346,21 +1161,3 @@ function requiredWhenMatches(
   return Boolean(condition) && values[condition!.field] === condition!.equals;
 }
 
-function findSlot(response: SourceSlotsResponse | null, field: string) {
-  return response?.slots.find((slot) => "field" in slot && slot.field === field);
-}
-
-function formFieldValue(form: CoreInputsFormState, field: string) {
-  if (field === "bu_available") return form.buAvailable;
-  if (field === "source_document_id") return form.sourceDocumentId;
-  return undefined;
-}
-
-function storedPvpMode(...values: Array<string | null | undefined>) {
-  const value = values.find((candidate) => Boolean(candidate?.trim()));
-  if (!value) return "";
-  const normalized = value.toLowerCase();
-  if (normalized.includes("pack")) return "packing";
-  if (normalized.includes("manufact")) return "manufacturing";
-  return value;
-}

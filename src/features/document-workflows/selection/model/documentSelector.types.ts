@@ -31,7 +31,6 @@ export interface SidebarItem {
 export interface DocumentSelectorConfig {
   dosageForms: DocumentOption[];
   documentTypes: DocumentOption[];
-  steps: DocumentStep[];
 }
 
 export interface DocumentSelectorState {

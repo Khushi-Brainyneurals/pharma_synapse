@@ -24,6 +24,39 @@ export const DOCUMENT_SELECTOR_STEPS: DocumentStep[] = [
   { id: "generate-submit", label: "Generate & submit" },
 ];
 
+export const PVP_PVR_DOCUMENT_STEPS: DocumentStep[] = [
+  { id: "type", label: "Type" },
+  { id: "select-document", label: "Select document" },
+  { id: "cover-details", label: "Cover & basic details" },
+  { id: "process-bom", label: "Process flow & BOM" },
+  { id: "cpp-cqa", label: "CPP + CQA" },
+  { id: "procedure-sampling", label: "Procedure & sampling plan" },
+  { id: "generate-submit", label: "Generate & submit" },
+];
+
+/** Pick the document workflow after the user's document type is known. */
+export function getDocumentWorkflowSteps(docType?: string | null): DocumentStep[] {
+  const normalized = docType?.trim().toLowerCase().replace(/[_\s]+/g, "-");
+  return normalized === "pvp" || normalized === "pvr" || normalized === "pvp-pvr"
+    ? PVP_PVR_DOCUMENT_STEPS
+    : DOCUMENT_SELECTOR_STEPS;
+}
+
+/** Convert shared page route IDs to the matching label in the PVP/PVR workflow. */
+export function getWorkflowStepId(stepId: string, docType?: string | null): string {
+  if (getDocumentWorkflowSteps(docType) !== PVP_PVR_DOCUMENT_STEPS) {
+    return stepId;
+  }
+
+  const pvpStepIds: Record<string, string> = {
+    inputs: "select-document",
+    "cover-bom": "process-bom",
+    stages: "cpp-cqa",
+    "stage-input": "procedure-sampling",
+  };
+  return pvpStepIds[stepId] ?? stepId;
+}
+
 export const DOSAGE_FORM_OPTIONS: DocumentOption[] = [
   {
     id: "tablet",

@@ -18,8 +18,6 @@ export interface CoreInputsDraft {
   batchSize: string;
   batchType: string;
   commercialMode: string;
-  sourceDocumentId?: string;
-  buAvailable?: boolean | null;
 }
 
 const KEY_PREFIX = "bmr.client.coreInputs.draft.";
@@ -55,8 +53,6 @@ export function loadCoreInputsDraft(documentId: string): CoreInputsDraft | null 
       batchSize: parsed.batchSize ?? "",
       batchType: parsed.batchType ?? "",
       commercialMode: parsed.commercialMode ?? "",
-      sourceDocumentId: parsed.sourceDocumentId ?? "",
-      buAvailable: parsed.buAvailable ?? null,
     };
   } catch {
     window.localStorage.removeItem(keyFor(documentId));

@@ -70,7 +70,7 @@ export interface SetCoreInputsPayload {
   commercialMode?: CommercialMode | "";
   sourceDocumentId?: string;
   buAvailable?: boolean;
-  /** PVP submits only the backend driven source fields; BMR/BPR retain their old fields. */
+  /** PVP sends its selected source and BU value; batch size may be derived from that source. */
   pvp?: boolean;
   addressId?: number | null;
   user?: string;
@@ -97,6 +97,8 @@ export interface PvpSourceRecord {
   draft_id?: string;
   product_name?: string;
   product?: string;
+  product_code?: string;
+  version?: string;
   batch_size?: number | string;
   status?: string;
   [key: string]: unknown;

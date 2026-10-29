@@ -2,7 +2,6 @@ import type { AuthenticatedUser } from "../../../auth/api/auth.types";
 import { FileText } from "lucide-react";
 import { getOptions } from "../api/document.api";
 import {
-  DOCUMENT_SELECTOR_STEPS,
   DOCUMENT_TYPE_OPTIONS,
   DOSAGE_FORM_OPTIONS,
 } from "../model/documentSelector.config";
@@ -33,7 +32,6 @@ export async function loadDocumentSelectorContext(
     config: {
       dosageForms,
       documentTypes: scenario === "empty-config" ? [] : documentTypes,
-      steps: DOCUMENT_SELECTOR_STEPS,
     },
   };
 }

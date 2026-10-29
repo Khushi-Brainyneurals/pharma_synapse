@@ -43,9 +43,13 @@ export async function getCoreInputs(documentId: string): Promise<CoreInputsRespo
   }
 }
 
-export async function getPvpSourceRecords(mode: string): Promise<PvpSourceRecord[]> {
+export async function getPvpSourceRecords(
+  mode: string,
+  query?: string,
+  documentId?: string,
+): Promise<PvpSourceRecord[]> {
   const response = await httpClient.get<unknown>("/api/documents/pvp-source-records", {
-    params: { mode },
+    params: { mode, ...(query?.trim() ? { query: query.trim() } : {}), ...(documentId ? { document_id: documentId } : {}) },
   });
   const data = response.data;
   if (Array.isArray(data)) return data as PvpSourceRecord[];
@@ -55,6 +59,14 @@ export async function getPvpSourceRecords(mode: string): Promise<PvpSourceRecord
     if (Array.isArray(records)) return records as PvpSourceRecord[];
   }
   return [];
+}
+
+export function normalizePvpSourceMode(value?: string | null): "manufacturing" | "packing" | "" {
+  const normalized = value?.trim().toLowerCase() ?? "";
+  if (normalized.includes("pack")) return "packing";
+  if (normalized.includes("manufact") || normalized === "bmr") return "manufacturing";
+  if (normalized === "bpr") return "packing";
+  return "";
 }
 
 export async function setCoreInputs(
@@ -71,11 +83,15 @@ export async function setCoreInputs(
     }
   });
 
+  if (payload.batchSize != null) {
+    formData.append("batch_size", String(payload.batchSize));
+  }
+
   if (payload.pvp) {
     if (payload.sourceDocumentId) formData.append("source_document_id", payload.sourceDocumentId);
     if (payload.buAvailable != null) formData.append("bu_available", String(payload.buAvailable));
   } else {
-    formData.append("batch_size", String(payload.batchSize));
+    if (payload.batchSize == null) formData.append("batch_size", "");
     formData.append("batch_type", payload.batchType ?? "");
 
     if (payload.batchType === "commercial" && payload.commercialMode) {

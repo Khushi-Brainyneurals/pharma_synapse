@@ -1,8 +1,8 @@
-import { FileText } from "lucide-react";
+import { FileText, TriangleAlert } from "lucide-react";
 import type { KeyboardEvent } from "react";
 import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getDocumentInputsRoute, ROUTES } from "../../../../app/routing/routes";
+import { getDocumentInputsRoute, getDocumentSelectRoute, ROUTES } from "../../../../app/routing/routes";
 import { getApiErrorMessage } from "../../../../shared/api/apiError";
 import { LoadingSpinner } from "../../../../shared/ui/LoadingSpinner";
 import { USER_ROLE_LABELS, USER_ROLES } from "../../../auth/model/roles";
@@ -11,7 +11,6 @@ import { createBmrDocument } from "../api/documents.api";
 import { AppHeader } from "../../../../app/layout/AppHeader";
 import { AppSidebar } from "../../../../app/layout/AppSidebar";
 import { DocumentOptionCard } from "../components/DocumentOptionCard";
-import { DocumentStepper } from "../components/DocumentStepper";
 import { GuardPanel } from "../components/GuardPanel";
 import { SelectionSummary } from "../components/SelectionSummary";
 import { useDocumentSelectorData } from "../hooks/useDocumentSelectorData";
@@ -39,7 +38,7 @@ export function NewDocumentSelectorPage() {
   const selectedDocumentType = config?.documentTypes.find(
     (option) => option.id === selection.documentTypeId,
   );
-  const isPvp = selectedDocumentType?.backendValue === "pvp";
+  const isPvp = selectedDocumentType?.backendValue === "pvp" || selectedDocumentType?.backendValue === "pvr";
   const pvpSourceOptions = context?.pvpSourceOptions ?? [];
   const pvpSourceCardOptions: DocumentOption[] = pvpSourceOptions.map(
     ({ key, label, source_doc_type }) => ({
@@ -135,9 +134,10 @@ export function NewDocumentSelectorPage() {
       >
         {creationError ? (
           <div
-            className="rounded-control border border-danger/20 bg-danger-soft px-4 py-3 text-small font-medium text-danger-ink"
+            className="rounded-control border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-small font-medium text-amber-600"
             role="alert"
           >
+            <TriangleAlert className="mr-2 inline h-4 w-4" aria-hidden="true" />
             {creationError}
           </div>
         ) : null}
@@ -258,7 +258,7 @@ export function NewDocumentSelectorPage() {
             ) : creationError ? (
               "Retry"
             ) : (
-              "Continue to inputs"
+              isPvp ? "Continue to select document" : "Continue to inputs"
             )}
           </button>
         </div>
@@ -297,7 +297,10 @@ export function NewDocumentSelectorPage() {
     setSelection((current) => ({
       ...current,
       documentTypeId: optionId,
-      pvpSourceKey: option?.backendValue === "pvp" ? current.pvpSourceKey : null,
+      pvpSourceKey:
+        option?.backendValue === "pvp" || option?.backendValue === "pvr"
+          ? current.pvpSourceKey
+          : null,
     }));
   }
 
@@ -329,7 +332,7 @@ export function NewDocumentSelectorPage() {
         ...(isPvp ? { pvp_mode: selection.pvpSourceKey ?? "" } : {}),
       });
 
-      navigate(getDocumentInputsRoute(document.document_id), {
+      navigate(isPvp ? getDocumentSelectRoute(document.document_id) : getDocumentInputsRoute(document.document_id), {
         state: { document, pvpMode: selection.pvpSourceKey },
       });
     } catch (requestError) {
@@ -349,13 +352,7 @@ export function NewDocumentSelectorPage() {
         <AppSidebar user={user} />
         <main className="min-w-0 px-4 py-6 sm:px-6 lg:h-full lg:overflow-y-auto lg:px-8">
           <section className="rounded-panel border border-border bg-surface p-5 shadow-sm sm:p-6 shadow-auth">
-            {config ? (
-              <DocumentStepper steps={config.steps} activeStepId="type" />
-            ) : (
-              <div className="h-10 animate-pulse rounded-control bg-muted" aria-hidden="true" />
-            )}
-
-            <div className="mt-6 border-t border-border pt-6">
+            <div className="pt-1">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h2 className="text-h1 font-semibold">Start a new document</h2>
