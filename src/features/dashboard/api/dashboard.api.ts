@@ -38,7 +38,7 @@ export interface DashboardItem {
     can_finalize?: boolean;
   };
   created_at: string | null;
-  updated_at: string | null;
+  last_modified_at: string | null;
 }
 
 export interface DashboardCard {
@@ -111,7 +111,7 @@ function normalizeDashboardItem(raw: any): DashboardItem {
     note: raw.note ?? null,
     permissions,
     created_at: raw.created_at ?? null,
-    updated_at: raw.updated_at ?? raw.last_modified_at ?? null,
+    last_modified_at: raw.updated_at ?? raw.last_modified_at ?? null,
   };
 }
 

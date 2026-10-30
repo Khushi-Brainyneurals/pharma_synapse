@@ -56,14 +56,13 @@ export function resolveDocumentRoute(item: DashboardItem): string {
   if (label.includes("generate") || label.includes("submit")) return "generate";
   if (label.includes("review") || label.includes("approval")) return "review";
   if (label.includes("input") || label.includes("draft")) return "inputs";
-
   return "inputs";
 }
 
 function isPvpPvrCoreInputs(item: DashboardItem, candidate: string, stateLabel: string) {
   const documentType = (item.doc_type ?? "").trim().toLowerCase();
   const isPvpPvr = documentType.includes("pvp") || documentType.includes("pvr");
-  const isCoreInputs = ["inputs", "core_inputs", "core_input"].includes(candidate) ||
+  const isCoreInputs = ["inputs", "core_inputs", "core_input", "select-document"].includes(candidate) ||
     stateLabel === "core inputs continue" || stateLabel === "core inputs";
   return isPvpPvr && isCoreInputs;
 }
@@ -71,6 +70,19 @@ function isPvpPvrCoreInputs(item: DashboardItem, candidate: string, stateLabel: 
 function isPvpPvrDocument(item: DashboardItem) {
   const documentType = (item.doc_type ?? "").trim().toLowerCase();
   return documentType.includes("pvp") || documentType.includes("pvr");
+}
+
+function formatLastModified(value?: string | null): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString(undefined, {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export function DocumentCard({ item, onDelete, onCancel }: {
@@ -162,7 +174,12 @@ export function DocumentCard({ item, onDelete, onCancel }: {
       {item.is_overdue ? <p className="text-small text-danger">Overdue · {item.days_in_step} days in this step</p> : null}
       {item.pending_with ? <p className="text-small text-subdued">Pending with {item.pending_with}</p> : null}
       {item.note ? <p className="text-small text-subdued">{item.note}</p> : null}
-      <div className="mt-auto flex flex-wrap justify-end gap-3 border-t border-border pt-3">
+      <div className="mt-auto flex flex-wrap justify-between gap-3 border-t border-border pt-3">
+        {item.last_modified_at ? (
+          <span className="text-micro text-subdued self-end pb-0.5" title="Last modified">
+            {formatLastModified(item.last_modified_at)}
+          </span>
+        ) : <span />}
         <Link className="inline-flex items-center text-small font-semibold h-8 px-3 border border-primary text-primary-dark rounded-control hover:bg-primary-dark hover:text-white transition" to={target} state={{ dashboardPermissions: item.permissions }}>
           {action}
         </Link>

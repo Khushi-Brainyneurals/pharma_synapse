@@ -1,11 +1,13 @@
 import { AlertCircle, Loader2, Plus, Trash2 } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getApiErrorMessage } from "../../../shared/api/apiError";
 import { useAuthStore } from "../../auth/state/auth.store";
+import { DocumentViewer } from "../../../shared/document/DocumentViewer";
 import { AppHeader } from "../../../app/layout/AppHeader";
 import { AppSidebar } from "../../../app/layout/AppSidebar";
-import { FullDocumentBody } from "../../document-workflows/bmr-bpr/bom/components/FullDocumentBody";
+import { DocxViewer } from "../../document-workflows/shared/components/DocxViewer";
+import { getDocumentPdf } from "../../document-workflows/bmr-bpr/generate/api/generate.api";
 import { finalizeDocument, getReviewPageData, type FinalizeAttachment, type ReviewPageData } from "../api/review.api";
 
 export function DocumentFinalizePage() {
@@ -13,6 +15,10 @@ export function DocumentFinalizePage() {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const [pageData, setPageData] = useState<ReviewPageData | null>(null);
+  const [previewBlob, setPreviewBlob] = useState<Blob | null>(null);
+  const [isPreviewDocx, setIsPreviewDocx] = useState(true);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(true);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [productCode, setProductCode] = useState("");
   const [documentNo, setDocumentNo] = useState("");
@@ -33,6 +39,40 @@ export function DocumentFinalizePage() {
       .finally(() => { if (active) setIsLoading(false); });
     return () => { active = false; };
   }, [documentId]);
+
+  useEffect(() => {
+    let active = true;
+    setPreviewBlob(null);
+    setPreviewError(null);
+    setIsPreviewLoading(true);
+
+    void getDocumentPdf(documentId)
+      .then(async (blob) => {
+        if (!active) return;
+        const signature = new Uint8Array(await blob.slice(0, 5).arrayBuffer());
+        if (!active) return;
+        const isPdf = String.fromCharCode(...signature) === "%PDF-";
+        setIsPreviewDocx(!isPdf);
+        setPreviewBlob(blob);
+      })
+      .catch((caught) => {
+        if (active) {
+          setPreviewError(getApiErrorMessage(caught, "Could not load the document preview."));
+        }
+      })
+      .finally(() => {
+        if (active) setIsPreviewLoading(false);
+      });
+
+    return () => { active = false; };
+  }, [documentId]);
+
+  const previewFile = useMemo(
+    () => previewBlob
+      ? { blob: previewBlob, filename: `${pageData?.document.bmr_number ?? documentId}.docx`, format: "docx" as const }
+      : null,
+    [documentId, pageData?.document.bmr_number, previewBlob],
+  );
 
   const canFinalize = user?.role === "preparer" && pageData?.document.status === "approved_for_print";
 
@@ -96,26 +136,33 @@ export function DocumentFinalizePage() {
               </div>
             ) : (
               <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_420px]">
-                <section className="min-w-0 space-y-3 rounded-panel border border-border bg-surface p-4">
-                  <div>
-                    <h2 className="text-small font-semibold">Document preview</h2>
-                  </div>
-                  {pageData?.bom && pageData.bom.ingredients.length > 0 ? (
-                    <div className="max-h-[calc(100vh-230px)] overflow-y-auto rounded-control border border-border bg-white p-4">
-                      <FullDocumentBody bom={pageData.bom} headerInches={pageData.document.header_footer_size ?? 0.5} />
-                    </div>
+                  {previewFile ? (
+                    isPreviewDocx ? (
+                      <DocxViewer
+                        file={previewFile}
+                        containerHeightClass="h-[calc(100vh-300px)] min-h-[420px]"
+                      />
+                    ) : (
+                      <DocumentViewer
+                        docKey={documentId}
+                        load={() => Promise.resolve(previewFile.blob)}
+                        fileName={previewFile.filename.replace(/\.docx$/, ".pdf")}
+                        loadingLabel="Loading document preview…"
+                        errorTitle="Could not load the document preview"
+                      />
+                    )
                   ) : (
                     <div className="rounded-control border border-border bg-sunken/40 p-10 text-center text-small text-subdued">
-                      The document preview is not available.
+                      {isPreviewLoading
+                        ? "Loading document preview…"
+                        : previewError ?? "The document preview is not available."}
                     </div>
                   )}
-                </section>
-
               <form onSubmit={(event) => void submit(event)} className="space-y-5 rounded-panel border border-border bg-surface p-5 text-subdued">
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Product code" value={productCode} onChange={setProductCode} required />
-                  <Field label="Document number" value={documentNo} onChange={setDocumentNo} required />
-                  <Field label="BMR number" value={bmrNo} onChange={setBmrNo} required />
+                  <Field label="Product code" value={productCode} onChange={setProductCode} />
+                  <Field label="Document number" value={documentNo} onChange={setDocumentNo} />
+                  <Field label="BMR number" value={bmrNo} onChange={setBmrNo} />
                   <Field label="BPR number" value={bprNo} onChange={setBprNo} />
                   <Field label="CCN number" value={ccnNo} onChange={setCcnNo} />
                   <label className="flex flex-col gap-1.5 text-small font-medium">

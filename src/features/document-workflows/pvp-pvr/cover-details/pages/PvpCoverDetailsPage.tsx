@@ -239,8 +239,8 @@ export function PvpCoverDetailsPage() {
           lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden"
       >
         <AppSidebar user={user} />
-        <main className="min-w-0 lg:h-full lg:overflow-y-auto">
-          <section className="mx-auto bg-surface shadow-sm">
+        <main className="min-w-0 lg:flex lg:h-full lg:flex-col lg:overflow-y-auto">
+          <section className="mx-auto flex w-full flex-1 flex-col bg-surface shadow-sm lg:min-h-full">
             <div className="px-4 py-4 sm:px-6 lg:px-8">
               <DocumentStepper
                 steps={PVP_PVR_DOCUMENT_STEPS}
@@ -253,7 +253,7 @@ export function PvpCoverDetailsPage() {
               docType={document?.doc_type}
               identifier={document?.bmr_number ?? document?.draft_id}
             />
-            <div>
+            <div className="flex flex-1 flex-col">
               <div className="flex flex-col items-start justify-between border-b border-border p-5 pb-5">
                 <p className="text-micro font-semibold uppercase tracking-overline text-primary">
                   Step 3 of 7
@@ -286,7 +286,7 @@ export function PvpCoverDetailsPage() {
               </div>
 
               {tab === "cover" ? (
-                <div role="tabpanel" className="space-y-4 bg-muted/50">
+                <div role="tabpanel" className="space-y-4 bg-muted/50 px-4 py-5 sm:px-6 lg:px-8">
                   {coverError ? (
                     <Alert
                       message={coverError}
@@ -395,7 +395,7 @@ export function PvpCoverDetailsPage() {
               )}
 
               <div
-                className="sticky bottom-0 z-10 flex flex-col-reverse gap-3 border-t border-border
+                className="sticky bottom-0 z-10 mt-auto flex flex-col-reverse gap-3 border-t border-border
                   bg-surface p-3.5 shadow-auth sm:flex-row sm:justify-between"
               >
                 <button
@@ -433,7 +433,7 @@ function CoverGenerationStatus({
 
   return (
     <div
-      className="m-6 rounded-panel border border-border bg-muted p-6"
+      className="rounded-panel border border-border bg-muted p-6"
       role="status"
     >
       <p className="font-semibold">

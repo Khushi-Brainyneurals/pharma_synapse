@@ -32,7 +32,7 @@ export function DocxViewer({
   const [retryKey, setRetryKey] = useState(0);
 
   const [internalZoom, setInternalZoom] = useState(1);
-  const [fitWidth, setFitWidth] = useState(false);
+  const [fitWidth, setFitWidth] = useState(true);
   const [containerWidth, setContainerWidth] = useState(0);
 
   // Measure container width for fit-to-width

@@ -8,13 +8,14 @@ import {
   MessageSquarePlus,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { getApiErrorMessage } from "../../../shared/api/apiError";
 import { useAuthStore } from "../../auth/state/auth.store";
 import type { BomResponse } from "../../document-workflows/bmr-bpr/bom/api/bom.types";
-import { FullDocumentBody } from "../../document-workflows/bmr-bpr/bom/components/FullDocumentBody";
-import { downloadDocument } from "../../document-workflows/bmr-bpr/generate/api/generate.api";
+import { DocumentViewer } from "../../../shared/document/DocumentViewer";
+import { DocxViewer } from "../../document-workflows/shared/components/DocxViewer";
+import { downloadDocument, getDocumentPdf } from "../../document-workflows/bmr-bpr/generate/api/generate.api";
 import { AppHeader } from "../../../app/layout/AppHeader";
 import { AppSidebar } from "../../../app/layout/AppSidebar";
 import {
@@ -42,6 +43,10 @@ export function DocumentReviewPage() {
 
   const [state, setState] = useState<ReviewState | null>(null);
   const [bom, setBom] = useState<BomResponse | null>(null);
+  const [previewBlob, setPreviewBlob] = useState<Blob | null>(null);
+  const [isPreviewDocx, setIsPreviewDocx] = useState(true);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(true);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [documentState, setDocumentState] = useState<{ bmr_number: string | null; header_footer_size: number | null } | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +73,42 @@ export function DocumentReviewPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPreviewBlob(null);
+    setPreviewError(null);
+    setIsPreviewLoading(true);
+
+    void getDocumentPdf(documentId)
+      .then(async (blob) => {
+        if (cancelled) return;
+        const signature = new Uint8Array(await blob.slice(0, 5).arrayBuffer());
+        if (cancelled) return;
+        const isPdf = String.fromCharCode(...signature) === "%PDF-";
+        setIsPreviewDocx(!isPdf);
+        setPreviewBlob(blob);
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setPreviewError(getApiErrorMessage(caught, "Could not load the document preview."));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsPreviewLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [documentId]);
+
+  const previewFile = useMemo(
+    () => previewBlob
+      ? { blob: previewBlob, filename: `${documentState?.bmr_number ?? documentId}.docx`, format: "docx" as const }
+      : null,
+    [documentId, documentState?.bmr_number, previewBlob],
+  );
 
   const isApprover = user?.role === "approver";
   const isQaReviewer = user?.role === "reviewer_qa";
@@ -122,8 +163,6 @@ export function DocumentReviewPage() {
   // Do not duplicate the QA/PR approval gate in the client.
   const roleCanAct = Boolean(!terminalState && (isApprover || reviewerCanAct));
   const reasonRequired = confirming !== null && confirming !== "approved" && comments.length === 0;
-  const hasDoc = Boolean(bom && bom.ingredients.length > 0);
-
   return (
     <div className="min-h-screen bg-background text-text">
       <AppHeader user={user} unit={user?.unitId ? { id: user.unitId } : null} title="Review document" />
@@ -135,11 +174,11 @@ export function DocumentReviewPage() {
           <div className="mx-auto max-w-[1240px] space-y-4">
             <button
               type="button"
-              onClick={() => navigate("/queue")}
+              onClick={() => navigate("/dashboard")}
               className="inline-flex items-center gap-2 text-small font-semibold text-subdued transition hover:text-text"
             >
               <ArrowLeft className="size-4" aria-hidden="true" />
-              Back to queue
+              Back to Dashboard
             </button>
 
             {error ? (
@@ -158,7 +197,7 @@ export function DocumentReviewPage() {
               <>
                 <header className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h1 className="text-h1 font-semibold">{bom?.cover.product_name ?? "Document review"}</h1>
+                    <h1 className="text-h2 font-semibold">{bom?.cover.product_name ?? "Document review"}</h1>
                     <p className="mt-1 text-small text-subdued">
                       <Identifier>{documentState?.bmr_number ?? documentId.slice(0, 8)}</Identifier>
                       {" · prepared by "}
@@ -189,15 +228,28 @@ export function DocumentReviewPage() {
 
                 {/* Document (left) + review side panel (right). */}
                 <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-6">
-                  {/* The same page-7 document the preparer built. */}
+                  {/* The generated file returned by the full preview endpoint. */}
                   <section className="min-w-0">
-                    {hasDoc ? (
-                      <div className="space-y-4 outline-none">
-                        <FullDocumentBody bom={bom as BomResponse} headerInches={documentState?.header_footer_size ?? 0.5} />
-                      </div>
+                    {previewFile ? (
+                      isPreviewDocx ? (
+                        <DocxViewer
+                          file={previewFile}
+                          containerHeightClass="h-[calc(100vh-var(--topbar-h)-8rem)] min-h-[500px]"
+                        />
+                      ) : (
+                        <DocumentViewer
+                          docKey={documentId}
+                          load={() => Promise.resolve(previewFile.blob)}
+                          fileName={previewFile.filename.replace(/\.docx$/, ".pdf")}
+                          loadingLabel="Loading document preview…"
+                          errorTitle="Could not load the document preview"
+                        />
+                      )
                     ) : (
-                      <div className="rounded-panel border border-border bg-surface p-16 text-center text-small text-subdued">
-                        The document isn't available to preview yet.
+                      <div className="rounded-panel border border-border bg-surface p-16 text-center text-small text-subdued" role={previewError ? "alert" : "status"}>
+                        {isPreviewLoading
+                          ? "Loading document preview…"
+                          : previewError ?? "The document isn't available to preview yet."}
                       </div>
                     )}
                   </section>

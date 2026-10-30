@@ -26,6 +26,8 @@ import type { StageForm } from "../../stage-input/api/stageInputs.types";
 import { SchemaStagePanel } from "../../stage-input/components/SchemaStagePanel";
 import { schemaHasAssetInputs, validateSchema } from "../../stage-input/model/schemaForm";
 import { hasSharedParameterValues, repeatSharedParameterValues } from "../model/sharedParamRepeat";
+import { PvpCppCqaPage } from "../../../pvp-pvr/cpp-cqa/pages/PvpCppCqaPage";
+import type { DocumentDetail } from "../../../selection/api/document.types";
 
 interface StageUi {
   checked: boolean;
@@ -38,10 +40,27 @@ type StageValues = Record<string, Record<string, unknown>>;
 
 export function SelectStagesPage() {
   const { documentId = "" } = useParams();
+  const { document, isLoading } = useDocument(documentId);
+
+  if (document && isPvpPvrDocument(document.doc_type)) {
+    return <PvpCppCqaPage documentId={documentId} document={document} />;
+  }
+
+  return <BmrSelectStagesPage documentId={documentId} document={document} isLoading={isLoading} />;
+}
+
+function BmrSelectStagesPage({
+  documentId,
+  document,
+  isLoading,
+}: {
+  documentId: string;
+  document: DocumentDetail | null;
+  isLoading: boolean;
+}) {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const { goToStep } = useStepNavigation(documentId);
-  const { document, isLoading } = useDocument(documentId);
 
   const [options, setOptions] = useState<StageOption[]>([]);
   const [forms, setForms] = useState<Record<string, StageForm>>({});
@@ -376,6 +395,11 @@ return (
       </div>
     </div>
   );
+}
+
+function isPvpPvrDocument(docType?: string | null): boolean {
+  const normalized = docType?.trim().toLowerCase().replace(/[_\s]+/g, "-");
+  return normalized === "pvp" || normalized === "pvr" || normalized === "pvp-pvr";
 }
 
 function StageRow({

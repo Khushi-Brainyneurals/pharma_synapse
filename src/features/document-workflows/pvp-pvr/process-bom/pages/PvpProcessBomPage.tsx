@@ -265,7 +265,7 @@ function BomTable({ rows, columns }: { rows: PvpBomRow[]; columns: string[] }) {
       </header>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-small">
-          <thead><tr className="text-left text-micro uppercase tracking-overline text-subdued">{columns.map((column) => <th key={column} className={`border border-border bg-muted px-3 py-2.5 font-semibold ${isNumericColumn(column) ? "text-right" : ""}`}>{columnLabel(column)}</th>)}</tr></thead>
+          <thead><tr className="text-left text-micro uppercase tracking-overline text-subdued">{columns.map((column) => <th key={column} className={`border border-border bg-surface px-3 py-2.5 font-semibold ${isNumericColumn(column) ? "text-right" : ""}`}>{columnLabel(column)}</th>)}</tr></thead>
           <tbody>
             {groups.map((group, groupIndex) => <Fragment key={`${group.title || "ungrouped"}-${groupIndex}`}>
               {group.title ? <tr key={`${group.title}-header`}><td colSpan={columns.length} className="border border-border bg-primary/10 px-3 py-1.5 text-center text-micro font-semibold uppercase tracking-overline text-text">{group.part}{group.part && group.layer ? " " : ""}{group.layer ? <span className="font-normal normal-case tracking-normal text-subdued">{group.layer}</span> : null}</td></tr> : null}
