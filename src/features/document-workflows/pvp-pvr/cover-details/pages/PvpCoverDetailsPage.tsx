@@ -433,21 +433,28 @@ function CoverGenerationStatus({
 
   return (
     <div
-      className="rounded-panel border border-border bg-muted p-6"
+      className="flex flex-col items-center rounded-panel border border-border bg-surface px-6 py-6"
       role="status"
+      aria-live="polite"
     >
-      <p className="font-semibold">
+      <div
+        className="size-6 animate-spin rounded-full border-[2.5px] border-primary border-t-transparent"
+        aria-hidden="true"
+      />
+      <p className="mt-5 text-center text-small font-semibold text-text">
         {progress?.step || "Loading or generating cover page…"}
       </p>
-      <div className="mt-3 h-2 overflow-hidden rounded bg-border">
-        <div
-          className="h-full bg-primary transition-all"
-          style={{ width: percent + "%" }}
-        />
+      <div className="mt-5 flex w-full max-w-2xl items-center gap-4">
+        <div className="h-2 flex-1 overflow-hidden rounded-full bg-border/50">
+          <div
+            className="h-full rounded-full bg-primary transition-all duration-300"
+            style={{ width: `${percent}%` }}
+          />
+        </div>
+        <span className="w-10 shrink-0 text-small font-semibold text-subdued">
+          {progress?.percent ?? 0}%
+        </span>
       </div>
-      <p className="mt-2 text-small text-subdued">
-        {progress?.percent ?? 0}% complete
-      </p>
     </div>
   );
 }

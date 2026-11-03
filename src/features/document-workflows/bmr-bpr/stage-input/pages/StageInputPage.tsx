@@ -276,7 +276,10 @@ export function StageInputPage() {
   const visibleEntries = useMemo(() => {
     const candidates = entries.map((entry, index) => ({ entry, index })).filter(
       ({ entry }) => entry.mode === mode
-        && (isCoatingScoped ? entry.scope?.startsWith("coat:") : entry.scope === activeScope?.key),
+        && (isCoatingScoped
+          ? entry.scope?.startsWith("coat:")
+            || (mode === "instrument" && entry.scope === activeScope?.key)
+          : entry.scope === activeScope?.key),
     );
     if (!isCoatingScoped) return candidates;
     const seen = new Set<string>();

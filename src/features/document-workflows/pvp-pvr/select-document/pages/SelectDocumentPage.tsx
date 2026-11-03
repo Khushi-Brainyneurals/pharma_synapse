@@ -66,6 +66,11 @@ export function SelectDocumentPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [success, setSuccess] = useState<SetCoreInputsResponse | null>(null);
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+
+  const markTouched = (key: string) =>
+    setTouched((current) => (current[key] ? current : { ...current, [key]: true }));
 
   useEffect(() => {
     let cancelled = false;
@@ -143,7 +148,18 @@ export function SelectDocumentPage() {
     return next;
   }, [buAvailable, coreInputs, fileIssues, files, sourceDocumentId, sourceSlots, visibleUploadSlots]);
 
+  // `errors` drives validation; `shownErrors` drives what the user actually sees.
+  // An error is displayed only after the field was touched or Continue was clicked.
+  const shownErrors = useMemo(() => {
+    const visible: Record<string, string> = {};
+    for (const [key, message] of Object.entries(errors)) {
+      if (submitAttempted || touched[key]) visible[key] = message;
+    }
+    return visible;
+  }, [errors, touched, submitAttempted]);
+
   function setSourceFile(slot: UploadSlot, file: File | null) {
+    markTouched(slot.field);
     if (file && !isAcceptedFile(file, slot.accept)) {
       setFiles((current) => ({ ...current, [slot.field]: null }));
       setFileIssues((current) => ({ ...current, [slot.field]: `${file.name} is not an accepted file type for ${slot.label}.` }));
@@ -159,7 +175,12 @@ export function SelectDocumentPage() {
   }
 
   async function handleContinue() {
-    if (Object.keys(errors).length || !sourceSlots || isSaving || isLoadingRecords) return;
+    if (isSaving || isLoadingRecords) return;
+    if (Object.keys(errors).length) {
+      setSubmitAttempted(true);
+      return;
+    }
+    if (!sourceSlots) return;
     setIsSaving(true);
     setError(null);
     try {
@@ -229,7 +250,16 @@ export function SelectDocumentPage() {
                     </button>
                   ) : (
                     <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(10rem,0.8fr)_minmax(0,1.2fr)]">
-                      <button type="button" className="flex min-h-10 items-center justify-between gap-3 rounded-control border border-border bg-surface px-3 py-2 text-left text-small font-medium text-subdued hover:border-primary/50" onClick={() => setIsSourceListOpen((open) => !open)} aria-expanded={isSourceListOpen} aria-controls="pvp-source-document-list">
+                      <button
+                        type="button"
+                        className="flex min-h-10 items-center justify-between gap-3 rounded-control border border-border bg-surface px-3 py-2 text-left text-small font-medium text-subdued hover:border-primary/50"
+                        onClick={() => {
+                          if (isSourceListOpen) markTouched("source_document_id");
+                          setIsSourceListOpen((open) => !open);
+                        }}
+                        aria-expanded={isSourceListOpen}
+                        aria-controls="pvp-source-document-list"
+                      >
                         <span>{isSourceListOpen ? "Close documents list" : "Select a source document"}</span>
                         {isSourceListOpen ? <ChevronUp className="size-4 shrink-0" aria-hidden="true" /> : <ChevronDown className="size-4 shrink-0" aria-hidden="true" />}
                       </button>
@@ -240,7 +270,21 @@ export function SelectDocumentPage() {
                     <div id="pvp-source-document-list" className="mt-3 max-h-80 space-y-2 overflow-y-auto rounded-control border border-border p-2" role="radiogroup" aria-label={`Available finalized ${requiredSourceType.toUpperCase()} documents`}>
                       {visibleRecords.map((record) => (
                         <label key={record.job_id} className={`flex cursor-pointer items-start gap-3 rounded-control border p-4 transition ${sourceDocumentId === String(record.job_id) ? "border-primary bg-accent-soft/40" : "border-border bg-surface hover:border-primary/40"}`}>
-                          <input type="radio" name="pvp-source-document" value={record.job_id} checked={sourceDocumentId === String(record.job_id)} disabled={isSaving || isLoadingRecords} onChange={() => { setSourceDocumentId(String(record.job_id)); setSelectedSourceRecord(record); setSourceSearch(""); setIsSourceListOpen(false); }} className="mt-1 accent-primary" />
+                          <input
+                            type="radio"
+                            name="pvp-source-document"
+                            value={record.job_id}
+                            checked={sourceDocumentId === String(record.job_id)}
+                            disabled={isSaving || isLoadingRecords}
+                            onChange={() => {
+                              setSourceDocumentId(String(record.job_id));
+                              setSelectedSourceRecord(record);
+                              setSourceSearch("");
+                              setIsSourceListOpen(false);
+                              markTouched("source_document_id");
+                            }}
+                            className="mt-1 accent-primary"
+                          />
                           <span className="min-w-0 flex-1">
                             <span className="block text-small font-semibold text-text">{record.product_name ?? record.product ?? "Untitled product"}</span>
                             <span className="mt-1 block break-all font-mono text-micro text-subdued">{record.document_no ?? record.job_id}{` · ${requiredSourceType.toUpperCase()}`}</span>
@@ -252,7 +296,7 @@ export function SelectDocumentPage() {
                       {!isLoadingRecords && visibleRecords.length === 0 ? <p className="p-3 text-small text-subdued">No finalized {requiredSourceType.toUpperCase()} documents match this search.</p> : null}
                     </div>
                   ) : null}
-                  {errors.source_document_id ? <p className="mt-1 text-small text-danger-ink">{errors.source_document_id}</p> : null}
+                  {shownErrors.source_document_id ? <p className="mt-1 text-small text-danger-ink">{shownErrors.source_document_id}</p> : null}
                 </div>
 
                 <div>
@@ -265,24 +309,27 @@ export function SelectDocumentPage() {
                         role="radio"
                         aria-checked={buAvailable === option.value}
                         disabled={isSaving || isLoading}
-                        onClick={() => setBuAvailable(option.value)}
+                        onClick={() => {
+                          setBuAvailable(option.value);
+                          markTouched("bu_available");
+                        }}
                         className={`rounded-control border px-10 py-3 text-small font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${buAvailable === option.value ? "border-primary bg-accent-soft text-primary-dark" : "border-border bg-surface text-subdued hover:border-primary/50"}`}
                       >
                         {option.label}
                       </button>
                     ))}
                   </div>
-                  {errors.bu_available ? <p className="mt-1 text-small text-danger-ink">{errors.bu_available}</p> : null}
+                  {shownErrors.bu_available ? <p className="mt-1 text-small text-danger-ink">{shownErrors.bu_available}</p> : null}
                 </div>
 
                 {visibleUploadSlots.map((slot) => (
-                  <FileUploadCard key={slot.field} label={slot.label} description={slot.required ? "Required source document." : "Optional source document."} file={getDisplayFile(slot.field)} error={errors[slot.field]} isRequired={slot.required} disabled={isSaving || isLoading} accept={slot.accept} maxBytes={slot.maxBytes} onChange={(file) => setSourceFile(slot, file)} />
+                  <FileUploadCard key={slot.field} label={slot.label} description={slot.required ? "Required source document." : "Optional source document."} file={getDisplayFile(slot.field)} error={shownErrors[slot.field]} isRequired={slot.required} disabled={isSaving || isLoading} accept={slot.accept} maxBytes={slot.maxBytes} onChange={(file) => setSourceFile(slot, file)} />
                 ))}
               </div>
 
               <div className="flex flex-col-reverse gap-3 border-t border-border pt-5 sm:flex-row sm:justify-start">
                 <button type="button" className="rounded-control border border-border px-4 py-2 text-small font-semibold text-subdued" disabled={isSaving} onClick={() => navigate("/")}>Save & exit</button>
-                <button type="button" className="rounded-control bg-primary px-4 py-2 text-small font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={isSaving || isLoading || isLoadingDocument || isLoadingRecords || !pvpMode || !sourceSlots || Object.keys(errors).length > 0 || Boolean(success)} onClick={() => void handleContinue()}>{isSaving ? "Saving source document details…" : success ? "Saved" : "Continue to cover page"}</button>
+                <button type="button" className="rounded-control bg-primary px-4 py-2 text-small font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={isSaving || isLoading || isLoadingDocument || isLoadingRecords || !pvpMode || !sourceSlots || Boolean(success)} onClick={() => void handleContinue()}>{isSaving ? "Saving source document details…" : success ? "Saved" : "Continue to cover page"}</button>
               </div>
             </div>
           </section>

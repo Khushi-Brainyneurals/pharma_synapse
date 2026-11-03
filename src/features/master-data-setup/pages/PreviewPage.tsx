@@ -248,13 +248,8 @@ export function PreviewPage() {
     }))
     .filter((g) => g.docs.length > 0);
 
-  const stageTotal = stageSections.reduce((n, sec) => n + sec.docs.length, 0);
-  const stageDone = stageSections.reduce((n, sec) => n + sec.docs.filter((d) => uploads[d.code]).length, 0);
-  const batchTotal = batchDocs.length;
-  const batchDone = batchDocs.filter((d) => batch[d.code]).length;
   const totalUploaded = allDocs.length;
   const previewedCount = allDocs.filter((d) => previewed[d.code]).length;
-  const ready = stageDone === stageTotal && batchDone === batchTotal;
   const documentsSubmitted = isSubmittedOrApproved(documentApproval?.status);
   const documentsApproved = normalizeApprovalStatus(documentApproval?.status) === "approved";
   const documentsRejected = normalizeApprovalStatus(documentApproval?.status) === "rejected";
@@ -627,9 +622,9 @@ export function PreviewPage() {
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={!ready || isSubmitting || isApprovalLoading}
+                disabled={isSubmitting || isApprovalLoading}
                 className="inline-flex h-9 items-center gap-1.5 rounded-control bg-primary px-4 text-small font-semibold text-white transition hover:bg-primary-dark disabled:cursor-not-allowed disabled:bg-primary/40"
-                title={!ready ? "Upload every mandatory document to submit" : isApprovalLoading ? "Loading approval status" : undefined}
+                title={isApprovalLoading ? "Loading approval status" : undefined}
               >
                 {isSubmitting ? (
                   <Loader2 className="size-4 animate-spin" aria-hidden="true" />

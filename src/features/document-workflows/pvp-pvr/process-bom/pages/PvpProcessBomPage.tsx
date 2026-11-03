@@ -11,6 +11,7 @@ import { useDocument } from "../../../selection/hooks/useDocument";
 import { useDocumentSelectorData } from "../../../selection/hooks/useDocumentSelectorData";
 import { useStepNavigation } from "../../../selection/hooks/useStepNavigation";
 import { PVP_PVR_DOCUMENT_STEPS } from "../../../selection/model/documentSelector.config";
+import { ProcessFlowViewer } from "../../../shared/components/ProcessFlowViewer";
 import {
   getPvpBom,
   getPvpMaterialSpecifications,
@@ -164,7 +165,7 @@ export function PvpProcessBomPage() {
               <div className="flex flex-col items-start justify-between border-b border-border p-5 pb-5">
                 <p className="text-micro font-semibold uppercase tracking-overline text-primary">Step 4 of 7</p>
                 <h1 className="mt-1 text-h1 font-semibold">Process Flow &amp; BOM</h1>
-                <p className="mt-1.5 text-small text-subdued">Review the source process flow and bill of materials, then select specifications for input materials.</p>
+                {/* <p className="mt-1.5 text-small text-subdued">Review the source process flow and bill of materials, then select specifications for input materials.</p> */}
               </div>
 
               <div
@@ -192,9 +193,7 @@ export function PvpProcessBomPage() {
                 {flowLoading ? <LoadingPanel label="Loading process flow…" /> : null}
                 {!flowLoading && flowError ? <Callout tone="danger" title="Process flow unavailable"><p>{flowError}</p><button className="mt-2 font-semibold underline" type="button" onClick={() => setFlowRetry((value) => value + 1)}>Try again</button></Callout> : null}
                 {!flowLoading && !flowError && flowUrl ? (
-                  <div className="overflow-auto rounded-card border border-border bg-surface p-3 sm:p-5">
-                    <img src={flowUrl} alt="PVP/PVR process flow" className="mx-auto h-auto max-w-full object-contain" />
-                  </div>
+                  <ProcessFlowViewer src={flowUrl} alt="PVP/PVR process flow" fileName="pvp-pvr-process-flow.png" />
                 ) : null}
               </section>
 

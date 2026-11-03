@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { getDocumentSelectRoute, getPvpCoverDetailsRoute, getPvpProcessBomRoute, ROUTES } from "../../../../app/routing/routes";
+import { getDocumentSelectRoute, getPvpCppCqaRoute, getPvpCoverDetailsRoute, getPvpProcessBomRoute, getPvpProcedureSamplingRoute, ROUTES } from "../../../../app/routing/routes";
 
 /** Wizard step id → route. One map, so Back, Next and the stepper can't disagree. */
 const STEP_ROUTES: Record<string, (documentId: string) => string> = {
@@ -11,9 +11,9 @@ const STEP_ROUTES: Record<string, (documentId: string) => string> = {
   "cover-bom": (id) => `/documents/${encodeURIComponent(id)}/cover-bom`,
   "process-bom": (id) => getPvpProcessBomRoute(id),
   stages: (id) => `/documents/${encodeURIComponent(id)}/stages`,
-  "cpp-cqa": (id) => `/documents/${encodeURIComponent(id)}/stages`,
+  "cpp-cqa": (id) => getPvpCppCqaRoute(id),
   "stage-input": (id) => `/documents/${encodeURIComponent(id)}/stage-input`,
-  "procedure-sampling": (id) => `/documents/${encodeURIComponent(id)}/stage-input`,
+  "procedure-sampling": (id) => getPvpProcedureSamplingRoute(id),
   "generate-submit": (id) => `/documents/${encodeURIComponent(id)}/generate`,
 };
 

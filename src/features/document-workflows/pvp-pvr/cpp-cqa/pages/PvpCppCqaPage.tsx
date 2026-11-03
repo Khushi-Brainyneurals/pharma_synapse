@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Lock } from "lucide-react";
+import { useParams } from "react-router-dom";
 import { AppHeader } from "../../../../../app/layout/AppHeader";
 import { AppSidebar } from "../../../../../app/layout/AppSidebar";
 import { getApiErrorMessage } from "../../../../../shared/api/apiError";
@@ -7,8 +8,8 @@ import { Callout } from "../../../../../shared/ui/Callout";
 import { useAuthStore } from "../../../../auth/state/auth.store";
 import { DocumentStepper } from "../../../selection/components/DocumentStepper";
 import { SelectionStrip } from "../../../selection/components/SelectionStrip";
-import type { DocumentDetail } from "../../../selection/api/document.types";
 import { useDocumentSelectorData } from "../../../selection/hooks/useDocumentSelectorData";
+import { useDocument } from "../../../selection/hooks/useDocument";
 import { useStepNavigation } from "../../../selection/hooks/useStepNavigation";
 import { PVP_PVR_DOCUMENT_STEPS } from "../../../selection/model/documentSelector.config";
 import { getPvpCppCqa, type PvpCppCqaRow } from "../api/cppCqa.api";
@@ -23,15 +24,18 @@ interface StageTableGroup {
   rows: PvpCppCqaRow[];
 }
 
-export function PvpCppCqaPage({ documentId, document }: { documentId: string; document: DocumentDetail }) {
+export function PvpCppCqaPage() {
+  const { documentId = "" } = useParams();
   const user = useAuthStore((state) => state.user);
   const { context, isLoading: isLoadingContext } = useDocumentSelectorData(user);
+  const { document } = useDocument(documentId);
   const { goToStep } = useStepNavigation(documentId);
   const [rows, setRows] = useState<PvpCppCqaRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
-  const [openStage, setOpenStage] = useState<string | null>(null);
+  // undefined = nothing chosen yet (first stage opens by default), null = user collapsed everything
+  const [openStage, setOpenStage] = useState<string | null | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,6 +51,7 @@ export function PvpCppCqaPage({ documentId, document }: { documentId: string; do
   }, [documentId, retry]);
 
   const groups = useMemo(() => groupByMainStage(rows), [rows]);
+  const activeStage = openStage === undefined ? groups[0]?.name ?? null : openStage;
 
   return (
     <div className="min-h-screen bg-background text-text">
@@ -59,6 +64,7 @@ export function PvpCppCqaPage({ documentId, document }: { documentId: string; do
               <DocumentStepper steps={PVP_PVR_DOCUMENT_STEPS} activeStepId="cpp-cqa" onStepClick={goToStep} />
             </div>
             <SelectionStrip dosageForm={document?.dosage_form} docType={document?.doc_type} identifier={document?.bmr_number ?? document?.draft_id} />
+
             <div>
               <div className="flex flex-col items-start justify-between border-b border-border p-5 pb-5">
                 <p className="text-micro font-semibold uppercase tracking-overline text-primary">Step 5 of 7</p>
@@ -66,48 +72,87 @@ export function PvpCppCqaPage({ documentId, document }: { documentId: string; do
                 <p className="mt-1.5 text-small text-subdued">Review the process parameters and quality attributes by manufacturing stage.</p>
               </div>
 
-              <div className="space-y-4 bg-muted/50 px-4 py-5 sm:px-6 lg:px-8">
+              <div className="bg-muted/50 px-4 py-5 sm:px-6 lg:px-8">
                 {isLoading ? <LoadingPanel /> : null}
+
                 {!isLoading && error ? (
                   <Callout tone="danger" title="CPP and CQA unavailable">
                     <p>{error}</p>
                     <button className="mt-2 font-semibold underline" type="button" onClick={() => setRetry((value) => value + 1)}>Try again</button>
                   </Callout>
                 ) : null}
+
                 {!isLoading && !error && rows.length === 0 ? <EmptyPanel /> : null}
-                {!isLoading && !error && groups.map((group) => {
-                  const isOpen = openStage === group.name;
-                  const tableGroups = groupRowsBySubgroup(group.rows);
-                  const stageKey = `${group.name}`;
-                  return (
-                    <section key={stageKey} className="overflow-hidden rounded-card border border-border bg-surface shadow-sm">
-                      <h3>
-                        <button
-                          type="button"
-                          aria-expanded={isOpen}
-                          aria-controls={`cpp-cqa-panel-${groups.indexOf(group)}`}
-                          onClick={() => setOpenStage(isOpen ? null : stageKey)}
-                          className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary"
-                        >
-                          <span className="text-h3 font-semibold">{group.name || "Other"}</span>
-                          <ChevronDown className={`size-5 shrink-0 text-subdued transition-transform ${isOpen ? "rotate-180" : ""}`} aria-hidden="true" />
-                        </button>
-                      </h3>
-                      {isOpen ? (
-                        <div id={`cpp-cqa-panel-${groups.indexOf(group)}`} className="space-y-5 border-t border-border p-4 sm:p-5">
-                          {tableGroups.map((table, index) => (
-                            <CppCqaTable key={`${group.name}-${index}`} group={table} />
-                          ))}
-                        </div>
-                      ) : null}
-                    </section>
-                  );
-                })}
+
+                {!isLoading && !error && groups.length > 0 ? (
+                  <section className="overflow-hidden rounded-card border border-border bg-surface shadow-sm">
+                    {/* Card header */}
+                    <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-border px-5 py-4">
+                      <h2 className="text-h3 font-semibold">Stages</h2>
+                      <p className="min-w-0 flex-1 truncate text-small text-subdued">
+                        CPP &amp; CQA on {groups.map((group) => group.name || "Other").join(", ")}
+                      </p>
+                      <ReadOnlyBadge label="Read-only" />
+                    </header>
+
+                    {/* Accordion */}
+                    <ul className="divide-y divide-border">
+                      {groups.map((group, index) => {
+                        const stageKey = group.name;
+                        const isOpen = activeStage === stageKey;
+                        const panelId = `cpp-cqa-panel-${index}`;
+                        const buttonId = `cpp-cqa-trigger-${index}`;
+                        const tableGroups = groupRowsBySubgroup(group.rows);
+                        const parameterCount = group.rows.filter((row) => row.kind.trim().toLowerCase() !== "group").length;
+
+                        return (
+                          <li key={stageKey} className="relative">
+                            <span
+                              aria-hidden="true"
+                              className="absolute left-0 top-2 h-[44px] w-0.5 bg-primary"
+                            />
+                            <h3>
+                              <button
+                                id={buttonId}
+                                type="button"
+                                aria-expanded={isOpen}
+                                aria-controls={panelId}
+                                onClick={() => setOpenStage(isOpen ? null : stageKey)}
+                                className="flex h-[60px] w-full items-center gap-4 pl-6 pr-5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+                              >
+                                <span className="min-w-0 flex-1 truncate text-[13px] text-text font-semibold">{group.name || "Other"}</span>
+                                <span className="hidden px-2 text-small text-primary-dark sm:inline">
+                                  {parameterCount} {parameterCount === 1 ? "step" : "steps"}
+                                </span>
+                                <span className="grid size-8 shrink-0 place-items-center rounded-control border border-border bg-surface text-subdued">
+                                  <ChevronDown className={`size-4 transition-transform ${isOpen ? "rotate-180" : ""}`} aria-hidden="true" />
+                                </span>
+                              </button>
+                            </h3>
+
+                            {isOpen ? (
+                              <div
+                                id={panelId}
+                                role="region"
+                                aria-labelledby={buttonId}
+                                className="border-t border-dashed border-border bg-muted/50 py-2 pl-6 pr-5"
+                              >
+                                {tableGroups.map((table, tableIndex) => (
+                                  <CppCqaTable key={`${group.name}-${tableIndex}`} group={table} />
+                                ))}
+                              </div>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
+                ) : null}
               </div>
 
               <div className="sticky bottom-0 z-10 flex flex-col-reverse gap-3 border-t border-border bg-surface p-3.5 shadow-auth sm:flex-row sm:justify-between">
-                <button type="button" className="rounded-control border border-border px-4 py-2 text-small font-semibold text-subdued" onClick={() => goToStep("process-bom")}>Back</button>
-                <button type="button" className="rounded-control bg-primary px-4 py-2 text-small font-semibold text-white" onClick={() => goToStep("procedure-sampling")}>Continue to Procedure &amp; Sampling Plan</button>
+                <button type="button" className="rounded-control border border-border px-4 py-2 text-small font-semibold text-subdued hover:bg-muted" onClick={() => goToStep("process-bom")}>Back</button>
+                <button type="button" className="rounded-control bg-primary px-4 py-2 text-small font-semibold text-white hover:opacity-90" onClick={() => goToStep("procedure-sampling")}>Continue to Procedure &amp; Sampling Plan</button>
               </div>
             </div>
           </section>
@@ -143,31 +188,60 @@ function groupRowsBySubgroup(rows: PvpCppCqaRow[]): StageTableGroup[] {
   return tables;
 }
 
+function splitItems(value: string | null | undefined): string[] {
+  return (value ?? "").split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+function ReadOnlyBadge({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 py-1 text-micro font-medium text-subdued">
+      <Lock className="size-3" aria-hidden="true" />
+      {label}
+    </span>
+  );
+}
+
+function ItemList({ value }: { value: string | null | undefined }) {
+  const items = splitItems(value);
+  if (items.length === 0) return <span className="text-subdued/70">Not applicable</span>;
+  if (items.length === 1) return <span>{items[0]}</span>;
+  return (
+    <ul className="space-y-1">
+      {items.map((item) => (
+        <li key={item} className="flex gap-2">
+          <span aria-hidden="true" className="mt-[0.55em] size-1 shrink-0 rounded-full bg-subdued/60" />
+          <span>{item}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function CppCqaTable({ group }: { group: StageTableGroup }) {
   return (
-    <section className="overflow-hidden rounded-card border border-border bg-surface">
-      {group.heading ? <h3 className="border-b border-border bg-primary/10 px-4 py-2.5 text-center text-small font-semibold text-text">{group.heading}</h3> : null}
+    <div className="py-2 first:pt-1">
+      {group.heading ? <p className="pb-1 pt-2 text-small font-semibold text-primary">{group.heading}</p> : null}
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-small">
+        <table className="w-full min-w-[40rem] border-collapse text-small">
           <thead>
-            <tr className="text-left text-micro uppercase tracking-overline text-subdued">
-              <th scope="col" className="min-w-44 border border-border bg-muted px-3 py-2.5 font-semibold">Processing Stage</th>
-              <th scope="col" className="min-w-56 border border-border bg-muted px-3 py-2.5 font-semibold">Critical Process Parameter</th>
-              <th scope="col" className="min-w-56 border border-border bg-muted px-3 py-2.5 font-semibold">Critical Quality Attribute</th>
+            <tr className="border-b border-border text-left text-subdued">
+              <th scope="col" className="w-1/5 py-3 px-4 font-medium">Critical stage</th>
+              <th scope="col" className="w-2/5 py-3 px-4 font-medium">Critical process parameter</th>
+              <th scope="col" className="w-2/5 py-3 px-4 font-medium">Critical quality attributes</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-border">
             {group.rows.map((row, index) => (
-              <tr key={`${row.processing_stage}-${index}`} className="hover:bg-muted/50">
-                <td className="border border-border px-3 py-2.5 align-top">{row.processing_stage || "—"}</td>
-                <td className="border border-border px-3 py-2.5 align-top">{row.critical_process_parameter || "—"}</td>
-                <td className="border border-border px-3 py-2.5 align-top">{row.critical_quality_attribute || "—"}</td>
+              <tr key={`${row.processing_stage}-${index}`}>
+                <th scope="row" className="py-3.5 px-4 text-left align-top font-semibold">{row.processing_stage || "—"}</th>
+                <td className="py-3.5 px-4 align-top"><ItemList value={row.critical_process_parameter} /></td>
+                <td className="py-3.5 px-4 align-top"><ItemList value={row.critical_quality_attribute} /></td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-    </section>
+    </div>
   );
 }
 

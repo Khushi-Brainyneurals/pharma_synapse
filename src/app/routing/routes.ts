@@ -36,6 +36,14 @@ export function getPvpProcessBomRoute(documentId: string) {
   return `/documents/${encodeURIComponent(documentId)}/pvp-pvr/process-bom`;
 }
 
+export function getPvpCppCqaRoute(documentId: string) {
+  return `/documents/${encodeURIComponent(documentId)}/pvp-pvr/cpp-cqa`;
+}
+
+export function getPvpProcedureSamplingRoute(documentId: string) {
+  return `/documents/${encodeURIComponent(documentId)}/pvp-pvr/procedure-sampling`;
+}
+
 export function getDocumentCoverBomRoute(documentId: string) {
   return `/documents/${encodeURIComponent(documentId)}/cover-bom`;
 }

@@ -5,6 +5,8 @@ import {
   Clock3,
   FileEdit,
   FileText,
+  LayoutGrid,
+  List,
   Loader2,
   Plus,
   Printer,
@@ -35,6 +37,7 @@ import {
 } from "../api/dashboard.api";
 import { CloseDocumentModal, type CloseMode } from "../components/CloseDocumentModal";
 import { DocumentCard } from "../components/DocumentCard";
+import { DocumentList } from "../components/DocumentList";
 
 /**
  * The Dashboard — where every non-administrator lands.
@@ -139,6 +142,18 @@ const DEFAULT_CARD_META = {
   pillActive: "bg-primary",
 };
 
+type ViewMode = "card" | "list";
+const VIEW_MODE_KEY = "dashboard.viewMode";
+
+const VIEW_TABS: {
+  mode: ViewMode;
+  label: string;
+  Icon: React.ComponentType<{ className?: string }>;
+}[] = [
+  { mode: "card", label: "Cards", Icon: LayoutGrid },
+  { mode: "list", label: "List", Icon: List },
+];
+
 export function DashboardPage() {
   const user = useAuthStore((state) => state.user);
   const navigate = useNavigate();
@@ -152,9 +167,26 @@ export function DashboardPage() {
   const [typeFilter, setTypeFilter] = useState("");
   const [search, setSearch] = useState("");
 
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    try {
+      return localStorage.getItem(VIEW_MODE_KEY) === "list" ? "list" : "card";
+    } catch {
+      return "card";
+    }
+  });
+
   const [closing, setClosing] = useState<{ mode: CloseMode; item: DashboardItem } | null>(null);
   const [closeError, setCloseError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+
+  function changeView(mode: ViewMode) {
+    setViewMode(mode);
+    try {
+      localStorage.setItem(VIEW_MODE_KEY, mode);
+    } catch {
+      /* storage unavailable — the choice just won't persist */
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -307,14 +339,14 @@ export function DashboardPage() {
               </h1>
               <span className="flex-1" />
 
-              {data ? (
+              {/* {data ? (
                 <span className="inline-flex items-center gap-2 rounded-pill border border-border-strong bg-surface px-3.5 py-1.5 text-micro text-subdued">
                   <Clock3 className="size-3.5" aria-hidden="true" />
                   Step limits — review <b className="font-mono font-semibold text-text">{data.sla_days?.in_review ?? 3}d</b> ·
                   approval <b className="font-mono font-semibold text-text">{data.sla_days?.approval ?? 2}d</b> ·
                   correction <b className="font-mono font-semibold text-text">{data.sla_days?.returned ?? 5}d</b>
                 </span>
-              ) : null}
+              ) : null} */}
 
               {!canCreate ? (
                 <span className="max-w-[20ch] text-right text-micro leading-tight text-subdued">
@@ -404,7 +436,7 @@ export function DashboardPage() {
                   })}
             </div>
 
-            <div className="mb-5 flex flex-wrap items-end gap-5 rounded-card border border-border bg-surface p-5">
+            <div className="flex flex-wrap items-end gap-5 rounded-card border border-border bg-surface p-5">
               <div className="relative flex flex-col">
                 <span className={filterLabelClass}>Search</span>
                 <Search
@@ -500,7 +532,34 @@ export function DashboardPage() {
                 ) : null}
               </div>
             </div>
-
+            {/* Card / list view switch */}
+            <div className="flex justify-end">
+              <div
+                role="tablist"
+                aria-label="Document view"
+                className="my-3 inline-flex overflow-hidden rounded-control border border-border-strong bg-surface"
+              >
+                {VIEW_TABS.map(({ mode, label, Icon }) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    role="tab"
+                    aria-selected={viewMode === mode}
+                    aria-label={label}
+                    title={label}
+                    onClick={() => changeView(mode)}
+                    className={`inline-flex h-[34px] items-center gap-1.5 px-3 text-micro font-medium transition ${
+                      viewMode === mode
+                        ? "bg-primary text-white"
+                        : "text-subdued hover:bg-accent-soft hover:text-primary-dark"
+                    }`}
+                  >
+                    <Icon className="size-3.5" aria-hidden="true" />
+                    {/* {label} */}
+                  </button>
+                ))}
+              </div>
+            </div>
             {statusFilter === OVERDUE_FILTER ? (
               <p className="mb-5 flex items-center gap-2 rounded-control bg-overdue-bg px-3.5 py-2.5 text-small text-overdue-fg">
                 <TriangleAlert className="size-4 shrink-0" aria-hidden="true" />
@@ -525,22 +584,26 @@ export function DashboardPage() {
                 Loading your documents…
               </p>
             ) : visible.length ? (
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(252px,1fr))] items-stretch gap-4">
-                {visible.map((item) => (
-                  <DocumentCard
-                    key={item.document_id}
-                    item={item}
-                    onDelete={(target) => {
-                      setCloseError(null);
-                      setClosing({ mode: "delete", item: target });
-                    }}
-                    onCancel={(target) => {
-                      setCloseError(null);
-                      setClosing({ mode: "cancel", item: target });
-                    }}
-                  />
-                ))}
-              </div>
+              viewMode === "list" ? (
+                <DocumentList items={visible} />
+              ) : (
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(252px,1fr))] items-stretch gap-4">
+                  {visible.map((item) => (
+                    <DocumentCard
+                      key={item.document_id}
+                      item={item}
+                      onDelete={(target) => {
+                        setCloseError(null);
+                        setClosing({ mode: "delete", item: target });
+                      }}
+                      onCancel={(target) => {
+                        setCloseError(null);
+                        setClosing({ mode: "cancel", item: target });
+                      }}
+                    />
+                  ))}
+                </div>
+              )
             ) : (
               <EmptyState filtered={hasFilters} onReset={resetFilters} />
             )}

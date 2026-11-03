@@ -1,8 +1,8 @@
 import {
   AlertCircle,
   AlertTriangle,
+  ArrowLeft,
   ArrowRight,
-  CheckCircle2,
   Download,
   Loader2,
   Pencil,
@@ -119,9 +119,8 @@ export function CoverBomPage() {
     generationControllerRef.current = controller;
 
     try {
-      // The preview endpoint is the fastest way to reopen an already generated
-      // Cover + BOM. A 404 means no preview is available yet, so start (or join)
-      // the asynchronous generation job below.
+      // Reopen an existing Cover + BOM from preview. Start generation only if
+      // there is no generated preview yet.
       try {
         const nextPreview = await getCoverBomDocx(documentId, controller.signal);
         const nextBom = await getBom(documentId, controller.signal);
@@ -131,7 +130,7 @@ export function CoverBomPage() {
         return;
       } catch (caught) {
         if (controller.signal.aborted) return;
-        if (!isNotFoundError(caught)) throw caught;
+        if (!shouldGenerateCoverFromPreviewError(caught)) throw caught;
       }
 
       try {
@@ -145,7 +144,8 @@ export function CoverBomPage() {
         const progress = await getCoverGenerationProgress(documentId, controller.signal);
         setGenerationProgress(progress);
         if (progress.status === "error") {
-          throw new Error(progress.error || "Cover generation failed.");
+          setError(progress.error || "Cover generation failed.");
+          return; // finally block still runs
         }
         if (progress.status === "done") {
           const [nextBom, nextPreview] = await Promise.all([
@@ -256,13 +256,18 @@ export function CoverBomPage() {
                     {preview ? <CoverBomDocument file={preview} /> : null}
 
                     <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t bg-surface p-3.5 shadow-auth">
-                      <div className="flex items-center gap-2 text-small text-subdued">
-                        <CheckCircle2 className="size-4 text-success" aria-hidden="true" />
-                        Latest generated version loaded
-                        {bom.doc_type === "bmr" ? ` · ${bom.ingredients.length} ingredients` : ""}
+                      <div className="flex items-center gap-2 text-small text-text">
+                        <button
+                          type="button"
+                          onClick={() => goToStep("inputs")}
+                          className="inline-flex items-center gap-2 rounded-control border border-border px-4 py-2 text-small font-semibold transition hover:bg-primary/10 disabled:opacity-50"
+                        >
+                          <ArrowLeft className="size-4" aria-hidden="true" />
+                          Back to core inputs
+                        </button>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <button
+                        {/* <button
                           type="button"
                           onClick={() => void downloadCoverBomDocx()}
                           disabled={downloading}
@@ -273,8 +278,8 @@ export function CoverBomPage() {
                           ) : (
                             <Download className="size-4" aria-hidden="true" />
                           )}
-                          Download DOCX
-                        </button>
+                          Download
+                        </button> */}
                         {isBmr ? (
                           <button
                             type="button"
@@ -344,7 +349,7 @@ function NotGeneratedPanel({ onGenerate }: { onGenerate: () => void }) {
 
 function ErrorPanel({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <div className="rounded-panel border border-danger/30 bg-danger-soft p-5">
+    <div className="rounded-panel border border-danger/30 bg-danger-soft p-5 mx-8">
       <div className="flex items-start gap-2">
         <AlertCircle className="mt-0.5 size-4 shrink-0 text-danger" aria-hidden="true" />
         <div className="flex-1">
@@ -407,10 +412,14 @@ function nullableNumber(value: string): number | null {
   return trimmed === "" ? null : Number(trimmed);
 }
 
-function isNotFoundError(error: unknown): boolean {
+function shouldGenerateCoverFromPreviewError(error: unknown): boolean {
   if (typeof error !== "object" || error === null || !("response" in error)) return false;
   const response = error.response;
-  return typeof response === "object" && response !== null && "status" in response && response.status === 404;
+  if (typeof response !== "object" || response === null || !("status" in response)) return false;
+  // 404 means no preview exists yet. A 409 can mean either core inputs changed
+  // or generation is already running; POST /generate-cover distinguishes these
+  // cases by starting a job or returning the active-job conflict we can poll.
+  return response.status === 404 || response.status === 409;
 }
 
 function delay(ms: number, signal: AbortSignal) {

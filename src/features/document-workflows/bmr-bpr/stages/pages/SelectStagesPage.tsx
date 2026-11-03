@@ -10,7 +10,8 @@ import {
   SquarePen,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { getPvpCppCqaRoute } from "../../../../../app/routing/routes";
 import { getApiErrorMessage } from "../../../../../shared/api/apiError";
 import { useAuthStore } from "../../../../auth/state/auth.store";
 import { generateDocument } from "../../generate/api/generate.api";
@@ -26,7 +27,6 @@ import type { StageForm } from "../../stage-input/api/stageInputs.types";
 import { SchemaStagePanel } from "../../stage-input/components/SchemaStagePanel";
 import { schemaHasAssetInputs, validateSchema } from "../../stage-input/model/schemaForm";
 import { hasSharedParameterValues, repeatSharedParameterValues } from "../model/sharedParamRepeat";
-import { PvpCppCqaPage } from "../../../pvp-pvr/cpp-cqa/pages/PvpCppCqaPage";
 import type { DocumentDetail } from "../../../selection/api/document.types";
 
 interface StageUi {
@@ -43,7 +43,7 @@ export function SelectStagesPage() {
   const { document, isLoading } = useDocument(documentId);
 
   if (document && isPvpPvrDocument(document.doc_type)) {
-    return <PvpCppCqaPage documentId={documentId} document={document} />;
+    return <Navigate to={getPvpCppCqaRoute(documentId)} replace />;
   }
 
   return <BmrSelectStagesPage documentId={documentId} document={document} isLoading={isLoading} />;
