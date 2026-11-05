@@ -59,3 +59,8 @@ export async function getProcedureGenerationProgress(documentId: string, attempt
   });
   return ((data as JsonRecord).data ?? data) as GenerationProgress;
 }
+
+export async function getProcedureStagePreview(documentId: string, sectionKey: string): Promise<JsonRecord> {
+  const { data } = await httpClient.get<JsonRecord>(`${root(documentId)}/stages/${encodeURIComponent(sectionKey)}/preview`);
+  return data;
+}

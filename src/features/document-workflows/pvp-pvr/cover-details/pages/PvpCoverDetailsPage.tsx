@@ -307,7 +307,7 @@ export function PvpCoverDetailsPage() {
               ) : (
                 <div
                   role="tabpanel"
-                  className="space-y-5 bg-muted/50 px-4 py-5 sm:px-6 lg:px-8"
+                  className="space-y-5 bg-surface px-4 py-5 sm:px-6 lg:px-8"
                 >
                   {detailsError ? (
                     <Alert

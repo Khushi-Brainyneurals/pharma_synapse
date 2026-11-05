@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -22,10 +22,12 @@ import { useStepNavigation } from "../../../selection/hooks/useStepNavigation";
 import { PVP_PVR_DOCUMENT_STEPS } from "../../../selection/model/documentSelector.config";
 import { DocumentStepper } from "../../../selection/components/DocumentStepper";
 import { SelectionStrip } from "../../../selection/components/SelectionStrip";
+import { SelectMenu } from "../../../../../shared/ui/SelectMenu";
 import {
   generateProcedureStage,
   getProcedureGenerationProgress,
   getProcedureStage,
+  getProcedureStagePreview,
   getProcedureStages,
   updateProcedureStage,
   type GenerationProgress,
@@ -34,7 +36,7 @@ import {
   type ProcedureStageSummary,
 } from "../api/procedureSampling.api";
 
-const POLL_MS = 3000;
+const POLL_MS = 4000;
 const EDITABLE_FIELDS = [
   "additional_cpp_rows",
   "additional_cqa_rows",
@@ -52,6 +54,26 @@ type SamplingRow = {
   test: string;
   [key: string]: any;
 };
+type SamplingPlanGroup = {
+  layer: string;
+  sampling_rows: SamplingRow[];
+};
+
+// Replace these with your real list of challenge studies.
+const OTHER_CHALLENGE = "Other challenge";
+const DEFAULT_CHALLENGE_OPTIONS = [
+  "Low Speed",
+  "High Speed",
+  "Low Hardness",
+  "High Hardness",
+  OTHER_CHALLENGE,
+];
+const DEFAULT_SAMPLING_OPTIONS = [
+  "Initial",
+  "Middle",
+  "End",
+  OTHER_CHALLENGE,
+];
 
 export function PvpProcedureSamplingPage() {
   const { documentId = "" } = useParams();
@@ -148,7 +170,7 @@ export function PvpProcedureSamplingPage() {
   );
 
   const stageKind = useMemo(() => getStageKind(stage), [stage]);
-  const readOnly = stageKind === "dispensing";
+  const isDispensing = stage?.section_key === "dispensing_rm";
   const hasDuplicateParameters = Boolean(
     stage &&
     (hasDuplicates(
@@ -173,7 +195,7 @@ export function PvpProcedureSamplingPage() {
   }
 
   async function saveStage(): Promise<boolean> {
-    if (!stage || readOnly || isSaving) return false;
+    if (!stage || isSaving) return false;
     if (hasDuplicateParameters) {
       setError(
         "Parameter names must be unique and cannot duplicate backend source rows.",
@@ -183,7 +205,11 @@ export function PvpProcedureSamplingPage() {
     const data: JsonRecord = {};
     for (const field of EDITABLE_FIELDS) {
       if (JSON.stringify(draft[field]) !== JSON.stringify(originalDraft[field]))
-        data[field] = removeNulls(draft[field]);
+        data[field] = removeNulls(
+          field === "compression_plan"
+            ? editableCompressionPlan(draft.compression_plan)
+            : draft[field],
+        );
     }
     if (!Object.keys(data).length) return true;
     setIsSaving(true);
@@ -210,10 +236,7 @@ export function PvpProcedureSamplingPage() {
 
   async function generate(regenerate: boolean) {
     if (
-      !stage ||
-      readOnly ||
-      stage.generation_supported === false ||
-      isGenerating
+      !stage || isDispensing || isGenerating
     )
       return;
     const saved = await saveStage();
@@ -256,8 +279,18 @@ export function PvpProcedureSamplingPage() {
             status,
           )
         ) {
+          let completedPreview: unknown = next.preview ?? next.result ?? null;
+          try {
+            const response = await getProcedureStagePreview(
+              documentId,
+              stage.section_key,
+            );
+            completedPreview = response.preview ?? response;
+          } catch (caught) {
+            if (!completedPreview) throw caught;
+          }
           await loadStage(stage.section_key);
-          setPreview(next.preview ?? next.result ?? next);
+          setPreview(completedPreview ?? next);
           return;
         }
         await delay(POLL_MS, controller.signal);
@@ -281,13 +314,13 @@ export function PvpProcedureSamplingPage() {
   const content =
     stage && !isLoadingStage ? (
       <>
-        {stage.warnings?.length ? (
+        {/* {stage.warnings?.length ? (
           <div className="mb-4 rounded-control border border-warning/30 bg-warning/10 p-3 text-small text-text">
             {stage.warnings.map((warning: string, i: number) => (
               <p key={i}>{warning}</p>
             ))}
           </div>
-        ) : null}
+        ) : null} */}
         <div className="grid gap-4">
           <InfoSection title="Equipment" rows={stage.equipment_details} />
           <InfoSection title="Instruments" rows={stage.instruments} />
@@ -296,69 +329,70 @@ export function PvpProcedureSamplingPage() {
             sourceRows={stage.critical_process_parameters}
             rows={draft.additional_cpp_rows ?? []}
             onChange={(rows) => setField("additional_cpp_rows", rows)}
-            disabled={readOnly}
+            disabled={false}
           />
           <ParameterSection
             title="Critical Quality Attributes"
             sourceRows={stage.critical_quality_attributes}
             rows={draft.additional_cqa_rows ?? []}
             onChange={(rows) => setField("additional_cqa_rows", rows)}
-            disabled={readOnly}
+            disabled={false}
           />
           <AnalyticalSection
             rows={draft.analytical_methodology ?? []}
             onChange={(rows) => setField("analytical_methodology", rows)}
-            disabled={readOnly}
+            disabled={false}
           />
-          {stageKind === "compression" ? (
+          {isDispensing ? null : stageKind === "compression" ? (
             <CompressionSection
-              plan={{
-                ...(draft.compression_plan ?? stage.compression_plan ?? {}),
-                available_tests:
-                  draft.compression_plan?.available_tests ??
-                  stage.available_tests ??
-                  [],
-              }}
-              availableTests={stage.available_tests ?? []}
-              onChange={(plan) => setField("compression_plan", plan)}
-              disabled={readOnly}
-            />
-          ) : stageKind === "granulation" ? (
-            <GranulationSection
-              groups={draft.granulation_group_sampling ?? []}
-              onChange={(groups) =>
-                setField("granulation_group_sampling", groups)
+              plan={
+                draft.compression_plan ??
+                editableCompressionPlan(stage.compression_plan)
               }
-              disabled={readOnly}
+              availableTests={
+                stage.available_tests ??
+                stage.compression_plan?.available_tests ??
+                []
+              }
+              onChange={(plan) => setField("compression_plan", plan)}
+              disabled={false}
             />
           ) : (
             <SamplingSection
-              rows={draft.sampling_plan ?? []}
-              onChange={(rows) => setField("sampling_plan", rows)}
-              disabled={readOnly}
+              groups={normalizeSamplingPlan(draft.sampling_plan ?? [])}
+              stages={getSamplingStageOptions(stage)}
+              tests={stage.available_tests ?? []}
+              onChange={(groups) =>
+                setField("sampling_plan", serializeSamplingPlan(groups))
+              }
+              disabled={false}
             />
           )}
-          <DiagramSection
-            available={stage.available_sampling_diagrams ?? []}
-            selected={draft.sampling_diagram_labels ?? []}
-            onChange={(labels) => setField("sampling_diagram_labels", labels)}
-            disabled={readOnly}
-          />
+          {!isDispensing && stageKind !== "compression" ? (
+            <DiagramSection
+              available={stage.available_sampling_diagrams ?? []}
+              selected={draft.sampling_diagram_labels ?? []}
+              onChange={(labels) => setField("sampling_diagram_labels", labels)}
+              disabled={false}
+            />
+          ) : null}
         </div>
       </>
     ) : null;
 
   return (
-    <div className="min-h-screen bg-background text-text">
+    <div className="min-h-screen bg-background text-text lg:fixed lg:inset-0 lg:flex lg:flex-col lg:overflow-hidden">
       <AppHeader
         user={user}
         unit={context?.unit ?? null}
         isLoadingUnit={isLoadingContext}
       />
-      <div className="lg:grid lg:h-[calc(100vh-var(--topbar-h))] lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden">
-        <AppSidebar user={user} />
-        <main className="min-w-0 lg:h-full lg:overflow-y-auto">
-          <section className="mx-auto bg-surface shadow-sm">
+      <div className="lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden">
+        <div className="lg:h-full lg:min-h-0 lg:overflow-y-auto">
+          <AppSidebar user={user} />
+        </div>
+        <main className="min-w-0 lg:h-full lg:min-h-0 lg:overflow-y-auto">
+          <section className="mx-auto flex min-h-[calc(100vh-var(--topbar-h))] flex-col bg-surface shadow-sm lg:min-h-full">
             <div className="px-4 py-4 sm:px-6 lg:px-8">
               <DocumentStepper
                 steps={PVP_PVR_DOCUMENT_STEPS}
@@ -383,7 +417,7 @@ export function PvpProcedureSamplingPage() {
                 procedure preview.
               </p>
             </header>
-            <div className="bg-muted/50 px-4 py-5 sm:px-6 lg:px-8">
+            <div className="flex-1 bg-muted/50 px-4 py-5 sm:px-6 lg:px-8">
               <div className="mx-auto max-w-[1100px]">
                 {error ? (
                   <div
@@ -439,13 +473,13 @@ export function PvpProcedureSamplingPage() {
                               type="button"
                               aria-expanded={expanded}
                               onClick={() => openStage(item.section_key)}
-                              className={`flex min-h-[60px] w-full items-center gap-3 border-l px-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary sm:px-5 ${expanded ? "border-l-2 border-l-primary bg-primary/5" : "border-l-transparent hover:bg-muted/60"}`}
+                              className={`flex min-h-[60px] w-full items-center gap-3 border-l px-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary sm:px-5 ${expanded ? "border-l-2 border-l-primary bg-primary/5 " : "border-l-transparent hover:bg-muted/60"}`}
                             >
                               {/* <span className="font-mono text-micro font-medium text-subdued">
                                 {item.number ?? ""}
                               </span> */}
                               <span
-                                className={`min-w-0 flex-1 text-small font-semibold ${expanded ? "text-primary" : "text-text"}`}
+                                className={`min-w-0 flex-1 text-small font-semibold ${expanded ? "text-primary-dark" : "text-text"}`}
                               >
                                 {item.title ?? item.section_key}
                               </span>
@@ -496,7 +530,7 @@ export function PvpProcedureSamplingPage() {
                                       ) : null}
                                     </div> */}
                                     {content}
-                                    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-surface p-4">
+                                    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-card">
                                       <div className="text-small text-subdued">
                                         {saveMessage ||
                                           (dirty
@@ -509,7 +543,6 @@ export function PvpProcedureSamplingPage() {
                                           disabled={
                                             !dirty ||
                                             isSaving ||
-                                            readOnly ||
                                             hasDuplicateParameters
                                           }
                                           onClick={() => void saveStage()}
@@ -519,33 +552,32 @@ export function PvpProcedureSamplingPage() {
                                             ? "Saving…"
                                             : "Save changes"}
                                         </button>
-                                        <button
-                                          type="button"
-                                          disabled={
-                                            readOnly ||
-                                            stage.generation_supported ===
-                                              false ||
-                                            isGenerating ||
-                                            hasDuplicateParameters
-                                          }
-                                          onClick={() =>
-                                            void generate(
-                                              Boolean(stage.procedure_current),
-                                            )
-                                          }
-                                          className="inline-flex items-center gap-2 rounded-control bg-primary px-4 py-2 text-small font-semibold text-white disabled:opacity-50"
-                                        >
-                                          {isGenerating ? (
-                                            <>
-                                              <RefreshCw className="size-4 animate-spin" />
-                                              Generating…
-                                            </>
-                                          ) : stage.procedure_current ? (
-                                            "Regenerate procedure"
-                                          ) : (
-                                            "Generate procedure"
-                                          )}
-                                        </button>
+                                        {!isDispensing ? (
+                                          <button
+                                            type="button"
+                                            disabled={
+                                              isGenerating ||
+                                              hasDuplicateParameters
+                                            }
+                                            onClick={() =>
+                                              void generate(
+                                                Boolean(stage.procedure_current),
+                                              )
+                                            }
+                                            className="inline-flex items-center gap-2 rounded-control bg-primary px-4 py-2 text-small font-semibold text-white disabled:opacity-50"
+                                          >
+                                            {isGenerating ? (
+                                              <>
+                                                <RefreshCw className="size-4 animate-spin" />
+                                                Generating…
+                                              </>
+                                            ) : stage.procedure_current ? (
+                                              "Regenerate procedure"
+                                            ) : (
+                                              "Generate procedure"
+                                            )}
+                                          </button>
+                                        ) : null}
                                       </div>
                                     </div>
                                     {generationError ? (
@@ -566,11 +598,14 @@ export function PvpProcedureSamplingPage() {
                                         {progress.percent != null
                                           ? ` · ${progress.percent}%`
                                           : ""}
+                                        {progress.error
+                                          ? ` · ${progress.error}`
+                                          : ""}
                                       </div>
                                     ) : null}
-                                    {preview ? (
+                                    {!isDispensing && preview ? (
                                       <Preview value={preview} />
-                                    ) : stage.procedure?.length ? (
+                                    ) : !isDispensing && stage.procedure?.length ? (
                                       <Preview value={stage.procedure} />
                                     ) : null}
                                   </>
@@ -585,23 +620,21 @@ export function PvpProcedureSamplingPage() {
                 ) : null}
               </div>
             </div>
-            <footer className="border-t border-border bg-surface px-4 py-4 sm:px-6 lg:px-8">
+            <footer className="sticky bottom-0 z-10 border-t border-border bg-surface px-4 py-3.5 shadow-auth sm:px-6 lg:px-8">
               <div className="mx-auto flex max-w-[1100px] flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <button
                   type="button"
-                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-control border border-border-strong bg-surface px-5 py-2.5 text-small font-semibold text-text transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  className="inline-flex items-center justify-center gap-2 rounded-control border border-border-strong bg-surface px-5 py-2 text-small font-semibold text-text transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   onClick={() => goToStep("cpp-cqa")}
                 >
-                  <ArrowLeft className="size-4" aria-hidden="true" />
                   Back
                 </button>
                 <button
                   type="button"
-                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-control bg-primary px-5 py-2.5 text-small font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  className="inline-flex items-center justify-center gap-2 rounded-control bg-primary px-5 py-2 text-small font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   onClick={() => goToStep("generate-submit")}
                 >
                   Continue to generate
-                  <ArrowRight className="size-4" aria-hidden="true" />
                 </button>
               </div>
             </footer>
@@ -615,13 +648,20 @@ export function PvpProcedureSamplingPage() {
 function normalizeDraft(stage: ProcedureStage): JsonRecord {
   const currentDiagrams =
     stage.sampling_diagram_labels ?? stage.sampling_diagrams ?? [];
+  const availableDiagramLabels = new Set(
+    (stage.available_sampling_diagrams ?? [])
+      .map((item: any) =>
+        typeof item === "string" ? item : asString(item?.label),
+      )
+      .filter(Boolean),
+  );
   return {
     additional_cpp_rows: clone(stage.additional_cpp_rows ?? []),
     additional_cqa_rows: clone(stage.additional_cqa_rows ?? []),
     analytical_methodology: clone(stage.analytical_methodology ?? []),
     sampling_plan: clone(stage.sampling_plan ?? []),
     granulation_group_sampling: clone(stage.granulation_group_sampling ?? []),
-    compression_plan: clone(stage.compression_plan ?? {}),
+    compression_plan: editableCompressionPlan(stage.compression_plan),
     sampling_diagram_labels: Array.isArray(currentDiagrams)
       ? currentDiagrams
           .map((item: any) =>
@@ -629,28 +669,107 @@ function normalizeDraft(stage: ProcedureStage): JsonRecord {
               ? item
               : asString(item?.label ?? item?.name),
           )
-          .filter(Boolean)
+          .filter((item: string) => item && availableDiagramLabels.has(item))
       : [],
   };
+}
+function granulationGroups(value: unknown): JsonRecord[] {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== "object") return [];
+  return Object.entries(value as JsonRecord).map(([key, group]) => ({
+    ...(group && typeof group === "object" ? group : {}),
+    key,
+  }));
 }
 function getStageKind(
   stage: ProcedureStage | null,
 ): "dispensing" | "granulation" | "compression" | "normal" {
   if (!stage) return "normal";
-  const title = `${stage.title ?? ""} ${stage.section_key}`.toLowerCase();
-  if (title.includes("dispens")) return "dispensing";
+  if (stage.section_key === "dispensing_rm") return "dispensing";
   if (
     (Array.isArray(stage.granulation_group_sampling) &&
       stage.granulation_group_sampling.length > 0) ||
-    title.includes("granulation")
+    (stage.granulation_group_sampling &&
+      typeof stage.granulation_group_sampling === "object" &&
+      !Array.isArray(stage.granulation_group_sampling) &&
+      Object.keys(stage.granulation_group_sampling).length > 0)
   )
     return "granulation";
   if (
     (stage.compression_plan && typeof stage.compression_plan === "object") ||
-    title.includes("compression")
+    String(stage.title ?? "").trim().toLowerCase() === "compression"
   )
     return "compression";
   return "normal";
+}
+function getSamplingStageOptions(stage: ProcedureStage): string[] {
+  const isCoating = `${stage.section_key} ${stage.title ?? ""}`
+    .toLowerCase()
+    .includes("coating");
+  const field = isCoating ? "coating_pass" : "processing_step";
+  const rows = [
+    ...(stage.critical_process_parameters ?? []),
+    ...(stage.critical_quality_attributes ?? []),
+  ];
+  return [
+    ...new Set(
+      rows
+        .map((row: JsonRecord) => asString(row?.[field]).trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+function normalizeSamplingPlan(value: unknown): SamplingPlanGroup[] {
+  if (!Array.isArray(value)) return [{ layer: "", sampling_rows: [] }];
+  const nestedGroups = value.filter(
+    (item: JsonRecord) => Array.isArray(item?.sampling_rows),
+  );
+  if (nestedGroups.length) {
+    return nestedGroups.map((item: JsonRecord) => ({
+      layer: asString(item.layer),
+      sampling_rows: item.sampling_rows.map((row: SamplingRow) =>
+        normalizeSamplingRow(row),
+      ),
+    }));
+  }
+
+  const legacyRows = value.filter(
+    (item: JsonRecord) => item && typeof item === "object" && "stage" in item,
+  ) as SamplingRow[];
+  if (!legacyRows.length) return [{ layer: "", sampling_rows: [] }];
+  const groups = new Map<string, SamplingRow[]>();
+  for (const row of legacyRows) {
+    const layer = asString(row.layer);
+    const rows = groups.get(layer) ?? [];
+    rows.push(normalizeSamplingRow(row));
+    groups.set(layer, rows);
+  }
+  return [...groups].map(([layer, sampling_rows]) => ({ layer, sampling_rows }));
+}
+function editableCompressionPlan(value: unknown): JsonRecord {
+  const plan = clone(
+    (value && typeof value === "object" ? value : {}) as JsonRecord,
+  );
+  delete plan.available_tests;
+  return plan;
+}
+function normalizeSamplingRow(row: SamplingRow): SamplingRow {
+  return {
+    stage: asString(row.stage),
+    sample_quantity: asString(row.sample_quantity),
+    number_of_samples: row.number_of_samples ?? 1,
+    test: asString(row.test),
+  };
+}
+function serializeSamplingPlan(groups: SamplingPlanGroup[]): SamplingPlanGroup[] {
+  return groups.map((group) => ({
+    layer: asString(group.layer),
+    sampling_rows: group.sampling_rows.map((row) => normalizeSamplingRow(row)),
+  }));
+}
+function withCurrentOption(options: string[], current: unknown): string[] {
+  const value = asString(current).trim();
+  return value && !options.includes(value) ? [value, ...options] : options;
 }
 function hasDuplicates(source: JsonRecord[], added: JsonRecord[]): boolean {
   const names = source
@@ -706,7 +825,7 @@ function Card({
   return (
     <section className="overflow-hidden rounded-card border border-border bg-surface">
       <header
-        className={`flex items-center justify-between gap-3 px-4 py-3 ${open ? "border-b border-border" : ""}`}
+        className={`flex items-center bg-muted/50 justify-between gap-3 px-4 py-3 ${open ? "border-b border-border" : ""}`}
       >
         <button
           type="button"
@@ -733,36 +852,77 @@ function Card({
     </section>
   );
 }
+/* ---------- Info tables (Equipment / Instruments) ---------- */
+
+// Same widths for every info table, so columns line up across cards.
+// Adjust the keys if your API uses different names for these fields.
+const INFO_COLUMN_ORDER = ["name", "id_no", "operation_sop_no"];
+const INFO_COLUMN_WIDTH: Record<string, string> = {
+  name: "42%",
+  id_no: "22%",
+  operation_sop_no: "36%",
+};
+
+const thClass =
+  "px-3 py-3 text-micro font-semibold uppercase tracking-wide text-text";
+const tdClass = "px-3 py-3 align-middle text-small text-text";
+
+function sortInfoColumns(keys: string[]): string[] {
+  const rank = (key: string) => {
+    const index = INFO_COLUMN_ORDER.indexOf(key.toLowerCase());
+    return index === -1 ? INFO_COLUMN_ORDER.length : index;
+  };
+  return [...keys].sort((a, b) => rank(a) - rank(b));
+}
+
+function EmptyValue() {
+  return <span className="text-text">—</span>;
+}
+
 function InfoSection({ title, rows }: { title: string; rows?: JsonRecord[] }) {
+  const list = rows ?? [];
+  const columns = sortInfoColumns([
+    ...new Set(list.flatMap((row) => Object.keys(row))),
+  ]);
+
   return (
     <Card title={title}>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[420px] text-left text-small">
-          <thead className="text-micro uppercase text-subdued">
+        <table className="w-full min-w-[560px] table-fixed text-left">
+          <colgroup>
+            {columns.map((key) => (
+              <col key={key} style={{ width: INFO_COLUMN_WIDTH[key.toLowerCase()] }} />
+            ))}
+          </colgroup>
+          <thead className="bg-muted/40 border-b border-border text-micro uppercase text-text">
             <tr>
-              {[
-                ...new Set((rows ?? []).flatMap((row) => Object.keys(row))),
-              ].map((key) => (
-                <th key={key} className="px-2 py-2">
+              {columns.map((key) => (
+                <th key={key} scope="col" className={thClass}>
                   {label(key)}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody>
-            {(rows ?? []).length ? (
-              rows!.map((row, i) => (
-                <tr key={i} className="border-t border-border">
-                  {Object.values(row).map((value, j) => (
-                    <td key={j} className="px-2 py-2">
-                      {display(value)}
-                    </td>
-                  ))}
+          <tbody className="divide-y divide-border">
+            {list.length ? (
+              list.map((row, i) => (
+                <tr key={i} className="transition-colors hover:bg-muted/30">
+                  {columns.map((key) => {
+                    const text = display(row[key]);
+                    return (
+                      <td key={key} className={`${tdClass} break-words`}>
+                        {text || <EmptyValue />}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))
             ) : (
               <tr>
-                <td className="px-2 py-2 text-subdued" colSpan={8}>
+                <td
+                  className="px-3 py-6 text-center text-small text-subdued"
+                  colSpan={Math.max(columns.length, 1)}
+                >
                   No data provided.
                 </td>
               </tr>
@@ -771,6 +931,19 @@ function InfoSection({ title, rows }: { title: string; rows?: JsonRecord[] }) {
         </table>
       </div>
     </Card>
+  );
+}
+
+// Source table and editable table share these widths, so Parameter / Limit line up.
+const PARAM_COLS = ["48%", "42%", "10%"];
+
+function ParamColGroup() {
+  return (
+    <colgroup>
+      {PARAM_COLS.map((width, i) => (
+        <col key={i} style={{ width }} />
+      ))}
+    </colgroup>
   );
 }
 
@@ -790,9 +963,7 @@ function ParameterSection({
   const existing = (sourceRows ?? []).map((row) =>
     asString(row.parameter).trim().toLowerCase(),
   );
-  const sourceColumns = [
-    ...new Set((sourceRows ?? []).flatMap((row) => Object.keys(row))),
-  ];
+  const sourceGroups = groupParameterRows(sourceRows ?? []);
   const duplicate = rows.some((row, index) => {
     const name = asString(row.parameter).trim().toLowerCase();
     return (
@@ -804,10 +975,161 @@ function ParameterSection({
     );
   });
   return (
-    <Card
-      title={title}
-      action={
-        !disabled ? (
+<Card title={title}>
+  {/* ---------- Source rows (read only) ---------- */}
+  {(sourceRows ?? []).length ? (
+    <div className="mb-6">
+      <div className="overflow-x-auto rounded-control border border-border">
+        <table className="w-full min-w-[480px] table-fixed text-left text-small">
+          <ParamColGroup />
+          <thead className="border-b border-border bg-muted/50">
+            <tr>
+              <th scope="col" className={`${thClass} pl-6`}>Parameter</th>
+              <th scope="col" className={thClass}>Limit</th>
+              <th scope="col" className={thClass}>
+                <span className="sr-only">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {sourceGroups.groups.map((layerGroup, layerIndex) => (
+              <Fragment key={`layer-${layerIndex}`}>
+                {sourceGroups.hasLayer ? (
+                  <tr className="border-t border-border bg-accent-soft">
+                    <th
+                      colSpan={3}
+                      scope="colgroup"
+                      className="px-4 py-2 text-left text-small font-semibold text-primary-dark "
+                    >
+                      {layerGroup.layer || "—"}
+                    </th>
+                  </tr>
+                ) : null}
+                {layerGroup.steps.map((stepGroup, stepIndex) => (
+                  <Fragment key={`step-${stepIndex}`}>
+                    <tr className="border-t border-border bg-muted/40">
+                      <th
+                        colSpan={3}
+                        scope="colgroup"
+                        className="border-l-2 border-l-primary px-4 py-2.5 text-left text-micro font-semibold uppercase tracking-wide text-primary-dark"
+                      >
+                        {stepGroup.step || "Other"}
+                      </th>
+                    </tr>
+                    {stepGroup.rows.map((row, rowIndex) => (
+                      <tr
+                        key={`source-${layerIndex}-${stepIndex}-${rowIndex}`}
+                        className="border-t border-border bg-surface transition-colors hover:bg-accent-soft/60"
+                      >
+                        <td className="break-words py-2.5 pl-6 pr-3 align-middle text-small text-text">
+                          {display(row.parameter) || <EmptyValue />}
+                        </td>
+                        <td className="break-words px-3 py-2.5 align-middle text-small font-medium tabular-nums text-text">
+                          {display(row.limit) || <EmptyValue />}
+                        </td>
+                        <td />
+                      </tr>
+                    ))}
+                  </Fragment>
+                ))}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  ) : null}
+
+  {/* ---------- Additional rows (editable) ---------- */}
+  <div>
+    <div className="mb-2 flex items-center justify-between gap-2">
+      <h4 className="flex items-center gap-2 text-micro font-semibold uppercase tracking-wide text-primary-dark">
+        {/* <span className="size-1.5 rounded-full bg-primary" aria-hidden="true" /> */}
+        Additional rows
+      </h4>
+      <span
+        className={`min-w-6 rounded-full border px-2 py-0.5 text-center text-micro font-semibold ${
+          rows.length
+            ? "border-primary bg-primary text-white"
+            : "border-border bg-muted/50 text-subdued"
+        }`}
+      >
+        {rows.length}
+      </span>
+    </div>
+
+    <div className="overflow-hidden rounded-control border border-border">
+      {rows.length ? (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[480px] table-fixed text-left text-small">
+            <ParamColGroup />
+            <thead className="border-b border-border bg-muted/50">
+              <tr>
+                <th scope="col" className={thClass}>Parameter</th>
+                <th scope="col" className={thClass}>Limit</th>
+                <th scope="col" className={thClass}>
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {rows.map((row, index) => (
+                <tr
+                  key={`add-${index}`}
+                  className="transition-colors hover:bg-accent-soft/60"
+                >
+                  <td className="px-3 py-2">
+                    <input
+                      disabled={disabled}
+                      aria-label={`${title} parameter ${index + 1}`}
+                      className={inputClass}
+                      value={row.parameter ?? ""}
+                      onChange={(event) =>
+                        updateAt(rows, index, { ...row, parameter: event.target.value }, onChange)
+                      }
+                      placeholder="Parameter"
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      disabled={disabled}
+                      aria-label={`${title} limit ${index + 1}`}
+                      className={inputClass}
+                      value={row.limit ?? ""}
+                      onChange={(event) =>
+                        updateAt(rows, index, { ...row, limit: event.target.value }, onChange)
+                      }
+                      placeholder="Limit"
+                    />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <button
+                      disabled={disabled}
+                      type="button"
+                      title="Remove row"
+                      aria-label={`Remove ${title} row ${index + 1}`}
+                      onClick={() => onChange(rows.filter((_, i) => i !== index))}
+                      className="inline-flex size-9 items-center justify-center rounded-control text-danger transition-colors hover:bg-danger/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:opacity-40"
+                    >
+                      <Trash2 className="size-4" aria-hidden="true" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="px-4 py-5 text-center">
+          <p className="text-small font-medium text-text">No additional rows</p>
+          <p className="mt-0.5 text-micro text-subdued">
+            Add rows here for parameters that are not in the source list.
+          </p>
+        </div>
+      )}
+
+      {!disabled ? (
+        <div className="border-t border-dashed border-primary/30 bg-accent-soft/60 px-3 py-2.5">
           <button
             type="button"
             onClick={() =>
@@ -817,6 +1139,8 @@ function ParameterSection({
                   parameter: "",
                   limit: "",
                   layer: "",
+                  part_number: 1,
+                  lot_number: 1,
                   processing_step: "",
                   coating_pass: "",
                   equipment_name: "",
@@ -825,140 +1149,54 @@ function ParameterSection({
                 },
               ])
             }
-            className="inline-flex items-center gap-1 text-small font-semibold text-primary"
+            className="inline-flex items-center gap-1.5 rounded-control bg-primary px-3 py-1.5 text-small font-semibold text-white transition-colors hover:bg-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           >
-            <Plus className="size-4" />
+            <Plus className="size-4" aria-hidden="true" />
             Add row
           </button>
-        ) : undefined
-      }
-    >
-      {(sourceRows ?? []).length ? (
-        <div className="mb-4 overflow-x-auto">
-          <p className="mb-1 text-micro font-medium uppercase text-subdued">
-            Backend source rows · read only
-          </p>
-          <table className="w-full min-w-[600px] text-left text-small">
-            <thead className="text-micro uppercase text-subdued">
-              <tr>
-                {sourceColumns.map((key) => (
-                  <th key={key} className="px-2 py-2">
-                    {label(key)}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {sourceRows!.map((row, i) => (
-                <tr
-                  key={`src-${i}`}
-                  className="border-t border-border bg-muted/30"
-                >
-                  {sourceColumns.map((key) => (
-                    <td key={key} className="px-2 py-2">
-                      {display(row[key])}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       ) : null}
-      <div className="overflow-x-auto">
-        <p className="mb-1 text-micro font-medium uppercase text-subdued">
-          Additional rows
-        </p>
-        <table className="w-full min-w-[600px] text-left text-small">
-          <thead className="text-micro uppercase text-subdued">
-            <tr>
-              <th className="px-2 py-2">Parameter</th>
-              <th className="px-2 py-2">Limit</th>
-              <th className="px-2 py-2">Processing step</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, index) => (
-              <tr key={`add-${index}`} className="border-t border-border">
-                <td className="px-2 py-2">
-                  <input
-                    disabled={disabled}
-                    aria-label={`${title} parameter ${index + 1}`}
-                    className={inputClass}
-                    value={row.parameter ?? ""}
-                    onChange={(event) =>
-                      updateAt(
-                        rows,
-                        index,
-                        { ...row, parameter: event.target.value },
-                        onChange,
-                      )
-                    }
-                    placeholder="Parameter"
-                  />
-                </td>
-                <td className="px-2 py-2">
-                  <input
-                    disabled={disabled}
-                    className={inputClass}
-                    value={row.limit ?? ""}
-                    onChange={(event) =>
-                      updateAt(
-                        rows,
-                        index,
-                        { ...row, limit: event.target.value },
-                        onChange,
-                      )
-                    }
-                    placeholder="Limit"
-                  />
-                </td>
-                <td className="px-2 py-2">
-                  <input
-                    disabled={disabled}
-                    className={inputClass}
-                    value={row.processing_step ?? ""}
-                    onChange={(event) =>
-                      updateAt(
-                        rows,
-                        index,
-                        { ...row, processing_step: event.target.value },
-                        onChange,
-                      )
-                    }
-                    placeholder="Processing step"
-                  />
-                </td>
-                <td>
-                  <button
-                    disabled={disabled}
-                    type="button"
-                    title="Remove row"
-                    onClick={() => onChange(rows.filter((_, i) => i !== index))}
-                    className="p-2 text-danger disabled:opacity-40"
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {!rows.length ? (
-          <p className="px-2 py-2 text-small text-subdued">
-            No additional rows.
-          </p>
-        ) : null}
-      </div>
-      {duplicate ? (
-        <p className="mt-2 text-small text-danger">
-          Parameter names must be unique and cannot duplicate source rows.
-        </p>
-      ) : null}
-    </Card>
+    </div>
+  </div>
+
+  {duplicate ? (
+    <p
+      role="alert"
+      className="mt-3 rounded-control border border-danger/30 bg-danger/5 px-3 py-2 text-small text-danger"
+    >
+      Parameter names must be unique and cannot duplicate source rows.
+    </p>
+  ) : null}
+</Card>
   );
 }
+
+function groupParameterRows(rows: JsonRecord[]) {
+  const hasLayer = rows.some((row) => asString(row.layer).trim() !== "");
+  const layers = new Map<string, Map<string, JsonRecord[]>>();
+
+  for (const row of rows) {
+    const layer = hasLayer ? asString(row.layer) : "";
+    const step = asString(row.processing_step);
+    const steps = layers.get(layer) ?? new Map<string, JsonRecord[]>();
+    const stepRows = steps.get(step) ?? [];
+    stepRows.push(row);
+    steps.set(step, stepRows);
+    layers.set(layer, steps);
+  }
+
+  return {
+    hasLayer,
+    groups: [...layers].map(([layer, steps]) => ({
+      layer,
+      steps: [...steps].map(([step, groupedRows]) => ({
+        step,
+        rows: groupedRows,
+      })),
+    })),
+  };
+}
+
 function AnalyticalSection({
   rows,
   onChange,
@@ -968,232 +1206,329 @@ function AnalyticalSection({
   onChange: (rows: JsonRecord[]) => void;
   disabled: boolean;
 }) {
+  const [adding, setAdding] = useState(false);
+  const [attribute, setAttribute] = useState("");
+  const [method, setMethod] = useState("");
+  const canAdd = attribute.trim() !== "" && method.trim() !== "";
+
+  function closeForm() {
+    setAdding(false);
+    setAttribute("");
+    setMethod("");
+  }
+
+  function commit() {
+    if (!canAdd) return;
+    onChange([
+      ...rows,
+      { quality_attribute: attribute.trim(), method_name: method.trim() },
+    ]);
+    closeForm();
+  }
+
+  function onKeyDown(event: React.KeyboardEvent) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commit();
+    } else if (event.key === "Escape") {
+      closeForm();
+    }
+  }
+
   return (
-    <Card
-      title="Analytical Methodology"
-      action={
-        !disabled ? (
-          <AddButton
-            onClick={() =>
-              onChange([...rows, { quality_attribute: "", method_name: "" }])
-            }
-          />
-        ) : undefined
-      }
-    >
-      <div className="grid gap-3">
-        {rows.map((row, i) => (
-          <div key={i} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-            <input
-              disabled={disabled}
-              className={inputClass}
-              aria-label="Quality attribute"
-              value={row.quality_attribute ?? ""}
-              onChange={(e) =>
-                updateAt(
-                  rows,
-                  i,
-                  { ...row, quality_attribute: e.target.value },
-                  onChange,
-                )
-              }
-              placeholder="Quality attribute"
-            />
-            <input
-              disabled={disabled}
-              className={inputClass}
-              aria-label="Method name"
-              value={row.method_name ?? ""}
-              onChange={(e) =>
-                updateAt(
-                  rows,
-                  i,
-                  { ...row, method_name: e.target.value },
-                  onChange,
-                )
-              }
-              placeholder="Method name"
-            />
-            <button
-              disabled={disabled}
-              type="button"
-              onClick={() => onChange(rows.filter((_, index) => i !== index))}
-              className="p-2 text-danger disabled:opacity-40"
-            >
-              <Trash2 className="size-4" />
-            </button>
+    <Card title="Analytical Methodology">
+      <div className="overflow-hidden rounded-control">
+        {rows.length ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[480px] table-fixed text-left text-small">
+              <colgroup>
+                <col style={{ width: "45%" }} />
+                <col style={{ width: "45%" }} />
+              </colgroup>
+              <thead className="border-b border-border text-text bg-muted/40">
+                <tr>
+                  <th scope="col" className={thClass}>Quality attribute</th>
+                  <th scope="col" className={thClass}>Method name</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {rows.map((row, i) => (
+                  <tr
+                    key={i}
+                    className="bg-surface transition-colors hover:bg-accent-soft/60"
+                  >
+                    <td className={`${tdClass} break-words`}>
+                      {display(row.quality_attribute) || <EmptyValue />}
+                    </td>
+                    <td className={`${tdClass} break-words`}>
+                      {display(row.method_name) || <EmptyValue />}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        ))}
-        {!rows.length ? (
-          <p className="text-small text-subdued">
-            No analytical methods are defined.
-          </p>
+        ) : (
+          <div className="px-4 py-5 text-center">
+            <p className="text-small font-medium text-text">
+              No analytical methods are defined
+            </p>
+            {!disabled ? (
+              <p className="mt-0.5 text-micro text-subdued">
+                Use “Add method” below to add one.
+              </p>
+            ) : null}
+          </div>
+        )}
+
+        {!disabled ? (
+          <div className="border-t border-dashed border-primary/30 bg-accent-soft/60 px-3 py-2.5">
+            {adding ? (
+              <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-center">
+                <input
+                  autoFocus
+                  aria-label="Quality attribute"
+                  className={inputClass}
+                  value={attribute}
+                  onChange={(e) => setAttribute(e.target.value)}
+                  onKeyDown={onKeyDown}
+                  placeholder="Quality attribute"
+                />
+                <input
+                  aria-label="Method name"
+                  className={inputClass}
+                  value={method}
+                  onChange={(e) => setMethod(e.target.value)}
+                  onKeyDown={onKeyDown}
+                  placeholder="Method name"
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={!canAdd}
+                    onClick={commit}
+                    className="inline-flex items-center gap-1.5 rounded-control bg-primary px-3 py-2 text-small font-semibold text-white transition-colors hover:bg-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-50"
+                  >
+                    <Plus className="size-4" aria-hidden="true" />
+                    Add
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeForm}
+                    className="rounded-control border border-border-strong bg-surface px-3 py-2 text-small font-semibold text-text transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setAdding(true)}
+                className="inline-flex items-center gap-1.5 rounded-control bg-primary px-3 py-1.5 text-small font-semibold text-white transition-colors hover:bg-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              >
+                <Plus className="size-4" aria-hidden="true" />
+                Add method
+              </button>
+            )}
+          </div>
         ) : null}
       </div>
     </Card>
   );
 }
 function SamplingSection({
-  rows,
+  groups,
+  stages,
+  tests,
   onChange,
   disabled,
 }: {
-  rows: SamplingRow[];
-  onChange: (rows: SamplingRow[]) => void;
+  groups: SamplingPlanGroup[];
+  stages: string[];
+  tests: string[];
+  onChange: (groups: SamplingPlanGroup[]) => void;
   disabled: boolean;
 }) {
   return (
-    <Card
-      title="Sampling Plan"
-      action={
-        !disabled ? (
-          <AddButton
-            onClick={() =>
-              onChange([
-                ...rows,
-                {
-                  stage: "",
-                  sample_quantity: "",
-                  number_of_samples: 1,
-                  test: "",
-                },
-              ])
-            }
-          />
-        ) : undefined
-      }
-    >
-      <SamplingRows rows={rows} onChange={onChange} disabled={disabled} />
+    <Card title="Sampling Plan">
+      <div className="grid gap-4">
+        {groups.map((group, groupIndex) => {
+          const layerLabel = group.layer.trim() || "Unassigned layer";
+          return (
+            <section
+              key={`${group.layer}-${groupIndex}`}
+              aria-label={`Sampling rows for ${layerLabel}`}
+              className="overflow-hidden rounded-control border border-border"
+            >
+              <div className="flex items-center justify-between gap-3 border-b border-border bg-muted/50 px-3 py-2.5">
+                <h3 className="text-small font-semibold">{layerLabel}</h3>
+                {!disabled ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onChange(
+                        groups.map((item, index) =>
+                          index === groupIndex
+                            ? {
+                                ...item,
+                                sampling_rows: [
+                                  ...item.sampling_rows,
+                                  {
+                                    stage: "",
+                                    sample_quantity: "",
+                                    number_of_samples: 1,
+                                    test: "",
+                                  },
+                                ],
+                              }
+                            : item,
+                        ),
+                      )
+                    }
+                    className="inline-flex items-center gap-1.5 rounded-control bg-primary px-3 py-1.5 text-small font-semibold text-white transition-colors hover:bg-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                  >
+                    <Plus className="size-4" aria-hidden="true" />
+                    Add row
+                  </button>
+                ) : null}
+              </div>
+              <SamplingRows
+                rows={group.sampling_rows}
+                stages={stages}
+                tests={tests}
+                onChange={(sampling_rows) =>
+                  onChange(
+                    groups.map((item, index) =>
+                      index === groupIndex ? { ...item, sampling_rows } : item,
+                    ),
+                  )
+                }
+                disabled={disabled}
+              />
+            </section>
+          );
+        })}
+      </div>
     </Card>
   );
 }
+
 function SamplingRows({
   rows,
+  stages,
+  tests,
   onChange,
   disabled,
 }: {
   rows: SamplingRow[];
+  stages: string[];
+  tests: string[];
   onChange: (rows: SamplingRow[]) => void;
   disabled: boolean;
 }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[620px] text-left text-small">
-        <thead className="text-micro uppercase text-subdued">
+      <table className="w-full min-w-[720px] table-fixed text-left text-small">
+        <colgroup>
+          <col style={{ width: "27%" }} />
+          <col style={{ width: "21%" }} />
+          <col style={{ width: "17%" }} />
+          <col style={{ width: "27%" }} />
+          <col style={{ width: "64px" }} />
+        </colgroup>
+        <thead className="border-b border-border bg-muted/50">
           <tr>
-            {["Stage", "Sample quantity", "Number of samples", "Test", ""].map(
-              (x) => (
-                <th key={x} className="px-2 py-2">
-                  {x}
-                </th>
-              ),
-            )}
+            <th scope="col" className={thClass}>Stage</th>
+            <th scope="col" className={thClass}>Sample quantity</th>
+            <th scope="col" className={thClass}>No. of samples</th>
+            <th scope="col" className={thClass}>Test</th>
+            <th scope="col" className={thClass}>
+              <span className="sr-only">Actions</span>
+            </th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-border">
           {rows.map((row, index) => (
-            <tr key={row.id ?? index} className="border-t border-border">
-              <td className="px-2 py-2">
-                <TextCell
-                  value={row.stage}
-                  onChange={(v) =>
-                    updateAt(rows, index, { ...row, stage: v }, onChange)
-                  }
+            <tr
+              key={row.id ?? index}
+              className="transition-colors hover:bg-accent-soft/40"
+            >
+              <td className="px-3 py-2">
+                <SelectMenu
+                  ariaLabel={`Sampling stage ${index + 1}`}
+                  placeholder="Select stage"
+                  value={row.stage ?? ""}
+                  options={withCurrentOption(stages, row.stage)}
                   disabled={disabled}
+                  onChange={(v) => updateAt(rows, index, { ...row, stage: v }, onChange)}
                 />
               </td>
-              <td className="px-2 py-2">
+              <td className="px-3 py-2">
                 <TextCell
+                  ariaLabel={`Sample quantity ${index + 1}`}
                   value={row.sample_quantity}
-                  onChange={(v) =>
-                    updateAt(
-                      rows,
-                      index,
-                      { ...row, sample_quantity: v },
-                      onChange,
-                    )
-                  }
                   disabled={disabled}
+                  onChange={(v) =>
+                    updateAt(rows, index, { ...row, sample_quantity: v }, onChange)
+                  }
                 />
               </td>
-              <td className="px-2 py-2">
+              <td className="px-3 py-2">
                 <TextCell
-                  value={row.number_of_samples}
+                  ariaLabel={`Number of samples ${index + 1}`}
                   type="number"
+                  value={row.number_of_samples}
+                  disabled={disabled}
                   onChange={(v) =>
                     updateAt(
                       rows,
                       index,
-                      { ...row, number_of_samples: v },
+                      { ...row, number_of_samples: numberOrString(v) },
                       onChange,
                     )
                   }
-                  disabled={disabled}
                 />
               </td>
-              <td className="px-2 py-2">
-                <TextCell
-                  value={row.test}
-                  onChange={(v) =>
-                    updateAt(rows, index, { ...row, test: v }, onChange)
-                  }
+              <td className="px-3 py-2">
+                <SelectMenu
+                  ariaLabel={`Sampling test ${index + 1}`}
+                  placeholder="Select test"
+                  value={row.test ?? ""}
+                  options={withCurrentOption(tests, row.test)}
                   disabled={disabled}
+                  onChange={(v) => updateAt(rows, index, { ...row, test: v }, onChange)}
                 />
               </td>
-              <td>
-                <RemoveButton
+              <td className="px-2 py-2 text-center">
+                <button
+                  type="button"
                   disabled={disabled}
+                  title="Remove row"
+                  aria-label={`Remove sampling row ${index + 1}`}
                   onClick={() => onChange(rows.filter((_, i) => i !== index))}
-                />
+                  className="inline-flex size-9 items-center justify-center rounded-control text-danger transition-colors hover:bg-danger/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:opacity-40"
+                >
+                  <Trash2 className="size-4" aria-hidden="true" />
+                </button>
               </td>
             </tr>
           ))}
           {!rows.length ? (
             <tr>
-              <td colSpan={5} className="px-2 py-2 text-subdued">
-                No sampling rows.
+              <td colSpan={5} className="px-4 py-6 text-center">
+                <p className="text-small font-medium text-text">No sampling rows</p>
+                {!disabled ? (
+                  <p className="mt-0.5 text-micro text-subdued">
+                    Use “Add row” below to add one.
+                  </p>
+                ) : null}
               </td>
             </tr>
           ) : null}
         </tbody>
       </table>
     </div>
-  );
-}
-function GranulationSection({
-  groups,
-  onChange,
-  disabled,
-}: {
-  groups: JsonRecord[];
-  onChange: (groups: JsonRecord[]) => void;
-  disabled: boolean;
-}) {
-  return (
-    <Card title="Group-wise Sampling">
-      <div className="grid gap-4">
-        {groups.map((group, i) => (
-          <section
-            key={group.key ?? i}
-            className="rounded-control border border-border p-3"
-          >
-            <h4 className="mb-3 text-small font-semibold">{group.key}</h4>
-            <SamplingRows
-              rows={group.sampling_rows ?? []}
-              disabled={disabled}
-              onChange={(rows) =>
-                updateAt(groups, i, { ...group, sampling_rows: rows }, onChange)
-              }
-            />
-          </section>
-        ))}
-        {groups.length === 0 ? (
-          <p className="text-small text-subdued">
-            No granulation sampling groups are provided by the backend.
-          </p>
-        ) : null}
-      </div>
-    </Card>
   );
 }
 
@@ -1208,7 +1543,7 @@ function CompressionSection({
   onChange: (plan: JsonRecord) => void;
   disabled: boolean;
 }) {
-  const availableTests: string[] = plan.available_tests ?? stageTests;
+  const availableTests = stageTests;
   return (
     <Card title="Compression Plan">
       <div className="grid gap-5">
@@ -1236,10 +1571,11 @@ function CompressionSection({
           />
         </div>
         <CompressionRows
-          title="Challenges"
+          title="Challenge studies"
           rows={plan.challenges ?? []}
           tests={availableTests}
           disabled={disabled}
+          challengeOptions={DEFAULT_CHALLENGE_OPTIONS}
           onChange={(rows) => onChange({ ...plan, challenges: rows })}
         />
         <CompressionRows
@@ -1247,6 +1583,7 @@ function CompressionSection({
           rows={plan.sampling_points ?? []}
           tests={availableTests}
           disabled={disabled}
+          challengeOptions={DEFAULT_SAMPLING_OPTIONS}
           onChange={(rows) => onChange({ ...plan, sampling_points: rows })}
         />
         <div>
@@ -1317,167 +1654,403 @@ function CompressionSection({
             )}
           </div>
         </div>
-        <div>
-          <h4 className="mb-2 text-small font-semibold">Available Tests</h4>
-          <div className="flex flex-wrap gap-2">
-            {availableTests.map((test) => (
-              <span
-                key={test}
-                className="rounded-full border border-border bg-muted px-2.5 py-1 text-micro"
-              >
-                {test}
-              </span>
-            ))}
-          </div>
-        </div>
       </div>
     </Card>
   );
 }
+
+/* ---------- Challenge studies / Sampling points ---------- */
+
+function LabeledInput({
+  label: title,
+  value,
+  onChange,
+  type = "text",
+  placeholder,
+  disabled,
+}: {
+  label: string;
+  value: string | number;
+  onChange: (value: string) => void;
+  type?: "text" | "number";
+  placeholder?: string;
+  disabled: boolean;
+}) {
+  return (
+    <label className="grid gap-1.5">
+      <span className="text-small font-semibold">{title}</span>
+      <input
+        className={`${inputClass} h-9 px-3.5`}
+        type={type}
+        value={value}
+        placeholder={placeholder}
+        disabled={disabled}
+        min={type === "number" ? 0 : undefined}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  );
+}
+
+function TestsBox({
+  available,
+  selected,
+  disabled,
+  onChange,
+}: {
+  available: string[];
+  selected: string[];
+  disabled: boolean;
+  onChange: (value: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const listId = useId();
+
+  const toggle = (test: string) =>
+    onChange(
+      selected.includes(test)
+        ? selected.filter((item) => item !== test)
+        : [...selected, test],
+    );
+
+  return (
+    <div className="grid gap-2">
+      <span className="text-small font-semibold">Tests</span>
+
+      <div className="flex min-h-[3rem] flex-wrap items-center gap-1.5 rounded-control border border-border bg-surface px-3.5 py-2">
+        {selected.length === 0 ? (
+          <span className="text-small text-subdued">No tests selected</span>
+        ) : (
+          selected.map((test) => (
+            <span
+              key={test}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 py-1 text-micro font-medium"
+            >
+              {test}
+              <button
+                type="button"
+                disabled={disabled}
+                aria-label={`Remove ${test}`}
+                onClick={() => toggle(test)}
+                className="text-subdued hover:text-text disabled:cursor-not-allowed"
+              >
+                ×
+              </button>
+            </span>
+          ))
+        )}
+      </div>
+
+      <div
+        className="relative"
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+            setOpen(false);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") setOpen(false);
+        }}
+      >
+        <button
+          type="button"
+          disabled={disabled}
+          aria-expanded={open}
+          aria-controls={listId}
+          onClick={() => setOpen((value) => !value)}
+          className={`${inputClass} flex h-9 items-center justify-between px-3.5 text-left`}
+        >
+          <span>Select tests</span>
+          <ChevronDown
+            className={`size-4 text-subdued transition-transform ${open ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          />
+        </button>
+
+        {open ? (
+          <ul
+            id={listId}
+            className="absolute bottom-full z-20 mb-1 max-h-56 w-full overflow-y-auto rounded-control border border-border bg-surface p-1 shadow-sm"
+          >
+            {available.length === 0 ? (
+              <li className="px-3 py-2 text-small text-subdued">
+                No tests available
+              </li>
+            ) : (
+              available.map((test) => (
+                <li key={test}>
+                  <label className="flex cursor-pointer items-center gap-2.5 rounded-control px-3 py-2 text-small hover:bg-muted">
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(test)}
+                      onChange={() => toggle(test)}
+                      className="size-4 accent-primary"
+                    />
+                    {test}
+                  </label>
+                </li>
+              ))
+            )}
+          </ul>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function CheckCard({
+  badge,
+  badgeClass,
+  title,
+  cardClass,
+  children,
+}: {
+  badge: string;
+  badgeClass: string;
+  title: string;
+  cardClass: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={`grid content-start gap-4 rounded-card border p-5 ${cardClass}`}
+    >
+      <div className="flex items-center gap-3">
+        <span
+          className={`rounded-control px-2.5 py-1 text-micro font-semibold ${badgeClass}`}
+        >
+          {badge}
+        </span>
+        <h5 className="text-small font-semibold">{title}</h5>
+      </div>
+      {children}
+    </div>
+  );
+}
+
 function CompressionRows({
   title,
   rows,
   tests,
   disabled,
   onChange,
+  challengeOptions,
 }: {
   title: string;
   rows: JsonRecord[];
   tests: string[];
   disabled: boolean;
   onChange: (rows: JsonRecord[]) => void;
+  // When provided, each row gets a "Challenge study" dropdown (used for Challenge studies).
+  challengeOptions?: string[];
 }) {
+  const [expanded, setExpanded] = useState(true);
+  const bodyId = useId();
+  const options = challengeOptions ?? null;
   const update = (i: number, value: JsonRecord) =>
     updateAt(rows, i, value, onChange);
+
   return (
-    <section>
-      <div className="mb-2 flex items-center justify-between">
+    <section className="overflow-hidden rounded-card border border-border bg-surface">
+      <header className="flex items-center gap-3 border-b border-border bg-muted/50 px-4 py-2">
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-controls={bodyId}
+          aria-label={expanded ? `Collapse ${title}` : `Expand ${title}`}
+          onClick={() => setExpanded((value) => !value)}
+          className="grid size-9 shrink-0 place-items-center rounded-control border border-border bg-surface text-subdued hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          {expanded ? (
+            <ChevronUp className="size-4" aria-hidden="true" />
+          ) : (
+            <ChevronDown className="size-4" aria-hidden="true" />
+          )}
+        </button>
         <h4 className="text-small font-semibold">{title}</h4>
-        <AddButton
-          disabled={disabled}
-          onClick={() =>
-            onChange([
-              ...rows,
-              {
-                id: crypto.randomUUID(),
-                name: "",
-                runtime_minutes: "",
-                ipqc_lhs_quantity: "",
-                ipqc_rhs_quantity: "",
-                qc_quantity: "",
-                ipqc_tests: [],
-                qc_tests: [],
-              },
-            ])
-          }
-        />
-      </div>
-      <div className="grid gap-3">
-        {rows.map((row, i) => (
-          <div
-            key={row.id ?? i}
-            className="rounded-control border border-border p-3"
-          >
-            <div className="grid gap-2 sm:grid-cols-3">
-              {[
-                ["Name", "name"],
-                ["Runtime (minutes)", "runtime_minutes"],
-                ["IPQC LHS quantity", "ipqc_lhs_quantity"],
-                ["IPQC RHS quantity", "ipqc_rhs_quantity"],
-                ["QC quantity", "qc_quantity"],
-              ].map(([text, key]) => (
-                <Field
-                  key={key}
-                  label={text}
-                  value={row[key] ?? ""}
-                  type={key === "name" ? "text" : "number"}
-                  disabled={disabled}
-                  onChange={(v) =>
-                    update(i, {
-                      ...row,
-                      [key]: key === "name" ? v : numberOrString(v),
-                    })
-                  }
-                />
-              ))}
-              <div className="flex items-end justify-end">
-                <RemoveButton
-                  disabled={disabled}
-                  onClick={() => onChange(rows.filter((_, j) => i !== j))}
-                />
+        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-micro font-semibold text-primary-dark">
+          {rows.length}
+        </span>
+        <div className="ml-auto">
+          <AddButton
+            disabled={disabled}
+            onClick={() => {
+              setExpanded(true);
+              onChange([
+                ...rows,
+                {
+                  id: crypto.randomUUID(),
+                  name: "",
+                  runtime_minutes: "",
+                  ipqc_lhs_quantity: "",
+                  ipqc_rhs_quantity: "",
+                  qc_quantity: "",
+                  ipqc_tests: [],
+                  qc_tests: [],
+                },
+              ]);
+            }}
+          />
+        </div>
+      </header>
+
+      {expanded ? (
+        <div id={bodyId} className="divide-y divide-border">
+          {rows.map((row, i) => {
+            const name: string = row.name ?? "";
+            // With a dropdown: anything not in the preset list counts as "Other challenge".
+            const isOther = options
+              ? !options.includes(name) || name === OTHER_CHALLENGE
+              : true;
+            const selectValue = options
+              ? isOther
+                ? OTHER_CHALLENGE
+                : name
+              : "";
+
+            return (
+              <div key={row.id ?? i} className="grid gap-5 p-5">
+                {/* Top row: study / name / runtime / remove */}
+                <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,0.8fr)_auto]">
+                  {options ? (
+                    <div className="grid gap-1.5">
+                      <span className="text-small font-semibold">
+                        Challenge study
+                      </span>
+                      <SelectMenu
+                        ariaLabel={`Challenge study ${i + 1}`}
+                        placeholder="Select challenge"
+                        value={selectValue}
+                        options={options}
+                        disabled={disabled}
+                        onChange={(next) =>
+                          update(i, {
+                            ...row,
+                            name: next === OTHER_CHALLENGE ? "" : next,
+                          })
+                        }
+                      />
+                    </div>
+                  ) : null}
+
+                  <LabeledInput
+                    label={options ? "Specify challenge" : "Name"}
+                    value={isOther && name !== OTHER_CHALLENGE ? name : ""}
+                    placeholder={options ? "Enter challenge name" : "Enter name"}
+                    disabled={disabled || !isOther}
+                    onChange={(value) => update(i, { ...row, name: value })}
+                  />
+
+                  <LabeledInput
+                    label="Run time (min)"
+                    type="number"
+                    value={row.runtime_minutes ?? ""}
+                    placeholder="Minutes"
+                    disabled={disabled}
+                    onChange={(value) =>
+                      update(i, {
+                        ...row,
+                        runtime_minutes: numberOrString(value),
+                      })
+                    }
+                  />
+
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => onChange(rows.filter((_, j) => i !== j))}
+                    className="flex h-9 items-center justify-center gap-2 rounded-control px-3 text-small font-medium text-subdued transition-colors hover:bg-danger-soft hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Trash2 className="size-4" aria-hidden="true" />
+                  </button>
+                </div>
+
+                {/* IPQC and QC cards */}
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <CheckCard
+                    badge="IPQC"
+                    badgeClass="bg-primary/10 text-primary-dark"
+                    title="In-process check"
+                    cardClass="border-primary/30"
+                  >
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <LabeledInput
+                        label="Sample qty — LHS (tabs)"
+                        type="number"
+                        value={row.ipqc_lhs_quantity ?? ""}
+                        placeholder="Qty"
+                        disabled={disabled}
+                        onChange={(value) =>
+                          update(i, {
+                            ...row,
+                            ipqc_lhs_quantity: numberOrString(value),
+                          })
+                        }
+                      />
+                      <LabeledInput
+                        label="Sample qty — RHS (tabs)"
+                        type="number"
+                        value={row.ipqc_rhs_quantity ?? ""}
+                        placeholder="Qty"
+                        disabled={disabled}
+                        onChange={(value) =>
+                          update(i, {
+                            ...row,
+                            ipqc_rhs_quantity: numberOrString(value),
+                          })
+                        }
+                      />
+                    </div>
+                    <TestsBox
+                      available={tests}
+                      selected={row.ipqc_tests ?? []}
+                      disabled={disabled}
+                      onChange={(value) =>
+                        update(i, { ...row, ipqc_tests: value })
+                      }
+                    />
+                  </CheckCard>
+
+                  <CheckCard
+                    badge="QC"
+                    badgeClass="bg-muted text-text"
+                    title="Sent to QC"
+                    cardClass="border-border"
+                  >
+                    <LabeledInput
+                      label="Sample qty (tabs)"
+                      type="number"
+                      value={row.qc_quantity ?? ""}
+                      placeholder="Qty"
+                      disabled={disabled}
+                      onChange={(value) =>
+                        update(i, {
+                          ...row,
+                          qc_quantity: numberOrString(value),
+                        })
+                      }
+                    />
+                    <TestsBox
+                      available={tests}
+                      selected={row.qc_tests ?? []}
+                      disabled={disabled}
+                      onChange={(value) =>
+                        update(i, { ...row, qc_tests: value })
+                      }
+                    />
+                  </CheckCard>
+                </div>
               </div>
-            </div>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <TestPicker
-                label="IPQC tests"
-                available={tests}
-                selected={row.ipqc_tests ?? []}
-                disabled={disabled}
-                onChange={(value) => update(i, { ...row, ipqc_tests: value })}
-              />
-              <TestPicker
-                label="QC tests"
-                available={tests}
-                selected={row.qc_tests ?? []}
-                disabled={disabled}
-                onChange={(value) => update(i, { ...row, qc_tests: value })}
-              />
-            </div>
-          </div>
-        ))}
-        {rows.length === 0 ? (
-          <p className="text-small text-subdued">
-            No {title.toLowerCase()} defined.
-          </p>
-        ) : null}
-      </div>
-    </section>
-  );
-}
-function TestPicker({
-  label: title,
-  available,
-  selected,
-  disabled,
-  onChange,
-}: {
-  label: string;
-  available: string[];
-  selected: string[];
-  disabled: boolean;
-  onChange: (value: string[]) => void;
-}) {
-  return (
-    <fieldset>
-      <legend className="mb-1 text-micro font-medium text-subdued">
-        {title}
-      </legend>
-      <div className="flex max-h-28 flex-wrap gap-2 overflow-auto">
-        {available.map((test) => (
-          <label
-            key={test}
-            className="inline-flex items-center gap-1.5 rounded border border-border px-2 py-1 text-micro"
-          >
-            <input
-              type="checkbox"
-              disabled={disabled}
-              checked={selected.includes(test)}
-              onChange={(e) =>
-                onChange(
-                  e.target.checked
-                    ? [...selected, test]
-                    : selected.filter((item) => item !== test),
-                )
-              }
-            />
-            {test}
-          </label>
-        ))}
-      </div>
-      {available.length === 0 ? (
-        <span className="text-micro text-subdued">No tests provided.</span>
+            );
+          })}
+
+          {rows.length === 0 ? (
+            <p className="px-5 py-6 text-small text-subdued">
+              No {title.toLowerCase()} defined. Use Add to create one.
+            </p>
+          ) : null}
+        </div>
       ) : null}
-    </fieldset>
+    </section>
   );
 }
 
@@ -1763,4 +2336,4 @@ function display(value: any): string {
       : String(value);
 }
 const inputClass =
-  "min-w-0 rounded-control border border-border bg-surface px-3 py-2 text-small text-text outline-none focus:border-primary disabled:bg-muted disabled:text-subdued";
+  "w-full min-w-0 rounded-control border border-border bg-surface px-3 py-2 text-small text-text outline-none transition-colors placeholder:text-subdued/60 focus:border-primary focus:ring-1 focus:ring-primary disabled:bg-muted disabled:text-subdued";
