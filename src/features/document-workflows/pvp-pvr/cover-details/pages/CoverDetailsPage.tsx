@@ -62,7 +62,7 @@ export function CoverDetailsPage() {
       <AppHeader user={user} unit={context?.unit ?? null} isLoadingUnit={isLoadingContext} />
       <div className="lg:grid lg:h-[calc(100vh-var(--topbar-h))] lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden">
         <AppSidebar user={user} />
-        <main className="min-w-0 sm:px-6 lg:h-full lg:overflow-y-auto lg:px-8">
+        <main className="min-w-0 sm:px-6 lg:h-full lg:overflow-y-auto">
           <section className="mx-auto rounded-panel bg-surface shadow-sm">
             <div className="p-5 sm:p-6">
               <DocumentStepper steps={PVP_PVR_DOCUMENT_STEPS} activeStepId="cover-details" onStepClick={goToStep} />

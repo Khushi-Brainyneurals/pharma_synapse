@@ -89,7 +89,7 @@ export function EmployeesPage() {
         <AppSidebar user={user} />
 
         <main className="min-h-0 min-w-0 p-4 lg:h-full lg:overflow-y-auto lg:p-6">
-          <div className="mx-auto max-w-7xl space-y-5">
+          <div className="mx-auto space-y-5">
             <header className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h1 className="text-h1 font-semibold tracking-tight">Employee management</h1>

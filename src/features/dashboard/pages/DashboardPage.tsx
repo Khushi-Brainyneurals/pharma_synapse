@@ -252,10 +252,10 @@ export function DashboardPage() {
       <div className="lg:grid lg:h-[calc(100vh-var(--topbar-h))] lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden">
         <AppSidebar user={user} />
 
-        <main className="px-6 py-6 lg:px-8 min-w-0 min-h-0 lg:h-full lg:overflow-y-auto">
+        <main className="min-w-0 min-h-0 p-4 lg:p-6 lg:h-full lg:overflow-y-auto">
           <div className="mx-auto">
             {/* Band: page title and the number-first stat cards over their glows. */}
-            <section className="ps-band -mx-6 -mt-6 px-6 pb-5 pt-6 lg:-mx-8 lg:px-8">
+            <section className="ps-band -mx-4 -mt-4 px-4 pb-5 pt-4 lg:-mx-6 lg:-mt-6 lg:px-6 lg:pt-6">
             <div className="relative z-[1] mb-5 flex flex-wrap items-end gap-4">
               <h1 className="text-h1 font-semibold tracking-tight">
                 {user?.role === "preparer" ? "Your documents" : "Documents"}

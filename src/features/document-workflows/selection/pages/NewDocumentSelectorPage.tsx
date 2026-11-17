@@ -350,7 +350,7 @@ export function NewDocumentSelectorPage() {
       <AppHeader user={user} unit={context?.unit ?? null} isLoadingUnit={isLoading} />
       <div className="lg:grid lg:h-[calc(100vh-var(--topbar-h))] lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden">
         <AppSidebar user={user} />
-        <main className="min-w-0 px-4 py-6 sm:px-6 lg:h-full lg:overflow-y-auto lg:px-8">
+        <main className="min-w-0 px-4 py-6 sm:px-6 lg:h-full lg:overflow-y-auto">
           <section className="rounded-panel border border-border bg-surface p-5 shadow-sm sm:p-6 shadow-auth">
             <div className="pt-1">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

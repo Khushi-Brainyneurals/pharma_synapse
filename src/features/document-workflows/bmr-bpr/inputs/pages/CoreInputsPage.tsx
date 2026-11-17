@@ -456,7 +456,7 @@ export function CoreInputsPage() {
       <AppHeader user={user} unit={context?.unit ?? null} isLoadingUnit={isLoadingContext} />
       <div className="flex min-h-0 flex-1 overflow-hidden lg:grid lg:grid-rows-[minmax(0,1fr)] lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden">
         <AppSidebar user={user} />
-        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 sm:px-6 lg:h-full lg:px-8">
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 sm:px-6 lg:h-full">
           <section className="mx-auto rounded-panel border border-border bg-surface shadow-sm">
             <div className="p-5 sm:p-6">
               <DocumentStepper
