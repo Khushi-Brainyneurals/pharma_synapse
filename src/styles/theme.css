@@ -340,7 +340,9 @@
 }
 
 /* Rendered document pages keep the light palette in navy, like print. */
-:root[data-theme="dark"] .text-black {
+/* Rendered documents (app-built pages, Word previews, PDF pages) always keep the light
+   palette in navy: a document is paper, like print. */
+:root[data-theme="dark"] :is(.text-black, .format-preview-docx, .docx-wrapper, section.docx, .react-pdf__Document, .react-pdf__Page) {
   color-scheme: light;
   --harbor-50: var(--h-harbor-50);
   --harbor-100: var(--h-harbor-100);
@@ -656,14 +658,15 @@ main.bg-background {
   box-shadow: var(--glass-highlight), var(--shadow-card);
 }
 
-/* Dense data always sits on paper inside the glass. */
-.rounded-card.bg-surface table,
-.rounded-panel.bg-surface table {
+/* Dense data always sits on paper inside the glass. Never applied inside a rendered
+   document: its tables keep their own Word/PDF formatting. */
+.rounded-card.bg-surface table:not(:is(.text-black, .format-preview-docx, .docx-wrapper, section.docx, .react-pdf__Document, .react-pdf__Page) *),
+.rounded-panel.bg-surface table:not(:is(.text-black, .format-preview-docx, .docx-wrapper, section.docx, .react-pdf__Document, .react-pdf__Page) *) {
   background-color: var(--paper);
 }
 
-.rounded-card.bg-surface thead,
-.rounded-card.bg-surface thead th {
+.rounded-card.bg-surface thead:not(:is(.text-black, .format-preview-docx, .docx-wrapper, section.docx, .react-pdf__Document, .react-pdf__Page) *),
+.rounded-card.bg-surface thead th:not(:is(.text-black, .format-preview-docx, .docx-wrapper, section.docx, .react-pdf__Document, .react-pdf__Page) *) {
   background-color: var(--table-head);
 }
 
@@ -694,7 +697,7 @@ main.bg-background {
   box-shadow: var(--shadow-btn);
 }
 
-:is(input:not([type="checkbox"]):not([type="radio"]), select, textarea, .ps-select-trigger, .ps-date-trigger):is(.border-border, .border-border-strong):not(.text-black *) {
+:is(input:not([type="checkbox"]):not([type="radio"]), select, textarea, .ps-select-trigger, .ps-date-trigger):is(.border-border, .border-border-strong):not(:is(.text-black, .format-preview-docx, .docx-wrapper, section.docx, .react-pdf__Document, .react-pdf__Page) *) {
   border-color: var(--control-edge);
 }
 
@@ -761,7 +764,7 @@ main.bg-background {
 }
 
 /* Plain paper in navy, except document pages. */
-:root[data-theme="dark"] .bg-white:not(.text-black):not(.text-black *) {
+:root[data-theme="dark"] .bg-white:not(:is(.text-black, .format-preview-docx, .docx-wrapper, section.docx, .react-pdf__Document, .react-pdf__Page)):not(:is(.text-black, .format-preview-docx, .docx-wrapper, section.docx, .react-pdf__Document, .react-pdf__Page) *) {
   background-color: var(--paper);
 }
 
