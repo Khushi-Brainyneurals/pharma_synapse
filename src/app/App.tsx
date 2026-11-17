@@ -151,8 +151,8 @@ function RouteLoadingFallback() {
       <div className="lg:grid lg:h-[calc(100vh-var(--topbar-h))] lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden">
         <AppSidebar user={user} />
         <main className="flex min-h-[calc(100vh-var(--topbar-h))] min-w-0 items-center justify-center bg-background px-6 lg:h-full" aria-live="polite" aria-busy="true">
-          <div className="flex items-center gap-3 rounded-control px-4 py-3 text-small text-subdued">
-            <span className="size-4 animate-spin rounded-full border-2 border-primary/25 border-t-primary" aria-hidden="true" />
+          <div className="flex flex-col items-center gap-3 rounded-control px-4 py-3 text-small text-subdued">
+            <span className="size-8 animate-spin rounded-full border-[3px] border-primary border-t-transparent" aria-hidden="true" />
             <span>Loading page…</span>
           </div>
         </main>

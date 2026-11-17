@@ -2,6 +2,7 @@ import { Check, PencilSparkles, Plus, RulerDimensionLine, Trash2 } from "lucide-
 import { useState } from "react";
 import type { JsonSchema } from "../api/stageInputs.types";
 import { emptyItem, resolveSchema, schemaOptions } from "../model/schemaForm";
+import { GlassSelect } from "../../../../../shared/ui/GlassSelect";
 
 interface Props {
   schema: JsonSchema;
@@ -134,10 +135,10 @@ function ParameterRows({ root, schema, value, layers, scopeLabel = "Layer", show
                 <div className="flex flex-wrap items-center gap-2 min-w-[370px]">
                   {/* <span className="rounded-sm bg-accent-soft px-2 py-1 text-micro font-semibold uppercase tracking-wide text-primary-dark">User input</span> */}
                   <NumInput value={String(row.value || "")} placeholder="value" disabled={!enabled} onChange={(next) => update(index, "value", next)} />
-                  <select value={String(row.unit || "hours")} disabled={!enabled} onChange={(event) => update(index, "unit", event.target.value)} className="h-[34px] rounded-control border border-border-strong bg-surface px-2 text-small focus:border-primary focus:outline-none disabled:bg-sunken">
+                  <GlassSelect value={String(row.unit || "hours")} disabled={!enabled} onChange={(event) => update(index, "unit", event.target.value)} className="h-[34px] rounded-control border border-border-strong bg-surface px-2 text-small focus:border-primary focus:outline-none disabled:bg-sunken">
                     <option value="hours">Hours</option>
                     <option value="days">Days</option>
-                  </select>
+                  </GlassSelect>
                 </div>
               ) : (
                 <>
@@ -151,10 +152,10 @@ function ParameterRows({ root, schema, value, layers, scopeLabel = "Layer", show
               )}
 
               {showScopeSelection && scopeLabel !== "Coating type" && layers.length > 1 && properties.layer ? (
-                <select value={String(row.layer || "")} disabled={!enabled} title="Apply to layer" onChange={(event) => update(index, "layer", event.target.value)} className="h-[34px] rounded-control border border-border-strong bg-surface px-2 text-small focus:border-primary focus:outline-none disabled:bg-sunken">
+                <GlassSelect value={String(row.layer || "")} disabled={!enabled} title="Apply to layer" onChange={(event) => update(index, "layer", event.target.value)} className="h-[34px] rounded-control border border-border-strong bg-surface px-2 text-small focus:border-primary focus:outline-none disabled:bg-sunken">
                   <option value="">All layers</option>
                   {layers.map((layer) => <option key={layer} value={layer}>{layer}</option>)}
-                </select>
+                </GlassSelect>
               ) : null}
               {!isKnownName && nameOptions.length === 0 ? (
                 <button type="button" title="Remove parameter" onClick={() => onChange(value.filter((_, rowIndex) => rowIndex !== index))} className="flex size-8 items-center justify-center rounded-control text-subdued hover:bg-danger-soft hover:text-danger"><Trash2 className="size-4" /></button>
@@ -193,7 +194,7 @@ function LimitValueControls({ row, mode, kind, enabled, onChange }: {
   }
   return (
     <div className="flex min-w-[370px] flex-wrap items-center gap-2">
-      <select value={kind} disabled={!enabled} onChange={(event) => {
+      <GlassSelect value={kind} disabled={!enabled} onChange={(event) => {
         const next = event.target.value;
         if (next === "nmt") onChange("min", "");
         if (next === "nlt") onChange("max", "");
@@ -202,7 +203,7 @@ function LimitValueControls({ row, mode, kind, enabled, onChange }: {
         <option value="range">Range (min–max)</option>
         <option value="nmt">Not more than (NMT)</option>
         <option value="nlt">Not less than (NLT)</option>
-      </select>
+      </GlassSelect>
       {kind === "range" ? (
         <><NumInput value={String(row.min || "")} placeholder="min" disabled={!enabled} onChange={(next) => onChange("min", next)} /><span className="font-mono text-micro text-subdued">–</span><NumInput value={String(row.max || "")} placeholder="max" disabled={!enabled} onChange={(next) => onChange("max", next)} /></>
       ) : kind === "nmt" ? (
@@ -229,7 +230,7 @@ function IpqcRows({ rows, frequencies, onChange }: {
     <section className="overflow-hidden rounded-control border border-border bg-surface">
       <div className="border-b border-border px-4 py-3 text-small font-semibold">IPQC frequency</div>
       {rows.length === 0 ? <p className="px-4 py-4 text-small text-subdued">No IPQC parameters defined by this schema.</p> : (
-        <div className="divide-y divide-border">{rows.map((row, index) => <div key={`${row.parameter}-${index}`} className="grid items-center gap-3 px-4 py-3 sm:grid-cols-[1fr_240px]"><input value={String(row.parameter || "")} onChange={(event) => update(index, "parameter", event.target.value)} className="h-9 rounded-control border border-border-strong bg-surface px-3 text-small" /><select value={String(row.frequency || "")} onChange={(event) => update(index, "frequency", event.target.value)} className="h-9 rounded-control border border-border-strong bg-surface px-3 text-small"><option value="">Select frequency…</option>{frequencies.map((frequency) => <option key={frequency} value={frequency}>{frequency}</option>)}</select></div>)}</div>
+        <div className="divide-y divide-border">{rows.map((row, index) => <div key={`${row.parameter}-${index}`} className="grid items-center gap-3 px-4 py-3 sm:grid-cols-[1fr_240px]"><input value={String(row.parameter || "")} onChange={(event) => update(index, "parameter", event.target.value)} className="h-9 rounded-control border border-border-strong bg-surface px-3 text-small" /><GlassSelect value={String(row.frequency || "")} onChange={(event) => update(index, "frequency", event.target.value)} className="h-9 rounded-control border border-border-strong bg-surface px-3 text-small"><option value="">Select frequency…</option>{frequencies.map((frequency) => <option key={frequency} value={frequency}>{frequency}</option>)}</GlassSelect></div>)}</div>
       )}
     </section>
   );
@@ -490,7 +491,7 @@ function FieldControl({ root, schema, fieldKey = "", value, onChange }: { root: 
     : [];
   const options = referenceOptions.length ? referenceOptions : schemaOptions(node);
   if (node.type === "boolean") return <input type="checkbox" checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)} className="size-4 accent-primary" />;
-  if (options.length) return <select value={String(value ?? "")} onChange={(event) => onChange(event.target.value)} className="h-10 w-28 rounded-control border border-border-strong bg-surface px-3 text-small text-text focus:border-primary focus:outline-none focus:ring-2 focus:ring-accent-soft"><option value="">Select…</option>{options.filter(Boolean).map((option) => <option key={option} value={option}>{option.replace(/_/g, " ")}</option>)}</select>;
+  if (options.length) return <GlassSelect value={String(value ?? "")} onChange={(event) => onChange(event.target.value)} className="h-10 w-28 rounded-control border border-border-strong bg-surface px-3 text-small text-text focus:border-primary focus:outline-none focus:ring-2 focus:ring-accent-soft"><option value="">Select…</option>{options.filter(Boolean).map((option) => <option key={option} value={option}>{option.replace(/_/g, " ")}</option>)}</GlassSelect>;
   return <input type={node.type === "number" || node.type === "integer" ? "number" : "text"} value={String(value ?? "")} placeholder={node.description ? "Enter value" : ""} onChange={(event) => onChange(event.target.value)} className="h-10 w-28 rounded-control border border-border-strong bg-surface px-3 font-mono text-small text-text focus:border-primary focus:outline-none focus:ring-2 focus:ring-accent-soft" />;
 }
 

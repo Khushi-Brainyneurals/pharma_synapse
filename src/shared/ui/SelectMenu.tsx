@@ -106,17 +106,15 @@ export function SelectMenu({
         disabled={disabled}
         onClick={() => (open ? setOpen(false) : openMenu())}
         onKeyDown={onKeyDown}
-        className={`flex w-full min-w-0 items-center justify-between gap-2 rounded-control border bg-surface px-3 py-2 text-left text-small outline-none transition-colors focus-visible:ring-1 focus-visible:ring-primary disabled:bg-muted disabled:text-subdued ${
-          open ? "border-primary ring-1 ring-primary" : "border-border hover:border-primary/50"
+        data-open={open || undefined}
+        className={`ps-select-trigger flex w-full min-w-0 items-center justify-between gap-2 rounded-control border bg-surface px-3 py-2 text-left text-small outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:bg-muted disabled:text-subdued ${
+          open ? "border-primary" : "border-border"
         }`}
       >
-        <span className={`truncate ${selected ? "text-text" : "text-subdued/70"}`}>
+        <span className={`ps-select-trigger__value ${selected ? "text-text" : "text-subdued/70"}`}>
           {selected ? value : placeholder}
         </span>
-        <ChevronDown
-          className={`size-4 shrink-0 text-subdued transition-transform ${open ? "rotate-180 text-primary" : ""}`}
-          aria-hidden="true"
-        />
+        <ChevronDown className="ps-select-trigger__chevron" aria-hidden="true" />
       </button>
 
       {open
@@ -131,10 +129,10 @@ export function SelectMenu({
                 width: pos.width,
                 maxHeight: pos.maxH,
                 ...(pos.up
-                  ? { bottom: window.innerHeight - pos.top + 4 }
-                  : { top: pos.top + 4 }),
+                  ? { bottom: window.innerHeight - pos.top + 8 }
+                  : { top: pos.top + 8 }),
               }}
-              className="z-50 overflow-auto rounded-control border border-border bg-surface py-1 shadow-lg"
+              className={`ps-dropdown ps-dropdown__list ${pos.up ? "ps-dropdown--up" : ""}`}
             >
               {items.map((item, i) => {
                 const isSelected = item.value === value;
@@ -146,19 +144,13 @@ export function SelectMenu({
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => choose(item.value)}
                     onMouseEnter={() => setActive(i)}
-                    className={`flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-small ${
-                      i === active ? "bg-accent-soft" : ""
-                    } ${
-                      isSelected
-                        ? "font-semibold text-primary-dark"
-                        : item.value === ""
-                          ? "text-subdued"
-                          : "text-text"
+                    className={`ps-dropdown__row ${i === active ? "is-active" : ""} ${
+                      item.value === "" && !isSelected ? "text-subdued" : ""
                     }`}
                   >
-                    <span className="truncate">{item.label}</span>
+                    <span className="ps-dropdown__label">{item.label}</span>
                     {isSelected ? (
-                      <Check className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                      <Check className="ps-dropdown__check" aria-hidden="true" />
                     ) : null}
                   </li>
                 );

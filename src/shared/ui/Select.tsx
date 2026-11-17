@@ -1,5 +1,6 @@
 import { forwardRef, type SelectHTMLAttributes } from "react";
 import { FormError } from "./FormError";
+import { GlassSelect } from "./GlassSelect";
 
 interface SelectOption {
   value: string;
@@ -37,7 +38,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
         {label}
         {showRequiredMarker ? <span className="ml-1 text-danger">*</span> : null}
       </label>
-      <select
+      <GlassSelect
         id={id}
         aria-invalid={Boolean(error)}
         aria-required={showRequiredMarker}
@@ -54,7 +55,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
             {option.label}
           </option>
         ))}
-      </select>
+      </GlassSelect>
       <FormError id={errorId} message={error} />
     </div>
   );

@@ -694,7 +694,7 @@ main.bg-background {
   box-shadow: var(--shadow-btn);
 }
 
-:is(input:not([type="checkbox"]):not([type="radio"]), select, textarea):is(.border-border, .border-border-strong):not(.text-black *) {
+:is(input:not([type="checkbox"]):not([type="radio"]), select, textarea, .ps-select-trigger, .ps-date-trigger):is(.border-border, .border-border-strong):not(.text-black *) {
   border-color: var(--control-edge);
 }
 
@@ -925,7 +925,6 @@ main.bg-background {
 
 .ps-stat--skeleton {
   min-height: 136px;
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 :root[data-theme="dark"] .ps-stat {
@@ -1091,6 +1090,414 @@ main.bg-background {
 /* The app's own glass page ground stays off the module map and sign-in screens. */
 body:has(.ps-public) {
   background-image: none;
+}
+
+/* ─────────────────── Dropdowns, date picker and loading (design system) ───────────────────
+   Select: 36px field, 10px radius, chevron turns 180° while open. The list opens 8px from
+   the field at its width on overlay glass, 12px radius, 36px rows, the highlighted row in
+   accent tint, the selected row with a check, and the keyboard hints footer.
+   Date picker: the same field with a calendar icon and a 296px glass popover. */
+:root {
+  --dd-row-active: #f1f8ff;
+  --dd-row-active-ring: #c4dffe;
+  --dd-row-selected: #e0efff;
+  --dd-row-selected-text: #164270;
+  --dd-kbd-fill: #eef2f6;
+  --dd-kbd-edge: #bdc5cc;
+  --dd-kbd-text: #161d21;
+  --dd-nav-fill: rgba(255, 255, 255, 0.7);
+  --dd-on-accent: #ffffff;
+  --dd-halo: rgba(36, 88, 143, 0.16);
+  --skel-fill: #eef2f6;
+  --skel-shimmer: rgba(255, 255, 255, 0.75);
+}
+
+:root[data-theme="dark"] {
+  --dd-row-active: rgba(158, 200, 247, 0.08);
+  --dd-row-active-ring: rgba(158, 200, 247, 0.24);
+  --dd-row-selected: rgba(158, 200, 247, 0.14);
+  --dd-row-selected-text: #ffffff;
+  --dd-kbd-fill: #0b2d50;
+  --dd-kbd-edge: #164270;
+  --dd-kbd-text: #f4f7fa;
+  --dd-nav-fill: rgba(255, 255, 255, 0.06);
+  --dd-on-accent: #041c35;
+  --dd-halo: rgba(158, 200, 247, 0.2);
+  --skel-fill: #164270;
+  --skel-shimmer: rgba(158, 200, 247, 0.12);
+}
+
+/* The native select stays in the page for forms, out of sight. */
+.ps-select-native {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Field triggers keep the page's own classes for size, border and fill. */
+.ps-select-trigger.ps-select-trigger,
+.ps-date-trigger.ps-date-trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  padding-right: 36px;
+  text-align: left;
+  cursor: pointer;
+  color: rgb(var(--color-text));
+  transition: border-color 100ms ease, box-shadow 100ms ease;
+}
+
+.ps-select-trigger:disabled,
+.ps-date-trigger:disabled {
+  cursor: not-allowed;
+}
+
+.ps-select-trigger:not(:disabled):hover,
+.ps-date-trigger:not(:disabled):hover {
+  border-color: var(--accent);
+}
+
+.ps-select-trigger[data-open],
+.ps-date-trigger[data-open] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--dd-halo);
+}
+
+.ps-select-trigger__value,
+.ps-date-trigger__value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ps-date-trigger__value.is-empty {
+  color: var(--ink-3);
+}
+
+.ps-select-trigger__chevron,
+.ps-date-trigger__icon {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  width: 18px;
+  height: 18px;
+  margin-top: -9px;
+  color: var(--ink-2);
+  pointer-events: none;
+  transition: transform 160ms cubic-bezier(0.2, 0, 0, 1), color 100ms ease;
+}
+
+.ps-select-trigger[data-open] .ps-select-trigger__chevron {
+  transform: rotate(180deg);
+  color: var(--accent);
+}
+
+.ps-date-trigger[data-open] .ps-date-trigger__icon {
+  color: var(--accent);
+}
+
+/* The glass panel, rendered at page level. */
+.ps-dropdown {
+  position: fixed;
+  z-index: 70;
+  min-width: 264px; /* room for the keyboard hints footer; inside the 240-320px menu range */
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  border-radius: 12px;
+  background-color: var(--glass-overlay);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-rim);
+  box-shadow: var(--glass-highlight), var(--shadow-overlay);
+  overflow: hidden;
+  font-family: var(--font-sans);
+  color: rgb(var(--color-text));
+  animation: ps-drop-in 220ms cubic-bezier(0, 0, 0.2, 1) both;
+}
+
+.ps-dropdown--up {
+  animation-name: ps-drop-in-up;
+}
+
+@keyframes ps-drop-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ps-drop-in-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.ps-dropdown__list {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+}
+
+.ps-dropdown__group {
+  padding: 8px 12px 4px;
+  font: 500 11px/16px var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.ps-dropdown__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 20px;
+  cursor: pointer;
+  transition: background-color 100ms ease, box-shadow 100ms ease;
+}
+
+.ps-dropdown__row[aria-selected="true"] {
+  background-color: var(--dd-row-selected);
+  color: var(--dd-row-selected-text);
+  font-weight: 500;
+}
+
+.ps-dropdown__row.is-active:not([aria-selected="true"]) {
+  background-color: var(--dd-row-active);
+  box-shadow: inset 0 0 0 1.5px var(--dd-row-active-ring);
+}
+
+.ps-dropdown__row.is-active[aria-selected="true"] {
+  box-shadow: inset 0 0 0 1.5px var(--dd-row-active-ring);
+}
+
+.ps-dropdown__row[aria-disabled="true"] {
+  color: var(--ink-3);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.ps-dropdown__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ps-dropdown__check {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--accent);
+}
+
+.ps-dropdown__foot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 14px;
+  height: 41px;
+  padding: 0 12px;
+  border-top: 1px solid var(--glass-divider);
+  font-size: 12.5px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.ps-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 5px;
+  margin-right: 4px;
+  box-sizing: border-box;
+  border-radius: 5px;
+  border: 1px solid var(--dd-kbd-edge);
+  background-color: var(--dd-kbd-fill);
+  font: 400 11.5px/1 var(--font-mono);
+  color: var(--dd-kbd-text);
+}
+
+/* Date picker popover. */
+.ps-datepick {
+  padding: 12px;
+}
+
+.ps-datepick__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 36px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.ps-datepick__nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background-color: var(--dd-nav-fill);
+  color: var(--ink-2);
+  transition: background-color 100ms ease, color 100ms ease;
+}
+
+.ps-datepick__nav svg {
+  width: 16px;
+  height: 16px;
+}
+
+.ps-datepick__nav:hover {
+  background-color: var(--dd-row-selected);
+  color: var(--accent);
+}
+
+.ps-datepick__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 36px);
+  gap: 2px;
+  justify-content: space-between;
+}
+
+.ps-datepick__dow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.ps-datepick__day {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  font: 400 14px/20px var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+  transition: background-color 100ms ease, color 100ms ease, box-shadow 100ms ease;
+}
+
+.ps-datepick__day:hover {
+  background-color: var(--dd-row-selected);
+}
+
+.ps-datepick__day:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.ps-datepick__day--out {
+  color: var(--ink-3);
+}
+
+.ps-datepick__day--today {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  font-weight: 500;
+}
+
+.ps-datepick__day[aria-selected="true"] {
+  background-color: var(--accent);
+  color: var(--dd-on-accent);
+  font-weight: 500;
+}
+
+.ps-datepick__day[aria-disabled="true"] {
+  color: var(--ink-3);
+  opacity: 0.45;
+  cursor: not-allowed;
+  background-color: transparent;
+}
+
+.ps-datepick__foot {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--glass-divider);
+}
+
+.ps-datepick__link {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent);
+  transition: background-color 100ms ease;
+}
+
+.ps-datepick__link:hover {
+  background-color: var(--dd-row-selected);
+}
+
+.ps-datepick__link:disabled {
+  color: var(--ink-3);
+  cursor: not-allowed;
+  background: none;
+}
+
+/* Spinner: an accent ring with a gap, one turn every 800ms. Lucide spinner icons are
+   drawn as the same ring, so every loader in the app matches. */
+.animate-spin {
+  animation-duration: 800ms;
+}
+
+svg.animate-spin {
+  box-sizing: border-box;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 9999px;
+}
+
+svg.animate-spin > * {
+  display: none;
+}
+
+/* Skeleton: bars in the skeleton fill with a shimmer every 1.4s. */
+.animate-pulse,
+.ps-stat--skeleton {
+  position: relative;
+  overflow: hidden;
+  animation: none;
+  background-color: var(--skel-fill);
+}
+
+.animate-pulse::after,
+.ps-stat--skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, var(--skel-shimmer), transparent);
+  animation: ps-shimmer 1.4s linear infinite;
+}
+
+@keyframes ps-shimmer {
+  to { transform: translateX(100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse::after,
+  .ps-stat--skeleton::after { animation: none; }
+  .ps-dropdown { animation: none; }
 }
 
 /* ─────────────────────────── Fallbacks and guards ─────────────────────────── */

@@ -32,11 +32,11 @@ const BASE_GROUPS: LoginRoleGroup[] = [
   },
 ];
 
-/** The Company admin module on the module map. */
+/** The Administration module on the module map. */
 export const ADMIN_MODULE_KEY = "adm";
 
 /**
- * Role groups for a sign-in. Admins sign in through the Company admin module, which
+ * Role groups for a sign-in. Admins sign in through the Administration module, which
  * adds the Admin role, so employee management stays reachable.
  */
 export function getLoginRoleGroups(moduleKey?: string): LoginRoleGroup[] {

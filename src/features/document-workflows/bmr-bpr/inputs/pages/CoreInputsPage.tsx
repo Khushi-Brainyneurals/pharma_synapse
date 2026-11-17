@@ -47,6 +47,7 @@ import {
   saveCoreInputsDraft,
   type CoreInputsDraft,
 } from "../storage/coreInputsDraft";
+import { GlassSelect } from "../../../../../shared/ui/GlassSelect";
 
 type CoreInputsLocationState = {
   document?: CreateBmrDocumentResponse;
@@ -840,7 +841,7 @@ function SelectField({
         {label}
         {isRequired ? <span className="ml-1 text-danger">*</span> : null}
       </label>
-      <select
+      <GlassSelect
         id={id}
         value={value}
         disabled={disabled}
@@ -858,7 +859,7 @@ function SelectField({
             {option.label}
           </option>
         ))}
-      </select>
+      </GlassSelect>
       {error ? (
         <p id={errorId} className="flex items-start gap-1.5 text-small text-danger-ink">
           <AlertCircle className="mt-0.5 size-3.5 shrink-0 text-danger" aria-hidden="true" />

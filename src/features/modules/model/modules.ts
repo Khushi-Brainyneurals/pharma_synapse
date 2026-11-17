@@ -21,7 +21,7 @@ export const MODULE_GROUPS = [
   "Batch records",
   "Validation and trending",
   "Master documents and data",
-  "Quality oversight",
+  "Quality Events Management",
   "Administration",
 ] as const;
 
@@ -37,14 +37,11 @@ export const MODULES: AppModule[] = [
   { key: "cpv", name: "CPV (Continued process verification)", group: "Validation and trending", departments: ["QA", "Production"], status: "plan", line: "Watch parameters trended batch over batch.", icon: "monitoring", family: "harbor" },
   { key: "apqr", name: "Annual product quality review", group: "Validation and trending", departments: ["QA"], status: "plan", line: "The yearly review, assembled from evidence.", icon: "fact_check", family: "sage" },
   { key: "stab", name: "Stability", group: "Validation and trending", departments: ["QC"], status: "plan", line: "Studies, pull schedules and trends.", icon: "thermostat", family: "clay", disabled: true },
-  { key: "md", name: "Master data", group: "Master documents and data", departments: ["QA", "Engineering"], status: "built", line: "Products, equipment, materials and review chains.", icon: "database", family: "honey" },
   { key: "mfc", name: "MFC and MPC", group: "Master documents and data", departments: ["QA", "Production"], status: "plan", line: "Master formula and packing cards, versioned.", icon: "receipt_long", family: "clay", disabled: true },
   { key: "spec", name: "Specifications and MoA", group: "Master documents and data", departments: ["QC"], status: "plan", line: "QC specifications and methods of analysis.", icon: "biotech", family: "iris", disabled: true },
   { key: "sop", name: "SOP preparation", group: "Master documents and data", departments: ["QA"], status: "plan", line: "Controlled copy distribution and training management.", icon: "school", family: "sage", disabled: true },
-  { key: "dash", name: "Dashboards", group: "Quality oversight", departments: ["Management"], status: "built", line: "How documentation is keeping up.", icon: "dashboard", family: "harbor" },
-  { key: "rep", name: "Reports", group: "Quality oversight", departments: ["All departments"], status: "built", line: "Numbered runs, schedules and the archive.", icon: "bar_chart", family: "sage" },
-  { key: "qms", name: "Quality Management System (QMS)", group: "Quality oversight", departments: ["QA"], status: "plan", line: "Deviation, changes, QRM, investigation etc. linked records.", detail: "Quality compliance, deviations, investigations, CAPA, change management, risk assessment, audits, complaints and recall management.", icon: "report_problem", family: "clay", disabled: true },
-  { key: "adm", name: "Company admin", group: "Administration", departments: ["IT"], status: "built", line: "People, roles, settings and access reviews.", icon: "manage_accounts", family: "harbor" },
+  { key: "qms", name: "Quality Management System (QMS)", group: "Quality Events Management", departments: ["QA"], status: "plan", line: "Deviation, changes, QRM, investigation etc. linked records.", detail: "Quality compliance, deviations, investigations, CAPA, change management, risk assessment, audits, complaints and recall management.", icon: "report_problem", family: "clay", disabled: true },
+  { key: "adm", name: "Administration", group: "Administration", departments: ["IT", "QA"], status: "built", line: "Manage users, roles, permissions and company settings.", detail: "Add and manage employees, assign roles and access, review permissions and maintain company and plant settings.", icon: "manage_accounts", family: "harbor" },
 ];
 
 export function findModule(key: string | null | undefined): AppModule | undefined {

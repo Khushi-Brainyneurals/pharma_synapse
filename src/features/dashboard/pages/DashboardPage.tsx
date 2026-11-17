@@ -38,6 +38,7 @@ import {
 import { CloseDocumentModal, type CloseMode } from "../components/CloseDocumentModal";
 import { DocumentCard } from "../components/DocumentCard";
 import { DocumentList } from "../components/DocumentList";
+import { GlassSelect } from "../../../shared/ui/GlassSelect";
 
 /**
  * The Dashboard — where every non-administrator lands.
@@ -370,7 +371,7 @@ export function DashboardPage() {
                 <label htmlFor="filter-status" className={filterLabelClass}>
                   Status
                 </label>
-                <select
+                <GlassSelect
                   id="filter-status"
                   value={statusFilter}
                   onChange={(event) => setStatusFilter(event.target.value)}
@@ -390,7 +391,7 @@ export function DashboardPage() {
                   <option value={RETAINED_FILTER}>
                     Superseded &amp; cancelled ({data?.retained_count ?? 0})
                   </option>
-                </select>
+                </GlassSelect>
               </div> */}
 
               <div className="ml-auto flex items-center gap-4 pb-1">
@@ -579,7 +580,7 @@ function FilterSelect({ id, label, value, allLabel, options, onChange }: FilterS
       <label htmlFor={id} className={filterLabelClass}>
         {label}
       </label>
-      <select
+      <GlassSelect
         id={id}
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -591,7 +592,7 @@ function FilterSelect({ id, label, value, allLabel, options, onChange }: FilterS
             {option}
           </option>
         ))}
-      </select>
+      </GlassSelect>
     </div>
   );
 }

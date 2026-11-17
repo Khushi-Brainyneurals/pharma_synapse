@@ -11,6 +11,7 @@ import {
   type CoatingParamRow,
   type IpqcRow,
 } from "./IpqcTable";
+import { GlassSelect } from "../../../../../shared/ui/GlassSelect";
 
 const DURATION_UNITS = ["hours", "days"];
 
@@ -62,13 +63,13 @@ export function StageFieldInput({ field, value, reference, onChange, compact }: 
             const frequencies = [...new Set([...reference.ipqc_frequencies, ...(current ? [current] : [])])];
             return <label key={param.name} className="flex flex-wrap items-center justify-between gap-2 text-small">
               <span>{param.name}{param.spec ? <span className="ml-2 text-micro text-subdued">{param.spec}</span> : null}</span>
-              <select className={controlClass} value={current} onChange={(event) => {
+              <GlassSelect className={controlClass} value={current} onChange={(event) => {
                 const other = rows.filter((row) => row.parameter !== param.name);
                 onChange(field.key, event.target.value ? [...other, { parameter: param.name, frequency: event.target.value }] : other);
               }}>
                 <option value="">Select frequency…</option>
                 {frequencies.map((frequency) => <option key={frequency} value={frequency}>{frequency}</option>)}
-              </select>
+              </GlassSelect>
             </label>;
           })}
           {!field.params?.length ? <p className="text-small text-subdued">No monitoring parameters available for this document.</p> : null}
@@ -169,7 +170,7 @@ export function StageFieldInput({ field, value, reference, onChange, compact }: 
       return (
         <Wrapper field={field} compact={compact}>
           {field.type === "select" || field.type === "selection" ? (
-            <select
+            <GlassSelect
               id={field.key}
               value={String(value ?? "")}
               onChange={(event) => onChange(field.key, event.target.value)}
@@ -181,7 +182,7 @@ export function StageFieldInput({ field, value, reference, onChange, compact }: 
                   {option}
                 </option>
               ))}
-            </select>
+            </GlassSelect>
           ) : (
             <input
               id={field.key}
@@ -356,7 +357,7 @@ function DurationInput({
         onChange={(event) => onChange({ ...value, value: event.target.value })}
         className="h-[36px] w-24 rounded-control border border-border-strong bg-surface px-3 text-center font-mono text-small tabular-nums focus:border-primary focus:outline-none"
       />
-      <select
+      <GlassSelect
         value={value.unit || defaultUnit}
         onChange={(event) => onChange({ ...value, unit: event.target.value })}
         className="h-[36px] rounded-control border border-border-strong bg-surface px-3 text-small focus:border-primary focus:outline-none"
@@ -366,7 +367,7 @@ function DurationInput({
             {unit}
           </option>
         ))}
-      </select>
+      </GlassSelect>
     </div>
   );
 }
@@ -517,7 +518,7 @@ function LayerType({
 
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-3">
-      <select
+      <GlassSelect
         value={value || detected}
         onChange={(event) => onChange(event.target.value)}
         className="h-[36px] rounded-control border border-border-strong bg-surface px-3 text-small focus:border-primary focus:outline-none"
@@ -527,7 +528,7 @@ function LayerType({
             {option}
           </option>
         ))}
-      </select>
+      </GlassSelect>
 
       {layers.length > 0 ? (
         <div className="flex flex-wrap items-center gap-1.5">
