@@ -1,4 +1,7 @@
 export const ROUTES = {
+  /** The first screen: the public module map. */
+  modules: "/",
+  dashboard: "/dashboard",
   login: "/login",
   newDocument: "/new",
   documentInputs: "/documents/:documentId/inputs",
@@ -46,4 +49,9 @@ export function getPvpProcedureSamplingRoute(documentId: string) {
 
 export function getDocumentCoverBomRoute(documentId: string) {
   return `/documents/${encodeURIComponent(documentId)}/cover-bom`;
+}
+
+/** Sign-in route for one module, or the plain sign-in when no module is given. */
+export function getLoginRoute(moduleKey?: string) {
+  return moduleKey ? `${ROUTES.login}?module=${encodeURIComponent(moduleKey)}` : ROUTES.login;
 }

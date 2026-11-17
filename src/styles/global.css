@@ -2,31 +2,47 @@
 @tailwind components;
 @tailwind utilities;
 
+/* PharmaSynapse design system: IBM Plex, self-hosted from /public/fonts. */
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 300; font-display: swap; src: url("/fonts/IBMPlexSans-Light.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/IBMPlexSans-Regular.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 500; font-display: swap; src: url("/fonts/IBMPlexSans-Medium.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 600; font-display: swap; src: url("/fonts/IBMPlexSans-SemiBold.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 700; font-display: swap; src: url("/fonts/IBMPlexSans-Bold.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/IBMPlexMono-Regular.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 500; font-display: swap; src: url("/fonts/IBMPlexMono-Medium.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 600; font-display: swap; src: url("/fonts/IBMPlexMono-SemiBold.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Serif"; font-style: italic; font-weight: 400; font-display: swap; src: url("/fonts/IBMPlexSerif-Italic.woff2") format("woff2"); }
+
+/*
+ * Colour tokens follow the PharmaSynapse Colour System v2 (light theme).
+ * Harbor = interaction, Mist = text/surfaces/borders, Honey = draft, Iris = review/AI,
+ * Sage = approved/success, Rose = errors/rejected. Values copied from the design system tokens.
+ */
 :root {
-  --accent: #0e8c8c;
-  --accent-strong: #0a6d6e;
-  --accent-soft: #e4f3f3;
-  --page: #f5f7f9;
-  --surface: #ffffff;
-  --sunken: #eef2f5;
-  --line: #e1e7ec;
-  --line-strong: #c7d0d8;
-  --ink: #15212e;
-  --ink-2: #54616e;
-  --ink-3: #8493a0;
-  --draft-fg: #b57614;
-  --draft-bg: #fbeeda;
-  --inreview-fg: #2563eb;
-  --inreview-bg: #e6edfd;
-  --approved-fg: #15803d;
-  --approved-bg: #e2f4e9;
-  --superseded-fg: #5b6b7b;
-  --superseded-bg: #ecf0f3;
-  --rejected-fg: #dc2626;
-  --rejected-bg: #fceaea;
-  --danger: #dc2626;
-  --danger-soft: #fceaea;
-  --danger-ink: #7f1d1d;
+  --accent: #24588f;        /* Harbor 700, primary */
+  --accent-strong: #164270; /* Harbor 800, primary hover / accent ink */
+  --accent-soft: #e0efff;   /* Harbor 100, selected row / menu item */
+  --page: #f2f5f9;          /* Light glass page */
+  --surface: #ffffff;       /* Paper */
+  --sunken: #eef2f6;        /* bg-card */
+  --line: #dfe5eb;          /* Paper edge / hairline */
+  --line-strong: #bdc5cc;   /* Mist 300, secondary button edge */
+  --ink: #161d21;           /* Mist 950, text */
+  --ink-2: #50585d;         /* Mist 700, text-2 */
+  --ink-3: #676e74;         /* Mist 600, text-3 */
+  --draft-fg: #533d00;
+  --draft-bg: #f6ecd7;
+  --inreview-fg: #423769;
+  --inreview-bg: #edeafe;
+  --approved-fg: #1f4c31;
+  --approved-bg: #e2f1e7;
+  --superseded-fg: #50585d;
+  --superseded-bg: #eaedf0;
+  --rejected-fg: #731a37;
+  --rejected-bg: #ffe5ea;
+  --danger: #b33d5f;        /* Rose 600 */
+  --danger-soft: #ffe5ea;   /* Rose 100 */
+  --danger-ink: #93294a;    /* Rose 700 */
   --white: #ffffff;
   --text-strong: var(--ink);
   --text-body: var(--ink);
@@ -45,30 +61,31 @@
   --interactive-hover: var(--accent-strong);
   --interactive-soft: var(--accent-soft);
   --focus-border: var(--accent);
-  --focus-ring: var(--accent-soft);
+  --focus-ring: #508bcb;    /* Harbor 500 */
   --field-error-border: var(--danger);
   --field-error-ring: var(--danger-soft);
-  --color-background: 245 247 249;
-  --color-surface: 255 255 255;
-  --color-muted: 238 242 245;
-  --color-border: 225 231 236;
-  --color-text: 21 33 46;
-  --color-subdued: 84 97 110;
-  --color-primary: 14 140 140;
-  --color-primary-dark: 10 109 110;
-  --color-success: 21 128 61;
-  --color-danger: 220 38 38;
+  /* RGB triplets consumed by Tailwind (bg-primary, text-subdued, ...). */
+  --color-background: 242 245 249; /* #F2F5F9 */
+  --color-surface: 255 255 255;    /* #FFFFFF */
+  --color-muted: 238 242 246;      /* #EEF2F6 */
+  --color-border: 223 229 235;     /* #DFE5EB */
+  --color-text: 22 29 33;          /* #161D21 */
+  --color-subdued: 80 88 93;       /* #50585D */
+  --color-primary: 36 88 143;      /* #24588F Harbor 700 */
+  --color-primary-dark: 22 66 112; /* #164270 Harbor 800 */
+  --color-success: 65 124 87;      /* #417C57 Sage 600 */
+  --color-danger: 179 61 95;       /* #B33D5F Rose 600 */
   --shadow-overlay:
-    0 12px 32px -8px rgba(21, 33, 46, 0.22),
-    0 2px 6px rgba(21, 33, 46, 0.06);
+    0 12px 32px -8px rgba(22, 29, 33, 0.22),
+    0 2px 6px rgba(22, 29, 33, 0.06);
   --shadow-modal:
-    0 24px 60px -12px rgba(21, 33, 46, 0.4),
-    0 4px 12px rgba(21, 33, 46, 0.12);
-  --scrim: rgba(21, 33, 46, 0.42);
+    0 24px 60px -12px rgba(22, 29, 33, 0.4),
+    0 4px 12px rgba(22, 29, 33, 0.12);
+  --scrim: rgba(22, 29, 33, 0.42);
   --radius-sm: 5px;
-  --radius-control: 6px;
-  --radius-card: 8px;
-  --radius-modal: 10px;
+  --radius-control: 10px; /* light glass: buttons, inputs, menu items */
+  --radius-card: 16px; /* light glass: cards, menus, popovers */
+  --radius-modal: 16px;
   --radius-pill: 999px;
   --radius-panel: var(--radius-card);
   --space-1: 4px;
@@ -88,8 +105,9 @@
   --section-gap: 24px;
   --topbar-h: 68px;
   --sidebar-w: 228px;
-  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-serif: "IBM Plex Serif", "Times New Roman", serif;
   --font-icons: "Material Symbols Outlined";
   --fw-regular: 400;
   --fw-medium: 500;
@@ -111,7 +129,7 @@
   --lh-small: 1.5;
   --lh-micro: 1.4;
   --lh-mono: 1.4;
-  --tracking-tight: 0;
+  --tracking-tight: -0.02em;
   --tracking-overline: 0.04em;
   --numeric-tabular: tabular-nums;
   --shadow-auth: var(--shadow-overlay);
@@ -128,6 +146,20 @@ body {
   background: rgb(var(--color-background));
   font-family:
     var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Text selection in Harbor, matching the design system. */
+::selection {
+  background: #c4dffe;
+  color: #161d21;
+}
+
+/* Icons: the design system draws Material Symbols at weight 300. Lucide icons are
+   thinned to match that lighter line without changing which icons are used. */
+svg.lucide[stroke-width="2"] {
+  stroke-width: 1.75;
 }
 
 button,
@@ -155,8 +187,8 @@ mark.dv-hl {
 }
 
 mark.dv-hl-active {
-  background-color: rgb(250 176 5 / 0.55);
-  outline: 1px solid rgb(217 119 6 / 0.9);
+  background-color: rgb(220 193 132 / 0.6); /* Honey 300 */
+  outline: 1px solid rgb(168 129 27 / 0.9); /* Honey 500 */
 }
 
 /* Authentic A4 DOCX page presentation */

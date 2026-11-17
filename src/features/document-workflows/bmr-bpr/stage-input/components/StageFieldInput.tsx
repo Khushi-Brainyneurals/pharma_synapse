@@ -484,12 +484,12 @@ function MultiSelect({
             onClick={() => toggle(option)}
             className={`inline-flex items-center gap-1.5 rounded-pill border px-3 py-1.5 text-small font-medium transition ${
               selected
-                ? "border-[#15803D]/30 bg-[#E2F4E9] text-[#15803D]"
+                ? "border-[#417C57]/30 bg-[#E2F1E7] text-[#417C57]"
                 : "border-border-strong bg-surface text-subdued hover:border-primary hover:text-primary-dark"
             }`}
           >
             {selected ? (
-              <span className="inline-flex size-4 items-center justify-center rounded-full bg-[#15803D] text-[10px] font-bold leading-none text-white">
+              <span className="inline-flex size-4 items-center justify-center rounded-full bg-[#417C57] text-[10px] font-bold leading-none text-white">
                 {index + 1}
               </span>
             ) : null}

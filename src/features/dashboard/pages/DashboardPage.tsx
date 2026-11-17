@@ -55,92 +55,23 @@ import { DocumentList } from "../components/DocumentList";
  *    counted there too, so the totals deliberately do not sum. The screen says so rather
  *    than leaving a user to find that the numbers don't add up and report it as a defect.
  */
+type CardFamily = "harbor" | "sage" | "iris" | "honey" | "clay" | "rose" | "mist";
+
+/** Each status card's icon and design-system family (Draft honey, In review iris, ...). */
 const STATUS_CARD_META: Record<
   string,
-  {
-    icon: React.ComponentType<{ className?: string }>;
-    accentColor: string;
-    bgSoft: string;
-    borderActive: string;
-    bgActive: string;
-    badgeActive: string;
-    pillActive: string;
-  }
+  { icon: React.ComponentType<{ className?: string }>; family: CardFamily }
 > = {
-  draft: {
-    icon: FileEdit,
-    accentColor: "text-amber-600",
-    bgSoft: "bg-amber-500/10",
-    borderActive: "border-amber-500 ring-2 ring-amber-500/20",
-    bgActive: "bg-amber-50/50",
-    badgeActive: "bg-amber-100 text-amber-800",
-    pillActive: "bg-amber-500",
-  },
-  in_review: {
-    icon: Clock,
-    accentColor: "text-blue-600",
-    bgSoft: "bg-blue-500/10",
-    borderActive: "border-blue-500 ring-2 ring-blue-500/20",
-    bgActive: "bg-blue-50/50",
-    badgeActive: "bg-blue-100 text-blue-800",
-    pillActive: "bg-blue-500",
-  },
-  in_approval: {
-    icon: ShieldCheck,
-    accentColor: "text-purple-600",
-    bgSoft: "bg-purple-500/10",
-    borderActive: "border-purple-500 ring-2 ring-purple-500/20",
-    bgActive: "bg-purple-50/50",
-    badgeActive: "bg-purple-100 text-purple-800",
-    pillActive: "bg-purple-500",
-  },
-  approved_for_print: {
-    icon: Printer,
-    accentColor: "text-emerald-600",
-    bgSoft: "bg-emerald-500/10",
-    borderActive: "border-emerald-500 ring-2 ring-emerald-500/20",
-    bgActive: "bg-emerald-50/50",
-    badgeActive: "bg-emerald-100 text-emerald-800",
-    pillActive: "bg-emerald-500",
-  },
-  returned_for_correction: {
-    icon: RotateCcw,
-    accentColor: "text-orange-600",
-    bgSoft: "bg-orange-500/10",
-    borderActive: "border-orange-500 ring-2 ring-orange-500/20",
-    bgActive: "bg-orange-50/50",
-    badgeActive: "bg-orange-100 text-orange-800",
-    pillActive: "bg-orange-500",
-  },
-  rejected: {
-    icon: XCircle,
-    accentColor: "text-rose-600",
-    bgSoft: "bg-rose-500/10",
-    borderActive: "border-rose-500 ring-2 ring-rose-500/20",
-    bgActive: "bg-rose-50/50",
-    badgeActive: "bg-rose-100 text-rose-800",
-    pillActive: "bg-rose-500",
-  },
-  overdue: {
-    icon: AlertTriangle,
-    accentColor: "text-red-600",
-    bgSoft: "bg-red-500/10",
-    borderActive: "border-red-500 ring-2 ring-red-500/20",
-    bgActive: "bg-red-50/50",
-    badgeActive: "bg-red-100 text-red-800",
-    pillActive: "bg-red-500",
-  },
+  draft: { icon: FileEdit, family: "honey" },
+  in_review: { icon: Clock, family: "iris" },
+  in_approval: { icon: ShieldCheck, family: "harbor" },
+  approved_for_print: { icon: Printer, family: "sage" },
+  returned_for_correction: { icon: RotateCcw, family: "clay" },
+  rejected: { icon: XCircle, family: "rose" },
+  overdue: { icon: AlertTriangle, family: "rose" },
 };
 
-const DEFAULT_CARD_META = {
-  icon: FileText,
-  accentColor: "text-subdued",
-  bgSoft: "bg-muted",
-  borderActive: "border-primary ring-2 ring-primary/20",
-  bgActive: "bg-accent-soft/30",
-  badgeActive: "bg-primary/10 text-primary-dark",
-  pillActive: "bg-primary",
-};
+const DEFAULT_CARD_META = { icon: FileText, family: "mist" as CardFamily };
 
 type ViewMode = "card" | "list";
 const VIEW_MODE_KEY = "dashboard.viewMode";
@@ -225,32 +156,7 @@ export function DashboardPage() {
       return items.filter((item) => item.is_overdue);
     }
     if (statusFilter) {
-      return items.filter((item) => {
-        if (item.bucket === statusFilter) return true;
-        if (item.status === statusFilter) return true;
-        if (
-          statusFilter === "in_review" &&
-          ["in_review", "under_review", "submitted", "qa_review", "pr_review"].includes(item.status)
-        )
-          return true;
-        if (
-          statusFilter === "in_approval" &&
-          ["in_approval", "pending_approval"].includes(item.status)
-        )
-          return true;
-        if (
-          statusFilter === "approved_for_print" &&
-          ["approved", "approved_for_print"].includes(item.status)
-        )
-          return true;
-        if (
-          statusFilter === "returned_for_correction" &&
-          ["returned", "returned_for_correction"].includes(item.status)
-        )
-          return true;
-        if (statusFilter === "rejected" && item.status === "rejected") return true;
-        return false;
-      });
+      return items.filter((item) => matchesStatus(item, statusFilter));
     }
     return items.filter((item) => !RETAINED_STATES.includes(item.state));
   }, [items, statusFilter]);
@@ -267,6 +173,20 @@ export function DashboardPage() {
         .includes(query);
     });
   }, [inStatus, formFilter, typeFilter, search]);
+
+  /** One factual note per stat card, worked out from the documents already loaded. */
+  const cardNotes = useMemo(() => {
+    const notes: Record<string, string> = {};
+    for (const card of data?.cards ?? []) {
+      if (card.key === "overdue") {
+        notes[card.key] = "Also counted in its stage";
+        continue;
+      }
+      const late = items.filter((item) => item.is_overdue && matchesStatus(item, card.key)).length;
+      notes[card.key] = card.count === 0 ? "Nothing here" : late > 0 ? `${late} overdue` : "None overdue";
+    }
+    return notes;
+  }, [data, items]);
 
   const dosageForms = useMemo(() => uniqueValues(items, "dosage_form"), [items]);
   const docTypes = useMemo(() => uniqueValues(items, "doc_type"), [items]);
@@ -333,7 +253,9 @@ export function DashboardPage() {
 
         <main className="px-6 py-6 lg:px-8 min-w-0 min-h-0 lg:h-full lg:overflow-y-auto">
           <div className="mx-auto">
-            <div className="mb-5 flex flex-wrap items-end gap-4">
+            {/* Band: page title and the number-first stat cards over their glows. */}
+            <section className="ps-band -mx-6 -mt-6 px-6 pb-5 pt-6 lg:-mx-8 lg:px-8">
+            <div className="relative z-[1] mb-5 flex flex-wrap items-end gap-4">
               <h1 className="text-h1 font-semibold tracking-tight">
                 {user?.role === "preparer" ? "Your documents" : "Documents"}
               </h1>
@@ -365,14 +287,11 @@ export function DashboardPage() {
               </button>
             </div>
  
-            {/* Status Summary Cards - Responsive 7-Column Lifecycle Grid */}
-            <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
+            {/* Status stat cards: each filters the list below to its status. */}
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7">
               {isLoading && !data
                 ? Array.from({ length: 7 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className="h-[84px] animate-pulse rounded-card border border-border bg-surface/70"
-                    />
+                    <div key={i} className="ps-stat ps-stat--skeleton ps-fam-mist" aria-hidden="true" />
                   ))
                 : (data?.cards ?? []).map((card) => {
                     const isSelected =
@@ -382,59 +301,36 @@ export function DashboardPage() {
                     const IconComponent = meta.icon;
 
                     return (
-                      <button
-                        key={card.key}
-                        type="button"
-                        onClick={() => {
-                          if (isSelected) {
-                            setStatusFilter("");
-                          } else {
-                            setStatusFilter(card.key === "overdue" ? OVERDUE_FILTER : card.key);
-                          }
-                        }}
-                        className={`group relative flex flex-col justify-between rounded-card border p-3 text-left transition-all hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20 ${
-                          isSelected
-                            ? `${meta.borderActive} ${meta.bgActive} shadow-sm`
-                            : "border-border bg-surface hover:border-border-strong hover:bg-surface/90"
-                        }`}
-                        title={`Filter by ${card.label} (${card.count})`}
-                      >
-                        <div className="flex items-center justify-between gap-1 mb-2">
-                          <span
-                            className={`inline-flex items-center justify-center size-7 rounded-control transition-colors ${meta.bgSoft} ${meta.accentColor}`}
-                          >
-                            <IconComponent className="size-4" />
-                          </span>
-                          {isSelected ? (
-                            <span
-                              className={`rounded-pill px-1.5 py-0.5 text-[10px] font-semibold tracking-wide ${meta.badgeActive}`}
-                            >
-                              Active
+                      <div key={card.key} className={`ps-glowframe ps-fam-${meta.family}`}>
+                        <span className="ps-glowframe__glow" aria-hidden="true" />
+                        <button
+                          type="button"
+                          aria-pressed={isSelected}
+                          onClick={() => {
+                            if (isSelected) {
+                              setStatusFilter("");
+                            } else {
+                              setStatusFilter(card.key === "overdue" ? OVERDUE_FILTER : card.key);
+                            }
+                          }}
+                          className="ps-stat"
+                          title={`Filter by ${card.label} (${card.count})`}
+                        >
+                          <span className="ps-stat__top">
+                            <span className="ps-stat__tile">
+                              <IconComponent className="size-[18px]" />
                             </span>
-                          ) 
-                          // : card.count > 0 ? (
-                          //   <span
-                          //     className={`size-2 rounded-full ${meta.pillActive} ring-2 ring-white`}
-                          //   />
-                          // ) 
-                          : null}
-                        </div>
-
-                        <div>
-                          <div className="text-h2 font-bold tabular-nums text-text tracking-tight leading-none">
-                            {card.count}
-                          </div>
-                          <div
-                            className="mt-1.5 truncate text-micro font-medium text-subdued group-hover:text-text"
-                            title={card.label}
-                          >
-                            {card.label}
-                          </div>
-                        </div>
-                      </button>
+                            {isSelected ? <span className="ps-stat__active">Active</span> : null}
+                          </span>
+                          <span className="ps-stat__num">{card.count}</span>
+                          <span className="ps-stat__label">{card.label}</span>
+                          <span className="ps-stat__note">{cardNotes[card.key]}</span>
+                        </button>
+                      </div>
                     );
                   })}
             </div>
+            </section>
 
             <div className="flex flex-wrap items-end gap-5 rounded-card border border-border bg-surface p-5">
               <div className="relative flex flex-col">
@@ -698,6 +594,34 @@ function FilterSelect({ id, label, value, allLabel, options, onChange }: FilterS
       </select>
     </div>
   );
+}
+
+/** Whether a document belongs to a status card or filter key. */
+function matchesStatus(item: DashboardItem, key: string): boolean {
+  if (item.bucket === key) return true;
+  if (item.status === key) return true;
+  if (
+    key === "in_review" &&
+    ["in_review", "under_review", "submitted", "qa_review", "pr_review"].includes(item.status)
+  )
+    return true;
+  if (
+    key === "in_approval" &&
+    ["in_approval", "pending_approval"].includes(item.status)
+  )
+    return true;
+  if (
+    key === "approved_for_print" &&
+    ["approved", "approved_for_print"].includes(item.status)
+  )
+    return true;
+  if (
+    key === "returned_for_correction" &&
+    ["returned", "returned_for_correction"].includes(item.status)
+  )
+    return true;
+  if (key === "rejected" && item.status === "rejected") return true;
+  return false;
 }
 
 function uniqueValues(items: DashboardItem[], key: "dosage_form" | "doc_type"): string[] {

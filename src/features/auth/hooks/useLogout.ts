@@ -23,7 +23,7 @@ export function useLogout() {
     // End the local session first. This prevents an in-flight 401 from refreshing
     // and reviving a session after the user explicitly chose to sign out.
     clearSession();
-    navigate(ROUTES.login, { replace: true });
+    navigate(ROUTES.modules, { replace: true });
 
     if (refreshToken) {
       void logoutRequest({ refresh_token: refreshToken }).catch(() => {

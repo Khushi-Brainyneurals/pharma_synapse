@@ -6,5 +6,5 @@ export function getPostLoginPath(role: UserRole | string) {
   if (role === "admin" || role === "superadmin") {
     return ROUTES.employees;
   }
-  return "/";
+  return ROUTES.dashboard;
 }

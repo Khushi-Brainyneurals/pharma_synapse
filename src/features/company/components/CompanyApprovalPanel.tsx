@@ -147,7 +147,7 @@ export function CompanyApprovalPanel({
       ) : null}
 
       {isPending ? (
-        <div className="flex items-start gap-2 rounded-control border border-amber-500/30 bg-amber-500/10 p-3 text-small text-amber-700 dark:text-amber-300">
+        <div className="flex items-start gap-2 rounded-control border border-amber-500/30 bg-amber-500/10 p-3 text-small text-amber-700">
           <Lock className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <span>
             Locked while pending Approver review. Viewing stays available; modifications are frozen.
@@ -319,7 +319,7 @@ function ApprovalStatusBadge({ status }: { status: string }) {
     case "submitted":
     case "in_review":
       return (
-        <span className="inline-flex items-center gap-1.5 rounded-pill bg-amber-500/10 px-2.5 py-1 text-micro font-semibold text-amber-700 dark:text-amber-300 border border-amber-500/20">
+        <span className="inline-flex items-center gap-1.5 rounded-pill bg-amber-500/10 px-2.5 py-1 text-micro font-semibold text-amber-700 border border-amber-500/20">
           <Clock className="size-3" aria-hidden="true" />
           Pending review
         </span>

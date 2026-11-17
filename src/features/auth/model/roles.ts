@@ -5,6 +5,11 @@ export const USER_ROLES = {
   REVIEWER_QA: "reviewer_qa",
   REVIEWER_PR: "reviewer_pr",
   APPROVED_BY: "approver",
+  // Roles from the sign-in design. Sent to the API as-is.
+  REVIEWER_PRODUCTION: "reviewer_production",
+  PRODUCTION_HEAD: "production_head",
+  PLANT_HEAD: "plant_head",
+  COMPANY_MANAGEMENT: "company_management",
 } as const;
 
 export type UserRole = (typeof USER_ROLES)[keyof typeof USER_ROLES];
@@ -16,6 +21,10 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
   [USER_ROLES.REVIEWER_QA]: "Reviewer — QA",
   [USER_ROLES.REVIEWER_PR]: "Reviewer — Production",
   [USER_ROLES.APPROVED_BY]: "Approved By",
+  [USER_ROLES.REVIEWER_PRODUCTION]: "Reviewer — Production",
+  [USER_ROLES.PRODUCTION_HEAD]: "Production Head",
+  [USER_ROLES.PLANT_HEAD]: "Plant head",
+  [USER_ROLES.COMPANY_MANAGEMENT]: "Company management",
 };
 
 export const USER_ROLE_OPTIONS = Object.values(USER_ROLES).map((value) => ({

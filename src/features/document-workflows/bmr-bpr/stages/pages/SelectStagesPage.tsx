@@ -479,12 +479,12 @@ function StageRow({
         <div className="flex items-center gap-2">
           {s.checked ? (
             s.saved ? (
-              <span className="inline-flex items-center gap-1.5 rounded-sm border border-[#15803D]/25 bg-[#E2F4E9] px-2 py-1 text-micro font-medium text-[#15803D]">
+              <span className="inline-flex items-center gap-1.5 rounded-sm border border-[#417C57]/25 bg-[#E2F1E7] px-2 py-1 text-micro font-medium text-[#417C57]">
                 <Check className="size-3.5" aria-hidden="true" />
                 Reviewed
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 rounded-sm border border-[#B57614]/30 bg-[#FBEEDA] px-2 py-1 text-micro font-medium text-[#B57614]">
+              <span className="inline-flex items-center gap-1.5 rounded-sm border border-[#896700]/30 bg-[#F6ECD7] px-2 py-1 text-micro font-medium text-[#896700]">
                 <SquarePen className="size-3.5" aria-hidden="true" />
                 Review params
               </span>

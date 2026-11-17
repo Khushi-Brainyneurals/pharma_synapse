@@ -8,12 +8,15 @@ import {
   LayoutDashboard,
   Loader2,
   LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
   ReceiptText,
   Users,
 } from "lucide-react";
 import { masterDataAccess } from "../../features/master-data-setup/access";
 import { canManageEmployees } from "../../features/employees/access";
 import { useState } from "react";
+import { useSidebarCollapsed } from "./useSidebarCollapsed";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ROUTES } from "../routing/routes";
 
@@ -48,6 +51,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
   const location = useLocation();
   const clearSession = useAuthStore((state) => state.clearSession);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isCollapsed, toggleCollapsed] = useSidebarCollapsed();
   const mdAccess = masterDataAccess(user?.role);
   // Read-only participants open Preview directly: Prepared-by inspects it, while Approver
   // gets the stage/other-document decision controls and can use the stepper for the separate
@@ -63,7 +67,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
 
     const refreshToken = getStoredRefreshToken();
     clearSession();
-    navigate(ROUTES.login, { replace: true });
+    navigate(ROUTES.modules, { replace: true });
 
     if (refreshToken) {
       void logout({ refresh_token: refreshToken }).catch(() => {
@@ -73,13 +77,15 @@ export function AppSidebar({ user }: AppSidebarProps) {
   }
 
   return (
-    <aside className="hidden shrink-0 border-r border-border bg-surface lg:flex lg:h-full lg:w-sidebar-w lg:flex-col">
+    <aside
+      onMouseLeave={() => document.documentElement.classList.remove("ps-rail-hold")}
+      className="ps-sidebar hidden shrink-0 border-r border-border bg-surface lg:flex lg:h-full lg:w-sidebar-w lg:flex-col">
       <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-4" aria-label="Primary">
         <Link 
-          to="/" 
-          aria-current={location.pathname === "/" ? "page" : undefined} 
-          className={`flex min-h-row-h items-center gap-3 rounded-control mb-1 px-3 text-small font-medium transition ${ location.pathname === "/" ? "border border-primary/25 bg-accent-soft text-primary-dark" : "text-subdued hover:bg-muted hover:text-text" }`} >
-          <LayoutDashboard className="size-4" aria-hidden="true" /> Dashboard
+          to={ROUTES.dashboard}
+          aria-current={location.pathname === ROUTES.dashboard ? "page" : undefined}
+          className={`flex min-h-row-h items-center gap-3 rounded-control mb-1 px-3 text-small font-medium transition ${ location.pathname === ROUTES.dashboard ? "border border-primary/25 bg-accent-soft text-primary-dark" : "text-subdued hover:bg-muted hover:text-text" }`} >
+          <LayoutDashboard className="size-4 shrink-0" aria-hidden="true" /> <span className="ps-nav-label">Dashboard</span>
         </Link>
         <ul className="space-y-1">
           {canManageEmployees(user?.role) ? (
@@ -94,7 +100,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
                 }`}
               >
                 <Users className="size-4 shrink-0" aria-hidden="true" />
-                <span>Employee Management</span>
+                <span className="ps-nav-label">Employee Management</span>
               </Link>
             </li>
           ) : null}
@@ -131,7 +137,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
                     className="flex min-h-row-h cursor-not-allowed items-center gap-3 rounded-control px-3 text-small font-medium text-subdued/50"
                   >
                     <Icon className="size-4 shrink-0" aria-hidden="true" />
-                    <span>{label}</span>
+                    <span className="ps-nav-label">{label}</span>
                   </span>
                 </li>
               );
@@ -149,7 +155,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
                   }`}
                 >
                   <Icon className="size-4 shrink-0" aria-hidden="true" />
-                  <span>{label}</span>
+                  <span className="ps-nav-label">{label}</span>
                 </Link>
               </li>
             );
@@ -157,9 +163,27 @@ export function AppSidebar({ user }: AppSidebarProps) {
         </ul>
       </nav>
 
-      <div className="shrink-0 border-t border-border px-4 py-3">
+      <div className="shrink-0 px-3 pb-2">
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          aria-pressed={isCollapsed}
+          aria-label={isCollapsed ? "Expand menu" : "Collapse menu"}
+          title={isCollapsed ? "Expand menu" : "Collapse menu"}
+          className="ps-sidebar__toggle flex min-h-row-h w-full items-center gap-3 rounded-control px-3 text-small font-medium text-subdued transition hover:bg-muted hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+        >
+          {isCollapsed ? (
+            <PanelLeftOpen className="size-4 shrink-0" aria-hidden="true" />
+          ) : (
+            <PanelLeftClose className="size-4 shrink-0" aria-hidden="true" />
+          )}
+          <span className="ps-nav-label">{isCollapsed ? "Expand menu" : "Collapse menu"}</span>
+        </button>
+      </div>
+
+      <div className="ps-sidebar__foot shrink-0 border-t border-border px-4 py-3">
         <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
+          <div className="ps-sidebar__user min-w-0">
             <p className="text-micro font-medium uppercase tracking-overline text-subdued">
               Signed in
             </p>

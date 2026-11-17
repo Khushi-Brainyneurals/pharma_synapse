@@ -4,6 +4,7 @@ import type { AuthenticatedUser } from "../../features/auth/api/auth.types";
 import { UserMenu } from "../../features/auth/components/UserMenu";
 import { USER_ROLE_LABELS } from "../../features/auth/model/roles";
 import { NotificationBell } from "../../features/notifications/components/NotificationBell";
+import { ThemeToggle } from "../../shared/ui/ThemeToggle";
 import type { UnitContext } from "../../features/document-workflows/selection/model/documentSelector.types";
 
 interface AppHeaderProps {
@@ -25,7 +26,7 @@ export function AppHeader({ user, unit, isLoadingUnit = false, title = "New docu
   }, []);
 
   return (
-    <header className="sticky top-0 z-20 flex min-h-topbar items-center border-b border-border bg-surface p-2.5 text-small text-text lg:px-4">
+    <header className="ps-topbar sticky top-0 z-20 flex min-h-topbar items-center border-b border-border bg-surface p-2.5 text-small text-text lg:px-4">
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <img src="/pharmasynapse-lockup.svg" alt="PharmaDoc AI Logo" className="h-5 w-21 mt-1" />
         <div className="flex min-w-0 items-center gap-2">
@@ -60,6 +61,7 @@ export function AppHeader({ user, unit, isLoadingUnit = false, title = "New docu
           <Clock3 className="size-4" aria-hidden="true" />
           {time}
         </span>
+        <ThemeToggle />
         <NotificationBell />
         <UserMenu user={user} />
       </div>

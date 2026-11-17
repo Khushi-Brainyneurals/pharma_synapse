@@ -937,7 +937,7 @@ function tabClass(active: boolean): string {
     "px-4 py-3 text-small font-semibold transition-colors",
   ].join(" ");
   const selected = "border-primary/25 bg-accent-soft text-primary-dark";
-  const idle = "border-[#dce3e8] bg-white text-[#536273] hover:border-[#9acdcc]";
+  const idle = "border-[#DFE5EB] bg-white text-[#50585D] hover:border-[#9EC8F7]";
 
   return [base, active ? selected : idle].join(" ");
 }
