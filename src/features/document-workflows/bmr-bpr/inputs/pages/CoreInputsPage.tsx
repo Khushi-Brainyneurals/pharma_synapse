@@ -458,7 +458,7 @@ export function CoreInputsPage() {
         <AppSidebar user={user} />
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 sm:px-6 lg:h-full">
           <section className="mx-auto rounded-panel border border-border bg-surface shadow-sm">
-            <div className="p-5 sm:p-6">
+            <div className="px-4 py-4 sm:px-6 lg:px-8">
               <DocumentStepper
                 steps={DOCUMENT_SELECTOR_STEPS}
                 activeStepId="inputs"

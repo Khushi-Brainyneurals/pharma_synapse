@@ -697,9 +697,9 @@ main.bg-background {
   box-shadow: var(--shadow-btn);
 }
 
-:is(input:not([type="checkbox"]):not([type="radio"]), select, textarea, .ps-select-trigger, .ps-date-trigger):is(.border-border, .border-border-strong):not(:is(.text-black, .format-preview-docx, .docx-wrapper, section.docx, .react-pdf__Document, .react-pdf__Page) *) {
+/* :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea, .ps-select-trigger, .ps-date-trigger):is(.border-border, .border-border-strong):not(:is(.text-black, .format-preview-docx, .docx-wrapper, section.docx, .react-pdf__Document, .react-pdf__Page) *) {
   border-color: var(--control-edge);
-}
+} */
 
 /* ─────────────────────────── NAVY overrides ─────────────────────────── */
 
