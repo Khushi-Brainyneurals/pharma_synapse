@@ -5,7 +5,7 @@ import {
   FileClock,
   FilePlus,
   History,
-  LayoutDashboard,
+  BookText,
   Loader2,
   LogOut,
   ReceiptText,
@@ -79,7 +79,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
           to="/" 
           aria-current={location.pathname === "/" ? "page" : undefined} 
           className={`flex min-h-row-h items-center gap-3 rounded-control mb-1 px-3 text-small font-medium transition ${ location.pathname === "/" ? "border border-primary/25 bg-accent-soft text-primary-dark" : "text-subdued hover:bg-muted hover:text-text" }`} >
-          <LayoutDashboard className="size-4" aria-hidden="true" /> Dashboard
+          <BookText className="size-4" aria-hidden="true" /> Documents
         </Link>
         <ul className="space-y-1">
           {canManageEmployees(user?.role) ? (

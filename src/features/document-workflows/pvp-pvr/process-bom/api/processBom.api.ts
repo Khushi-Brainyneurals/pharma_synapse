@@ -2,6 +2,27 @@ import { httpClient } from "../../../../../shared/api/httpClient";
 
 export type PvpBomRow = Record<string, unknown>;
 
+export interface PvpManufacturingBomResponse {
+  type: "manufacturing";
+  rows: PvpBomRow[];
+}
+
+export interface PvpPackingMaterialRow extends Record<string, unknown> {
+  material_code?: string;
+  name?: string;
+  std_qty?: string;
+  uom?: string;
+  notes?: string;
+  sr_no?: number;
+}
+
+export interface PvpPackingBomResponse {
+  type: "packing";
+  rows: PvpPackingMaterialRow[];
+}
+
+export type PvpBomResponse = PvpManufacturingBomResponse | PvpPackingBomResponse;
+
 export interface PvpMaterialSpecificationOption {
   material_name: string;
   specification_no: string;
@@ -29,13 +50,27 @@ export async function getPvpProcessFlow(documentId: string): Promise<Blob> {
   return response.data;
 }
 
-export async function getPvpBom(documentId: string): Promise<PvpBomRow[]> {
+export async function getPvpBom(documentId: string): Promise<PvpBomResponse> {
   const response = await httpClient.get<unknown>(
     `/api/documents/${encodeURIComponent(documentId)}/pvp/bom`,
   );
   const body = unwrap(response.data);
-  const ingredients = asRecord(body).ingredients;
-  return Array.isArray(ingredients) ? ingredients.filter(isRecord) : [];
+  const payload = asRecord(body);
+
+  // The packing key is the payload discriminator. Keep the original ingredient mapping
+  // as the fallback so existing Manufacturing responses retain their current behavior.
+  if (Array.isArray(payload.packing_materials)) {
+    return {
+      type: "packing",
+      rows: payload.packing_materials.filter(isRecord) as PvpPackingMaterialRow[],
+    };
+  }
+
+  const ingredients = payload.ingredients;
+  return {
+    type: "manufacturing",
+    rows: Array.isArray(ingredients) ? ingredients.filter(isRecord) : [],
+  };
 }
 
 export async function getPvpMaterialSpecifications(

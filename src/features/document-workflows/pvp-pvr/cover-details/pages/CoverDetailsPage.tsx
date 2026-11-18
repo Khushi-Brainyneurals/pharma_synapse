@@ -76,7 +76,7 @@ export function CoverDetailsPage() {
               </div>
 
               {isLoading || isLoadingDocument ? <p className="text-small text-subdued" role="status">Loading source details…</p> : null}
-              {error ? <div className="rounded-control border border-danger/20 bg-danger-soft px-4 py-3 text-small text-danger-ink" role="alert">{error}</div> : null}
+              {error ? <div className="rounded-control border border-draft/20 bg-draft-soft px-4 py-3 text-small text-draft-ink" role="alert">{error}</div> : null}
 
               <dl className="grid gap-4 rounded-panel border border-border bg-muted p-5 sm:grid-cols-2">
                 {details.map((item) => (

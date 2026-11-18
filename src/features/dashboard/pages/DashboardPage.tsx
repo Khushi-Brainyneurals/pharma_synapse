@@ -25,6 +25,7 @@ import { useAuthStore } from "../../auth/state/auth.store";
 import { clearDocumentLocation } from "../../auth/storage/resumeLocation";
 import { AppHeader } from "../../../app/layout/AppHeader";
 import { AppSidebar } from "../../../app/layout/AppSidebar";
+import { SelectMenu } from "../../../shared/ui/SelectMenu";
 import {
   cancelRecord,
   deleteDraft,
@@ -217,43 +218,18 @@ export function DashboardPage() {
   const items = useMemo(() => data?.items ?? [], [data]);
 
   /** Documents in the selected status, before search / form / type narrow them. */
-  const inStatus = useMemo(() => {
-    if (statusFilter === RETAINED_FILTER) {
-      return items.filter((item) => RETAINED_STATES.includes(item.state));
-    }
-    if (statusFilter === OVERDUE_FILTER || statusFilter === "overdue") {
-      return items.filter((item) => item.is_overdue);
-    }
-    if (statusFilter) {
-      return items.filter((item) => {
-        if (item.bucket === statusFilter) return true;
-        if (item.status === statusFilter) return true;
-        if (
-          statusFilter === "in_review" &&
-          ["in_review", "under_review", "submitted", "qa_review", "pr_review"].includes(item.status)
-        )
-          return true;
-        if (
-          statusFilter === "in_approval" &&
-          ["in_approval", "pending_approval"].includes(item.status)
-        )
-          return true;
-        if (
-          statusFilter === "approved_for_print" &&
-          ["approved", "approved_for_print"].includes(item.status)
-        )
-          return true;
-        if (
-          statusFilter === "returned_for_correction" &&
-          ["returned", "returned_for_correction"].includes(item.status)
-        )
-          return true;
-        if (statusFilter === "rejected" && item.status === "rejected") return true;
-        return false;
-      });
-    }
-    return items.filter((item) => !RETAINED_STATES.includes(item.state));
-  }, [items, statusFilter]);
+const inStatus = useMemo(() => {
+  if (statusFilter === RETAINED_FILTER) {
+    return items.filter((item) => RETAINED_STATES.includes(item.state));
+  }
+  if (statusFilter === OVERDUE_FILTER || statusFilter === "overdue") {
+    return items.filter((item) => item.bucket === "overdue");
+  }
+  if (statusFilter) {
+    return items.filter((item) => item.bucket === statusFilter);
+  }
+  return items.filter((item) => !RETAINED_STATES.includes(item.state));
+}, [items, statusFilter]);
 
   const visible = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -267,6 +243,38 @@ export function DashboardPage() {
         .includes(query);
     });
   }, [inStatus, formFilter, typeFilter, search]);
+
+  // The API's buckets define the workflow stages. Keep that configuration as the
+  // source of column labels and keys; overdue is a cross-stage overlay, not a stage.
+  const workflowColumns = useMemo(() => {
+    const configured = data?.buckets?.length ? data.buckets : data?.cards ?? [];
+    const columns = configured
+      .filter((bucket) => bucket.key !== "overdue")
+      .map((bucket) => ({ key: bucket.key, label: bucket.label }));
+
+    // Retained documents are outside the active workflow. When that existing
+    // filter is selected, expose their backend bucket as a column as well.
+    if (statusFilter === RETAINED_FILTER) {
+      for (const item of visible) {
+        const key = item.bucket || item.status;
+        if (key && !columns.some((column) => column.key === key)) {
+          columns.push({ key, label: item.state_label || key });
+        }
+      }
+    }
+    return columns;
+  }, [data, statusFilter, visible]);
+
+  const documentsByBucket = useMemo(() => {
+    const groups = new Map<string, DashboardItem[]>();
+    for (const item of visible) {
+      const key = item.bucket || item.status;
+      const group = groups.get(key);
+      if (group) group.push(item);
+      else groups.set(key, [item]);
+    }
+    return groups;
+  }, [visible]);
 
   const dosageForms = useMemo(() => uniqueValues(items, "dosage_form"), [items]);
   const docTypes = useMemo(() => uniqueValues(items, "doc_type"), [items]);
@@ -366,7 +374,7 @@ export function DashboardPage() {
             </div>
  
             {/* Status Summary Cards - Responsive 7-Column Lifecycle Grid */}
-            <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
+            {/* <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
               {isLoading && !data
                 ? Array.from({ length: 7 }).map((_, i) => (
                     <div
@@ -434,7 +442,7 @@ export function DashboardPage() {
                       </button>
                     );
                   })}
-            </div>
+            </div> */}
 
             <div className="flex flex-wrap items-end gap-5 rounded-card border border-border bg-surface p-5">
               <div className="relative flex flex-col">
@@ -454,7 +462,6 @@ export function DashboardPage() {
               </div>
 
               <FilterSelect
-                id="filter-form"
                 label="Dosage form"
                 value={formFilter}
                 onChange={setFormFilter}
@@ -462,7 +469,6 @@ export function DashboardPage() {
                 options={dosageForms}
               />
               <FilterSelect
-                id="filter-type"
                 label="Document type"
                 value={typeFilter}
                 onChange={setTypeFilter}
@@ -470,32 +476,28 @@ export function DashboardPage() {
                 options={docTypes}
               />
 
-              {/* <div className="flex flex-col">
-                <label htmlFor="filter-status" className={filterLabelClass}>
+              <div className="flex min-w-[200px] flex-col">
+                <span className={filterLabelClass}>
                   Status
-                </label>
-                <select
-                  id="filter-status"
+                </span>
+                <SelectMenu
+                  ariaLabel="Status"
+                  placeholder={`All active (${data?.active_count ?? 0})`}
                   value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value)}
-                  className={`${filterControlClass} min-w-[232px] ${
-                    statusFilter ? filterSetClass : ""
-                  }`}
-                >
-                  <option value="">All active ({data?.active_count ?? 0})</option>
-                  {(data?.cards ?? data?.buckets ?? []).map((card) => (
-                    <option
-                      key={card.key}
-                      value={card.key === "overdue" ? OVERDUE_FILTER : card.key}
-                    >
-                      {card.label} ({card.count})
-                    </option>
-                  ))}
-                  <option value={RETAINED_FILTER}>
-                    Superseded &amp; cancelled ({data?.retained_count ?? 0})
-                  </option>
-                </select>
-              </div> */}
+                  onChange={setStatusFilter}
+                  disabled={false}
+                  options={[
+                    ...(data?.cards ?? data?.buckets ?? []).map((card) => ({
+                      value: card.key === "overdue" ? OVERDUE_FILTER : card.key,
+                      label: `${card.label} (${card.count})`,
+                    })),
+                    {
+                      value: RETAINED_FILTER,
+                      label: `Superseded & cancelled (${data?.retained_count ?? 0})`,
+                    },
+                  ]}
+                />
+              </div>
 
               <div className="ml-auto flex items-center gap-4 pb-1">
                 {/* Two numbers, deliberately: the size of the status group, and how many
@@ -587,21 +589,51 @@ export function DashboardPage() {
               viewMode === "list" ? (
                 <DocumentList items={visible} />
               ) : (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(252px,1fr))] items-stretch gap-4">
-                  {visible.map((item) => (
-                    <DocumentCard
-                      key={item.document_id}
-                      item={item}
-                      onDelete={(target) => {
-                        setCloseError(null);
-                        setClosing({ mode: "delete", item: target });
-                      }}
-                      onCancel={(target) => {
-                        setCloseError(null);
-                        setClosing({ mode: "cancel", item: target });
-                      }}
-                    />
-                  ))}
+                <div
+                  aria-label="Documents by workflow status"
+                  className="kanban-column-scrollbar flex h-[min(68vh,720px)] min-h-[320px] items-stretch gap-4 overflow-x-auto pb-3"
+                >
+                  {workflowColumns.map((column) => {
+                    const columnItems = documentsByBucket.get(column.key) ?? [];
+                    return (
+                      <section
+                        key={column.key}
+                        aria-label={`${column.label}, ${columnItems.length} documents`}
+                        className="flex h-full min-h-[320px] w-[min(82vw,320px)] shrink-0 flex-col overflow-hidden rounded-card border border-border bg-sunken/50"
+                      >
+                        <header className="flex min-h-14 items-center justify-between gap-3 border-b border-border bg-surface px-4 py-3">
+                          <h2 className="min-w-0 truncate text-small font-semibold text-text" title={column.label}>
+                            {column.label}
+                          </h2>
+                          <span className="inline-flex min-w-7 items-center justify-center rounded-pill bg-muted px-2 py-0.5 text-micro font-semibold tabular-nums text-subdued">
+                            {columnItems.length}
+                          </span>
+                        </header>
+                        <div className="kanban-column-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+                          {columnItems.length ? (
+                            columnItems.map((item, index) => (
+                              <DocumentCard
+                                key={`${item.document_id}-${item.version}-${index}`}
+                                item={item}
+                                onDelete={(target) => {
+                                  setCloseError(null);
+                                  setClosing({ mode: "delete", item: target });
+                                }}
+                                onCancel={(target) => {
+                                  setCloseError(null);
+                                  setClosing({ mode: "cancel", item: target });
+                                }}
+                              />
+                            ))
+                          ) : (
+                            <p className="rounded-control border border-dashed border-border-strong bg-surface/70 px-3 py-5 text-center text-micro text-subdued">
+                              Nothing in this stage.
+                            </p>
+                          )}
+                        </div>
+                      </section>
+                    );
+                  })}
                 </div>
               )
             ) : (
@@ -669,7 +701,6 @@ function EmptyState({ filtered, onReset }: { filtered: boolean; onReset: () => v
 }
 
 interface FilterSelectProps {
-  id: string;
   label: string;
   value: string;
   allLabel: string;
@@ -677,25 +708,20 @@ interface FilterSelectProps {
   onChange: (value: string) => void;
 }
 
-function FilterSelect({ id, label, value, allLabel, options, onChange }: FilterSelectProps) {
+function FilterSelect({ label, value, allLabel, options, onChange }: FilterSelectProps) {
   return (
-    <div className="flex flex-col">
-      <label htmlFor={id} className={filterLabelClass}>
+    <div className="flex min-w-[180px] flex-col">
+      <span className={filterLabelClass}>
         {label}
-      </label>
-      <select
-        id={id}
+      </span>
+      <SelectMenu
+        ariaLabel={label}
+        placeholder={allLabel}
         value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className={`${filterControlClass} ${value ? filterSetClass : ""}`}
-      >
-        <option value="">{allLabel}</option>
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
+        options={options}
+        disabled={false}
+        onChange={onChange}
+      />
     </div>
   );
 }
@@ -723,5 +749,5 @@ function statusLabelFor(data: DashboardResponse | null, statusFilter: string): s
 const filterLabelClass =
   "mb-2 text-overline font-bold uppercase tracking-overline text-subdued";
 const filterControlClass =
-  "h-[42px] rounded-control border border-border-strong bg-surface px-3 text-small text-text focus:border-primary focus:outline-none focus:ring-2 focus:ring-accent-soft";
+  "h-[38px] rounded-[10px] border border-border-strong bg-surface px-3 text-small text-text focus:border-primary focus:outline-none focus:ring-2 focus:ring-accent-soft";
 const filterSetClass = "border-primary bg-accent-soft font-semibold text-primary-dark";

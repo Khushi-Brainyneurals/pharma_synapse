@@ -11,7 +11,7 @@ export function SelectMenu({
   ariaLabel,
 }: {
   value: string;
-  options: string[];
+  options: Array<string | { value: string; label: string }>;
   placeholder: string;
   onChange: (value: string) => void;
   disabled: boolean;
@@ -22,7 +22,12 @@ export function SelectMenu({
   const [pos, setPos] = useState({ left: 0, top: 0, width: 0, maxH: 240, up: false });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
-  const items = [{ value: "", label: placeholder }, ...options.map((o) => ({ value: o, label: o }))];
+  const items = [
+    { value: "", label: placeholder },
+    ...options.map((option) =>
+      typeof option === "string" ? { value: option, label: option } : option,
+    ),
+  ];
 
   function openMenu() {
     const rect = buttonRef.current?.getBoundingClientRect();
@@ -106,12 +111,12 @@ export function SelectMenu({
         disabled={disabled}
         onClick={() => (open ? setOpen(false) : openMenu())}
         onKeyDown={onKeyDown}
-        className={`flex w-full min-w-0 items-center justify-between gap-2 rounded-control border bg-surface px-3 py-2 text-left text-small outline-none transition-colors focus-visible:ring-1 focus-visible:ring-primary disabled:bg-muted disabled:text-subdued ${
+        className={`flex w-full min-w-0 items-center justify-between gap-2 rounded-[10px] border bg-surface px-3 py-2 text-left text-small outline-none transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:bg-muted disabled:text-subdued ${
           open ? "border-primary ring-1 ring-primary" : "border-border hover:border-primary/50"
         }`}
       >
         <span className={`truncate ${selected ? "text-text" : "text-subdued/70"}`}>
-          {selected ? value : placeholder}
+          {selected ? items.find((item) => item.value === value)?.label ?? value : placeholder}
         </span>
         <ChevronDown
           className={`size-4 shrink-0 text-subdued transition-transform ${open ? "rotate-180 text-primary" : ""}`}
@@ -134,7 +139,7 @@ export function SelectMenu({
                   ? { bottom: window.innerHeight - pos.top + 4 }
                   : { top: pos.top + 4 }),
               }}
-              className="z-50 overflow-auto rounded-control border border-border bg-surface py-1 shadow-lg"
+              className="kanban-column-scrollbar z-50 overflow-auto rounded-control border border-border bg-surface py-1 shadow-lg"
             >
               {items.map((item, i) => {
                 const isSelected = item.value === value;

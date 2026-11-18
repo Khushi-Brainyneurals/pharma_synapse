@@ -18,6 +18,7 @@ import {
   getPvpProcessFlow,
   updatePvpMaterialSpecifications,
   type PvpBomRow,
+  type PvpBomResponse,
   type PvpMaterialSpecificationRow,
 } from "../api/processBom.api";
 
@@ -46,7 +47,7 @@ export function PvpProcessBomPage() {
   const [flowError, setFlowError] = useState<string | null>(null);
   const [flowRetry, setFlowRetry] = useState(0);
 
-  const [bom, setBom] = useState<PvpBomRow[]>([]);
+  const [bom, setBom] = useState<PvpBomResponse>({ type: "manufacturing", rows: [] });
   const [bomLoading, setBomLoading] = useState(true);
   const [bomError, setBomError] = useState<string | null>(null);
   const [bomRetry, setBomRetry] = useState(0);
@@ -87,7 +88,7 @@ export function PvpProcessBomPage() {
     setBomLoading(true);
     setBomError(null);
     void getPvpBom(documentId)
-      .then((rows) => { if (!cancelled) setBom(rows); })
+      .then((response) => { if (!cancelled) setBom(response); })
       .catch((error: unknown) => {
         if (!cancelled) setBomError(getApiErrorMessage(error, "Unable to load the bill of materials."));
       })
@@ -117,6 +118,15 @@ export function PvpProcessBomPage() {
   const currentSelections = specifications.map((row) => row.selected_specification_no);
   const isDirty = currentSelections.some((value, index) => value !== savedSelections[index]);
   const bomColumns = useMemo(() => getBomColumns(bom), [bom]);
+  const visibleTabs = bom.type === "packing"
+    ? TABS.filter((tab) => tab.id !== "material-specifications")
+    : TABS;
+
+  useEffect(() => {
+    if (bom.type === "packing" && activeTab === "material-specifications") {
+      setActiveTab("process-flow");
+    }
+  }, [activeTab, bom.type]);
 
   function changeSpecification(index: number, value: string) {
     setSpecifications((rows) => rows.map((row, rowIndex) =>
@@ -169,11 +179,11 @@ export function PvpProcessBomPage() {
               </div>
 
               <div
-                className="grid grid-cols-1 gap-3 bg-muted/50 px-4 py-4 sm:grid-cols-3 sm:px-6 lg:px-8"
+                className={`grid grid-cols-1 gap-3 bg-muted/50 px-4 py-4 sm:px-6 lg:px-8 ${visibleTabs.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}
                 role="tablist"
                 aria-label="Process flow and BOM sections"
               >
-                {TABS.map((tab) => (
+                {visibleTabs.map((tab) => (
                   <button
                     key={tab.id}
                     id={`${tab.id}-tab`}
@@ -200,8 +210,15 @@ export function PvpProcessBomPage() {
               <section id="bom-panel" role="tabpanel" aria-labelledby="bom-tab" hidden={activeTab !== "bom"} className={PANEL_CLASS}>
                 {bomLoading ? <LoadingPanel label="Loading bill of materials…" /> : null}
                 {!bomLoading && bomError ? <Callout tone="danger" title="Bill of materials unavailable"><p>{bomError}</p><button className="mt-2 font-semibold underline" type="button" onClick={() => setBomRetry((value) => value + 1)}>Try again</button></Callout> : null}
-                {!bomLoading && !bomError && bom.length === 0 ? <EmptyPanel message="No bill of materials were returned for this document." /> : null}
-                {!bomLoading && !bomError && bom.length > 0 ? <BomTable rows={bom} columns={bomColumns} /> : null}
+                {!bomLoading && !bomError && bom.rows.length === 0 ? <EmptyPanel message={bom.type === "packing" ? "No packing materials were returned for this document." : "No bill of materials were returned for this document."} /> : null}
+                {!bomLoading && !bomError && bom.rows.length > 0 ? (
+                  <BomTable
+                    rows={bom.rows}
+                    columns={bomColumns}
+                    title={bom.type === "packing" ? "Packing Materials" : "Bill of Materials"}
+                    packing={bom.type === "packing"}
+                  />
+                ) : null}
               </section>
 
               <section id="material-specifications-panel" role="tabpanel" aria-labelledby="material-specifications-tab" hidden={activeTab !== "material-specifications"} className={PANEL_CLASS}>
@@ -254,20 +271,20 @@ function EmptyPanel({ message }: { message: string }) {
   return <div className="rounded-panel border border-border bg-muted px-5 py-10 text-center text-small text-subdued">{message}</div>;
 }
 
-function BomTable({ rows, columns }: { rows: PvpBomRow[]; columns: string[] }) {
+function BomTable({ rows, columns, title, packing = false }: { rows: PvpBomRow[]; columns: string[]; title: string; packing?: boolean }) {
   const groups = groupBomRows(rows);
   return (
     <section className="overflow-hidden rounded-card border border-border bg-surface shadow-sm">
       <header className="border-b border-border px-5 py-4">
-        <h2 className="text-h2 font-semibold">Bill of Materials</h2>
+        <h2 className="text-h2 font-semibold">Bills of Materials</h2>
         <p className="mt-0.5 text-small text-subdued">{rows.length} source rows · read only</p>
       </header>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-small">
-          <thead><tr className="text-left text-micro uppercase tracking-overline text-subdued">{columns.map((column) => <th key={column} className={`border border-border bg-surface px-3 py-2.5 font-semibold ${isNumericColumn(column) ? "text-right" : ""}`}>{columnLabel(column)}</th>)}</tr></thead>
+          <thead><tr className="text-left text-micro uppercase tracking-overline text-text">{columns.map((column) => <th key={column} className={`border border-border bg-surface px-3 py-3 font-semibold ${isNumericColumn(column) ? "text-right" : ""}`}>{columnLabel(column, packing)}</th>)}</tr></thead>
           <tbody>
             {groups.map((group, groupIndex) => <Fragment key={`${group.title || "ungrouped"}-${groupIndex}`}>
-              {group.title ? <tr key={`${group.title}-header`}><td colSpan={columns.length} className="border border-border bg-primary/10 px-3 py-1.5 text-center text-micro font-semibold uppercase tracking-overline text-text">{group.part}{group.part && group.layer ? " " : ""}{group.layer ? <span className="font-normal normal-case tracking-normal text-subdued">{group.layer}</span> : null}</td></tr> : null}
+              {group.title ? <tr key={`${group.title}-header`}><td colSpan={columns.length} className="border border-border bg-primary/10 px-3 py-2 text-center text-micro font-semibold uppercase tracking-overline text-text">{group.part}{group.part && group.layer ? " " : ""}{group.layer ? <span className="font-normal normal-case tracking-normal text-subdued">{group.layer}</span> : null}</td></tr> : null}
               {group.rows.map(({ row, index }) => { const total = isTotalRow(row); return <tr key={`${group.title}-${index}`} className={total ? "bg-muted/50 font-semibold" : "hover:bg-muted/50"}>{columns.map((column) => <td key={column} className={`border border-border px-3 py-2 align-top ${isNumericColumn(column) ? "text-right tabular-nums" : ""}`}>{total ? totalDisplayValue(column, row[column]) : displayValue(row[column])}</td>)}</tr>; })}
             </Fragment>)}
           </tbody>
@@ -302,7 +319,12 @@ function MaterialSpecificationTable({ rows, saving, onChange }: { rows: PvpMater
   );
 }
 
-function getBomColumns(rows: PvpBomRow[]): string[] {
+function getBomColumns(bom: PvpBomResponse): string[] {
+  if (bom.type === "packing") {
+    return ["sr_no", "material_code", "name", "std_qty", "uom", "notes"];
+  }
+
+  const rows = bom.rows;
   const preferred = ["sr_no", "material_code", "ingredient_name", "specification", "label_claim_mg_per_tab", "qty_per_mfc_batch", "qty_required_production", "uom"];
   const keys = new Set(rows.flatMap((row) => Object.keys(row)).filter((key) => !HIDDEN_BOM_COLUMNS.includes(key)));
   return [...preferred.filter((key) => keys.has(key)), ...[...keys].filter((key) => !preferred.includes(key))];
@@ -322,12 +344,12 @@ function groupBomRows(rows: PvpBomRow[]) {
   return [...groups.values()];
 }
 
-function columnLabel(key: string) {
+function columnLabel(key: string, packing = false) {
   const labels: Record<string, string> = {
-    sr_no: "Sr. No.", material_code: "Material Code", ingredient_name: "Ingredients", name: "Ingredients",
+    sr_no: "Sr. No.", material_code: "Material Code", ingredient_name: "Ingredients", name: packing ? "Material Name" : "Ingredients",
     specification: "Spec.", label_claim_mg_per_tab: "Label Claim mg./Tab", qty_per_mfc_batch: "Qty. per MFC batch",
     qty_required_production: "Qty. Required", functional_category: "Functional Category", is_api: "API",
-    is_compensated: "Compensated", is_avg_weight: "Average weight", uom: "UOM", part: "Part", layer: "Layer", notes: "Notes",
+    std_qty: "Standard Quantity", is_compensated: "Compensated", is_avg_weight: "Average weight", uom: "UOM", part: "Part", layer: "Layer", notes: "Notes",
   };
   return labels[key] ?? key.replace(/_/g, " ");
 }
@@ -340,7 +362,7 @@ function displayValue(value: unknown): string {
 }
 
 function isNumericColumn(key: string) {
-  return ["sr_no", "label_claim_mg_per_tab", "qty_per_mfc_batch", "qty_required_production"].includes(key);
+  return ["sr_no", "label_claim_mg_per_tab", "qty_per_mfc_batch", "qty_required_production", "std_qty"].includes(key);
 }
 
 // A row whose serial number is 0 is a total row (e.g. "Average weight of ... layer").

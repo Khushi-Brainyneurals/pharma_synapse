@@ -55,13 +55,13 @@ export function DocumentList({ items }: { items: DashboardItem[] }) {
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => {
+          {items.map((item, index) => {
             const { target, action } = getDocumentAction(item, username, userRole);
             const modified = splitLastModified(item.last_modified_at);
 
             return (
               <tr
-                key={item.document_id}
+                key={`${item.document_id}-${item.version}-${index}`}
                 className="border-b border-border last:border-b-0 transition hover:bg-accent-soft/30"
               >
                 <td className="px-4 py-3 align-top">

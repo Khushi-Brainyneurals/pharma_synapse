@@ -44,6 +44,18 @@ export function getPvpProcedureSamplingRoute(documentId: string) {
   return `/documents/${encodeURIComponent(documentId)}/pvp-pvr/procedure-sampling`;
 }
 
+export function getPvpProcedureGenerationRoute(
+  documentId: string,
+  sectionKey: string,
+  regenerate: boolean,
+) {
+  const query = new URLSearchParams({
+    section_key: sectionKey,
+    mode: regenerate ? "regenerate" : "generate",
+  });
+  return `${getPvpProcedureSamplingRoute(documentId)}/generate?${query}`;
+}
+
 export function getDocumentCoverBomRoute(documentId: string) {
   return `/documents/${encodeURIComponent(documentId)}/cover-bom`;
 }

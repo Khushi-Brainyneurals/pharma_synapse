@@ -47,12 +47,6 @@ const STATUS_BADGE: Record<string, string> = {
   rejected: "bg-rose-100 text-rose-800",
 };
 
-function statusBadgeClass(item: DashboardItem): string {
-  const key = item.bucket || item.status;
-  return STATUS_BADGE[key] ?? "bg-muted text-subdued";
-}
-
-
 export function resolveDocumentRoute(item: DashboardItem): string {
   const status = item.status.trim().toLowerCase();
   const stateLabel = item.state_label.trim().toLowerCase();

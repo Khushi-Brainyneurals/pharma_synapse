@@ -143,6 +143,31 @@ select {
       linear-gradient(90deg, rgb(var(--color-border) / 0.26) 1px, transparent 1px);
     background-size: 22px 22px;
   }
+
+  .kanban-column-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--color-subdued) / 0.35) transparent;
+  }
+
+  .kanban-column-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .kanban-column-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .kanban-column-scrollbar::-webkit-scrollbar-thumb {
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: rgb(var(--color-subdued) / 0.35);
+    background-clip: padding-box;
+  }
+
+  .kanban-column-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--color-subdued) / 0.6);
+    background-clip: padding-box;
+  }
 }
 
 /* DocumentViewer search hits. The pdf.js text layer is transparent text laid over the
