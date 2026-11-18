@@ -25,7 +25,6 @@ import { useAuthStore } from "../../auth/state/auth.store";
 import { clearDocumentLocation } from "../../auth/storage/resumeLocation";
 import { AppHeader } from "../../../app/layout/AppHeader";
 import { AppSidebar } from "../../../app/layout/AppSidebar";
-import { SelectMenu } from "../../../shared/ui/SelectMenu";
 import {
   cancelRecord,
   deleteDraft,
@@ -388,23 +387,25 @@ const inStatus = useMemo(() => {
                 <span className={filterLabelClass}>
                   Status
                 </span>
-                <SelectMenu
-                  ariaLabel="Status"
-                  placeholder={`All active (${data?.active_count ?? 0})`}
+                <GlassSelect
+                  aria-label="Status"
                   value={statusFilter}
-                  onChange={setStatusFilter}
-                  disabled={false}
-                  options={[
-                    ...(data?.cards ?? data?.buckets ?? []).map((card) => ({
-                      value: card.key === "overdue" ? OVERDUE_FILTER : card.key,
-                      label: `${card.label} (${card.count})`,
-                    })),
-                    {
-                      value: RETAINED_FILTER,
-                      label: `Superseded & cancelled (${data?.retained_count ?? 0})`,
-                    },
-                  ]}
-                />
+                  onChange={(event) => setStatusFilter(event.target.value)}
+                  className={`${filterControlClass} w-full`}
+                >
+                  <option value="">{`All active (${data?.active_count ?? 0})`}</option>
+                  {(data?.cards ?? data?.buckets ?? []).map((card) => {
+                    const optionValue = card.key === "overdue" ? OVERDUE_FILTER : card.key;
+                    return (
+                      <option key={optionValue} value={optionValue}>
+                        {`${card.label} (${card.count})`}
+                      </option>
+                    );
+                  })}
+                  <option value={RETAINED_FILTER}>
+                    {`Superseded & cancelled (${data?.retained_count ?? 0})`}
+                  </option>
+                </GlassSelect>
               </div>
 
               <div className="ml-auto flex items-center gap-4 pb-1">
@@ -622,14 +623,19 @@ function FilterSelect({ label, value, allLabel, options, onChange }: FilterSelec
       <span className={filterLabelClass}>
         {label}
       </span>
-      <SelectMenu
-        ariaLabel={label}
-        placeholder={allLabel}
+      <GlassSelect
+        aria-label={label}
         value={value}
-        options={options}
-        disabled={false}
-        onChange={onChange}
-      />
+        onChange={(event) => onChange(event.target.value)}
+        className={`${filterControlClass} w-full`}
+      >
+        <option value="">{allLabel}</option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </GlassSelect>
     </div>
   );
 }
