@@ -5,6 +5,7 @@ import {
   getPersistedSession,
   persistSession,
 } from "../storage/auth.storage";
+import { clearRememberedModule } from "../../modules/model/selectedModule";
 
 interface AuthState {
   user: AuthenticatedUser | null;
@@ -33,6 +34,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   clearSession: () => {
     clearPersistedSession();
+    clearRememberedModule();
     set({
       user: null,
       accessToken: null,
