@@ -42,7 +42,7 @@ export function WizardHeader({
   const stepNumber = steps.findIndex((step) => step.id === workflowStepId) + 1;
 
   return (
-    <div className="rounded-panel bg-surface">
+    <div className="bg-surface">
       <div className="px-4 py-4 sm:px-6 lg:px-8">
         <DocumentStepper
           steps={steps}
@@ -70,11 +70,11 @@ export function WizardHeader({
 
         {identifier || status ? (
           <div className="flex shrink-0 items-center gap-2">
-            {identifier ? (
+            {/* {identifier ? (
               <span className="rounded-pill border border-border bg-muted px-3 py-1 font-mono text-mono-sm text-subdued">
                 {identifier}
               </span>
-            ) : null}
+            ) : null} */}
             {status ? (
               <span className="rounded-pill bg-draft-bg px-3 py-1 text-micro font-semibold uppercase tracking-overline text-draft-fg">
                 {status}

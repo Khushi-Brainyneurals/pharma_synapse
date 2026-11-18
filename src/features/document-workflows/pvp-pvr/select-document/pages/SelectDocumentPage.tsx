@@ -218,7 +218,7 @@ export function SelectDocumentPage() {
         <AppSidebar user={user} />
         <main className="min-h-0 min-w-0 overflow-y-auto overscroll-contain px-4 py-6 sm:px-6">
           <section className="mx-auto rounded-panel border border-border bg-surface shadow-sm">
-            <div className="p-5 sm:p-6">
+            <div className="px-4 py-4 sm:px-6 lg:px-8">
               <DocumentStepper steps={PVP_PVR_DOCUMENT_STEPS} activeStepId="select-document" onStepClick={goToStep} />
             </div>
             <SelectionStrip dosageForm={document?.dosage_form} docType={document?.doc_type} identifier={document?.bmr_number ?? document?.draft_id} />
