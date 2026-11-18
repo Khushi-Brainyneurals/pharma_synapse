@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { useAuthStore } from "../../auth/state/auth.store";
 import { getDocumentLocation } from "../../auth/storage/resumeLocation";
-import type { DashboardItem } from "../api/dashboard.api";
+import type { DocumentItem } from "../api/documents.api";
 
 const STEP_ALIASES: Record<string, string> = {
   type: "inputs",
@@ -47,7 +47,7 @@ const STATUS_BADGE: Record<string, string> = {
   rejected: "bg-rose-100 text-rose-800",
 };
 
-export function resolveDocumentRoute(item: DashboardItem): string {
+export function resolveDocumentRoute(item: DocumentItem): string {
   const status = item.status.trim().toLowerCase();
   const stateLabel = item.state_label.trim().toLowerCase();
   if (["returned", "returned_for_correction"].includes(status)) return "stages";
@@ -78,7 +78,7 @@ export function resolveDocumentRoute(item: DashboardItem): string {
   return "inputs";
 }
 
-function isPvpPvrCoreInputs(item: DashboardItem, candidate: string, stateLabel: string) {
+function isPvpPvrCoreInputs(item: DocumentItem, candidate: string, stateLabel: string) {
   const documentType = (item.doc_type ?? "").trim().toLowerCase();
   const isPvpPvr = documentType.includes("pvp") || documentType.includes("pvr");
   const isCoreInputs = ["inputs", "core_inputs", "core_input", "select-document"].includes(candidate) ||
@@ -86,7 +86,7 @@ function isPvpPvrCoreInputs(item: DashboardItem, candidate: string, stateLabel: 
   return isPvpPvr && isCoreInputs;
 }
 
-function isPvpPvrDocument(item: DashboardItem) {
+function isPvpPvrDocument(item: DocumentItem) {
   const documentType = (item.doc_type ?? "").trim().toLowerCase();
   return documentType.includes("pvp") || documentType.includes("pvr");
 }
@@ -109,7 +109,7 @@ export function formatLastModified(value?: string | null): string | null {
  * Shared by the card view and the list view so both always behave the same.
  */
 export function getDocumentAction(
-  item: DashboardItem,
+  item: DocumentItem,
   username?: string,
   userRole?: string,
 ): { target: string; action: string } {
@@ -183,9 +183,9 @@ export function getDocumentAction(
 }
 
 export function DocumentCard({ item, onDelete, onCancel }: {
-  item: DashboardItem;
-  onDelete: (item: DashboardItem) => void;
-  onCancel: (item: DashboardItem) => void;
+  item: DocumentItem;
+  onDelete: (item: DocumentItem) => void;
+  onCancel: (item: DocumentItem) => void;
 }) {
   const username = useAuthStore((state) => state.user?.username);
   const userRole = useAuthStore((state) => state.user?.role);
@@ -195,7 +195,7 @@ export function DocumentCard({ item, onDelete, onCancel }: {
     <article className="flex flex-col gap-3 rounded-card border border-border bg-surface p-5 transition hover:border-primary/40 hover:shadow-sm">
       <div className="flex items-start justify-between gap-2">
         <h2 className="break-words text-small font-semibold">
-          <Link to={target} state={{ dashboardPermissions: item.permissions }} className="hover:text-primary-dark hover:underline transition">
+          <Link to={target} state={{ documentPermissions: item.permissions }} className="hover:text-primary-dark hover:underline transition">
             {`${item.doc_type}_${item.document_id?.slice(0, 8) || ""}`}
           </Link>
         </h2>
@@ -215,7 +215,7 @@ export function DocumentCard({ item, onDelete, onCancel }: {
             {formatLastModified(item.last_modified_at)}
           </span>
         ) : <span />}
-        <Link className="inline-flex items-center text-small font-semibold h-8 px-3 border border-primary text-primary-dark rounded-control hover:bg-primary-dark hover:text-white transition" to={target} state={{ dashboardPermissions: item.permissions }}>
+        <Link className="inline-flex items-center text-small font-semibold h-8 px-3 border border-primary text-primary-dark rounded-control hover:bg-primary-dark hover:text-white transition" to={target} state={{ documentPermissions: item.permissions }}>
           {action}
         </Link>
         {/* {perms.can_delete ? <button type="button" onClick={() => onDelete(item)} className="text-small text-danger hover:underline">Delete draft</button> : null}

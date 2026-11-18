@@ -29,20 +29,20 @@ import { SelectMenu } from "../../../shared/ui/SelectMenu";
 import {
   cancelRecord,
   deleteDraft,
-  getDashboard,
+  getDocuments,
   OVERDUE_FILTER,
   RETAINED_FILTER,
   RETAINED_STATES,
-  type DashboardItem,
-  type DashboardResponse,
-} from "../api/dashboard.api";
+  type DocumentItem,
+  type DocumentsResponse,
+} from "../api/documents.api";
 import { CloseDocumentModal, type CloseMode } from "../components/CloseDocumentModal";
 import { DocumentCard } from "../components/DocumentCard";
 import { DocumentList } from "../components/DocumentList";
 import { GlassSelect } from "../../../shared/ui/GlassSelect";
 
 /**
- * The Dashboard — where every non-administrator lands.
+ * The Documents page — where every non-administrator lands.
  *
  * One list of documents, bucketed by what this role is expected to do with them. Three
  * decisions shape the screen:
@@ -87,11 +87,11 @@ const VIEW_TABS: {
   { mode: "list", label: "List", Icon: List },
 ];
 
-export function DashboardPage() {
+export function DocumentsPage() {
   const user = useAuthStore((state) => state.user);
   const navigate = useNavigate();
 
-  const [data, setData] = useState<DashboardResponse | null>(null);
+  const [data, setData] = useState<DocumentsResponse | null>(null);
   const [isLoading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -108,7 +108,7 @@ export function DashboardPage() {
     }
   });
 
-  const [closing, setClosing] = useState<{ mode: CloseMode; item: DashboardItem } | null>(null);
+  const [closing, setClosing] = useState<{ mode: CloseMode; item: DocumentItem } | null>(null);
   const [closeError, setCloseError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -124,10 +124,10 @@ export function DashboardPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setData(await getDashboard());
+      setData(await getDocuments());
       setError(null);
     } catch (caught) {
-      setError(getApiErrorMessage(caught, "Could not load the dashboard."));
+      setError(getApiErrorMessage(caught, "Could not load your documents."));
     } finally {
       setLoading(false);
     }
@@ -198,7 +198,7 @@ const inStatus = useMemo(() => {
   }, [data, statusFilter, visible]);
 
   const documentsByBucket = useMemo(() => {
-    const groups = new Map<string, DashboardItem[]>();
+    const groups = new Map<string, DocumentItem[]>();
     for (const item of visible) {
       const key = item.bucket || item.status;
       const group = groups.get(key);
@@ -265,7 +265,7 @@ const inStatus = useMemo(() => {
       <AppHeader
         user={user}
         unit={user?.unitId ? { id: user.unitId } : null}
-        title="Dashboard"
+        title="Documents"
       />
 
       <div className="lg:grid lg:h-[calc(100vh-var(--topbar-h))] lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden">
@@ -635,7 +635,7 @@ function FilterSelect({ label, value, allLabel, options, onChange }: FilterSelec
 }
 
 /** Whether a document belongs to a status card or filter key. */
-function matchesStatus(item: DashboardItem, key: string): boolean {
+function matchesStatus(item: DocumentItem, key: string): boolean {
   if (item.bucket === key) return true;
   if (item.status === key) return true;
   if (
@@ -662,7 +662,7 @@ function matchesStatus(item: DashboardItem, key: string): boolean {
   return false;
 }
 
-function uniqueValues(items: DashboardItem[], key: "dosage_form" | "doc_type"): string[] {
+function uniqueValues(items: DocumentItem[], key: "dosage_form" | "doc_type"): string[] {
   const seen = new Set<string>();
   for (const item of items) {
     const value = item[key];
@@ -671,7 +671,7 @@ function uniqueValues(items: DashboardItem[], key: "dosage_form" | "doc_type"): 
   return [...seen].sort();
 }
 
-function statusLabelFor(data: DashboardResponse | null, statusFilter: string): string {
+function statusLabelFor(data: DocumentsResponse | null, statusFilter: string): string {
   if (statusFilter === RETAINED_FILTER) return "superseded & cancelled";
   if (statusFilter === OVERDUE_FILTER || statusFilter === "overdue") return "overdue";
   const card = data?.cards?.find(

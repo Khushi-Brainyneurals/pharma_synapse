@@ -18,6 +18,7 @@ import { DocxViewer } from "../../document-workflows/shared/components/DocxViewe
 import { downloadDocument, getDocumentPdf } from "../../document-workflows/bmr-bpr/generate/api/generate.api";
 import { AppHeader } from "../../../app/layout/AppHeader";
 import { AppSidebar } from "../../../app/layout/AppSidebar";
+import { ROUTES } from "../../../app/routing/routes";
 import {
   approveDocument,
   getReviewPageData,
@@ -37,7 +38,7 @@ interface Comment {
 export function DocumentReviewPage() {
   const { documentId = "" } = useParams();
   const location = useLocation();
-  const dashboardPermissions = (location.state as { dashboardPermissions?: { can_review?: boolean; can_approve?: boolean } } | null)?.dashboardPermissions;
+  const documentPermissions = (location.state as { documentPermissions?: { can_review?: boolean; can_approve?: boolean } } | null)?.documentPermissions;
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
 
@@ -146,20 +147,20 @@ export function DocumentReviewPage() {
 
   const qaPending = state?.qa_review_status != null
     ? state.qa_review_status === "pending"
-    : state?.pending_roles.includes("reviewer_qa") || dashboardPermissions?.can_review === true;
+    : state?.pending_roles.includes("reviewer_qa") || documentPermissions?.can_review === true;
   const prPending = state?.pr_review_status != null
     ? state.pr_review_status === "pending"
-    : state?.pending_roles.includes("reviewer_pr") || dashboardPermissions?.can_review === true;
+    : state?.pending_roles.includes("reviewer_pr") || documentPermissions?.can_review === true;
   const closedForReview = ["returned", "returned_for_correction", "in_approval", "pending_approval", "approved", "approved_for_print", "rejected", "finalized"].includes(state?.status ?? "");
   const reviewWindowOpen = !closedForReview && (
-    ["submitted", "in_review", "qa_review", "pr_review"].includes(state?.status ?? "") || dashboardPermissions?.can_review === true
+    ["submitted", "in_review", "qa_review", "pr_review"].includes(state?.status ?? "") || documentPermissions?.can_review === true
   );
   const terminalState = ["rejected", "approved_for_print", "finalized"].includes(state?.status ?? "");
-  const reviewerCanAct = Boolean(!terminalState && (state?.can_act || dashboardPermissions?.can_review) && (
-    (reviewWindowOpen && isQaReviewer && (dashboardPermissions?.can_review ?? state?.can_act ?? false) && qaPending) ||
-    (reviewWindowOpen && isPrReviewer && (dashboardPermissions?.can_review ?? state?.can_act ?? false) && prPending)
+  const reviewerCanAct = Boolean(!terminalState && (state?.can_act || documentPermissions?.can_review) && (
+    (reviewWindowOpen && isQaReviewer && (documentPermissions?.can_review ?? state?.can_act ?? false) && qaPending) ||
+    (reviewWindowOpen && isPrReviewer && (documentPermissions?.can_review ?? state?.can_act ?? false) && prPending)
   ));
-  // The backend only places approver-eligible documents in this role's dashboard.
+  // The backend only places approver-eligible documents in this role's documents list.
   // Do not duplicate the QA/PR approval gate in the client.
   const roleCanAct = Boolean(!terminalState && (isApprover || reviewerCanAct));
   const reasonRequired = confirming !== null && confirming !== "approved" && comments.length === 0;
@@ -174,11 +175,11 @@ export function DocumentReviewPage() {
           <div className="mx-auto max-w-[1240px] space-y-4">
             <button
               type="button"
-              onClick={() => navigate("/dashboard")}
+              onClick={() => navigate(ROUTES.documents)}
               className="inline-flex items-center gap-2 text-small font-semibold text-subdued transition hover:text-text"
             >
               <ArrowLeft className="size-4" aria-hidden="true" />
-              Back to Dashboard
+              Back to Documents
             </button>
 
             {error ? (

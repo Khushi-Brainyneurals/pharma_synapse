@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import type { DashboardItem } from "../api/dashboard.api";
+import type { DocumentItem } from "../api/documents.api";
 export type CloseMode = "delete" | "cancel";
 
 export function CloseDocumentModal({ mode, item, error, onDismiss, onConfirm }: {
   mode: CloseMode;
-  item: DashboardItem;
+  item: DocumentItem;
   error: string | null;
   onDismiss: () => void;
   onConfirm: (input: { category: string; reason: string; password: string }) => Promise<void>;

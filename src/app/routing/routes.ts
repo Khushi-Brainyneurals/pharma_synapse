@@ -1,7 +1,7 @@
 export const ROUTES = {
   /** The first screen: the public module map. */
   modules: "/",
-  dashboard: "/dashboard",
+  documents: "/documents",
   login: "/login",
   newDocument: "/new",
   documentInputs: "/documents/:documentId/inputs",

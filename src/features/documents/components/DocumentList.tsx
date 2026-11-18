@@ -1,10 +1,10 @@
 import { Link } from "react-router-dom";
 import { useAuthStore } from "../../auth/state/auth.store";
-import type { DashboardItem } from "../api/dashboard.api";
+import type { DocumentItem } from "../api/documents.api";
 import { formatLastModified, getDocumentAction } from "../components/DocumentCard";
 
 /**
- * List (table) view of the dashboard documents.
+ * List (table) view of the documents.
  *
  * Uses the same `getDocumentAction` helper as `DocumentCard`, so a row always opens
  * the same step, with the same label, as the equivalent card.
@@ -19,7 +19,7 @@ const STATUS_BADGE: Record<string, string> = {
   rejected: "bg-rose-100 text-rose-800",
 };
 
-function statusBadgeClass(item: DashboardItem): string {
+function statusBadgeClass(item: DocumentItem): string {
   const key = item.bucket || item.status;
   return STATUS_BADGE[key] ?? "bg-muted text-subdued";
 }
@@ -34,7 +34,7 @@ function splitLastModified(value?: string | null): { date: string; time: string 
   };
 }
 
-export function DocumentList({ items }: { items: DashboardItem[] }) {
+export function DocumentList({ items }: { items: DocumentItem[] }) {
   const username = useAuthStore((state) => state.user?.username);
   const userRole = useAuthStore((state) => state.user?.role);
 
@@ -67,7 +67,7 @@ export function DocumentList({ items }: { items: DashboardItem[] }) {
                 <td className="px-4 py-3 align-top">
                   <Link
                     to={target}
-                    state={{ dashboardPermissions: item.permissions }}
+                    state={{ documentPermissions: item.permissions }}
                     className="font-semibold hover:text-primary-dark hover:underline"
                   >
                     {`${item.doc_type}_${item.document_id?.slice(0, 8) || ""}`}
@@ -117,7 +117,7 @@ export function DocumentList({ items }: { items: DashboardItem[] }) {
                 <td className="px-4 py-3 text-right align-top">
                   <Link
                     to={target}
-                    state={{ dashboardPermissions: item.permissions }}
+                    state={{ documentPermissions: item.permissions }}
                     className="inline-flex h-8 items-center whitespace-nowrap rounded-control border border-primary px-3 text-small font-semibold text-primary-dark transition hover:bg-primary-dark hover:text-white"
                   >
                     {action}

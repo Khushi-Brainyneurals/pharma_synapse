@@ -13,7 +13,7 @@ import { AppHeader } from "./layout/AppHeader";
 import { AppSidebar } from "./layout/AppSidebar";
 import { ROUTES } from "./routing/routes";
 
-const DashboardPage = lazy(() => import("../features/dashboard/pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
+const DocumentsPage = lazy(() => import("../features/documents/pages/DocumentsPage").then((m) => ({ default: m.DocumentsPage })));
 const CoreInputsPage = lazy(() => import("../features/document-workflows/bmr-bpr/inputs/pages/CoreInputsPage").then((m) => ({ default: m.CoreInputsPage })));
 const NewDocumentSelectorPage = lazy(() => import("../features/document-workflows/selection/pages/NewDocumentSelectorPage").then((m) => ({ default: m.NewDocumentSelectorPage })));
 const PvpSelectDocumentPage = lazy(() => import("../features/document-workflows/pvp-pvr/select-document/pages/SelectDocumentPage").then((m) => ({ default: m.SelectDocumentPage })));
@@ -85,13 +85,13 @@ export function App() {
   return (
     <ErrorBoundary>
       <Routes>
-        {/* First screen: the module map. Signed-in users go straight to their dashboard. */}
+        {/* First screen: the module map. Signed-in users go straight to their documents. */}
         <Route path={ROUTES.modules} element={<ModuleMapRoute />} />
         <Route path={ROUTES.login} element={<LoginPage />} />
         <Route path={ROUTES.setPassword} element={<SetPasswordPage />} />
         {env.isDev ? <Route path="/login/states" element={<LoginStatesPage />} /> : null}
         <Route element={<ProtectedRoute />}>
-          <Route path={ROUTES.dashboard} element={<LazyPage><DashboardPage /></LazyPage>} />
+          <Route path={ROUTES.documents} element={<LazyPage><DocumentsPage /></LazyPage>} />
           <Route path={ROUTES.newDocument} element={<LazyPage><NewDocumentSelectorPage /></LazyPage>} />
           <Route path={ROUTES.documentInputs} element={<LazyPage><CoreInputsPage /></LazyPage>} />
           <Route path="/documents/:documentId/pvp-pvr/select-document" element={<LazyPage><PvpSelectDocumentPage /></LazyPage>} />
@@ -113,7 +113,9 @@ export function App() {
           </Route>
           <Route path={ROUTES.documentReview} element={<LazyPage><DocumentReviewPage /></LazyPage>} />
           <Route path={ROUTES.documentFinalize} element={<LazyPage><DocumentFinalizePage /></LazyPage>} />
-          <Route path="/session" element={<Navigate to={ROUTES.dashboard} replace />} />
+          <Route path="/session" element={<Navigate to={ROUTES.documents} replace />} />
+          {/* Old bookmarks: the Dashboard tab is now Documents. */}
+          <Route path="/dashboard" element={<Navigate to={ROUTES.documents} replace />} />
           <Route path={ROUTES.versionHistory} element={<LazyPage><VersionHistoryPage /></LazyPage>} />
           <Route path={ROUTES.notifications} element={<LazyPage><NotificationsPage /></LazyPage>} />
           <Route path={ROUTES.auditTrail} element={<LazyPage><AuditTrailPage /></LazyPage>} />

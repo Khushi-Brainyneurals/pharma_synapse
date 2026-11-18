@@ -93,7 +93,7 @@ export function NewDocumentSelectorPage() {
               className="rounded-control border border-danger/30 bg-white px-4 py-2 text-small font-semibold text-danger-ink transition hover:bg-danger-soft focus:outline-none focus:ring-2 focus:ring-danger focus:ring-offset-2"
               onClick={() => navigate("/")}
             >
-              Go to your dashboard
+              Go to your documents
             </button>
           }
         >

@@ -81,13 +81,21 @@ export function AppSidebar({ user }: AppSidebarProps) {
       onMouseLeave={() => document.documentElement.classList.remove("ps-rail-hold")}
       className="ps-sidebar hidden shrink-0 border-r border-border bg-surface lg:flex lg:h-full lg:w-sidebar-w lg:flex-col">
       <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-4" aria-label="Primary">
-        <Link 
-          to="/" 
-          aria-current={location.pathname === "/" ? "page" : undefined} 
-          className={`flex min-h-row-h items-center gap-3 rounded-control mb-1 px-3 text-small font-medium transition ${ location.pathname === "/" ? "border border-primary/25 bg-accent-soft text-primary-dark" : "text-subdued hover:bg-muted hover:text-text" }`} >
-          <BookText className="size-4" aria-hidden="true" /> Documents
-        </Link>
         <ul className="space-y-1">
+          <li>
+            <Link
+              to={ROUTES.documents}
+              aria-current={location.pathname === ROUTES.documents ? "page" : undefined}
+              className={`flex min-h-row-h items-center gap-3 rounded-control px-3 text-small font-medium transition focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                location.pathname === ROUTES.documents
+                  ? "border border-primary/25 bg-accent-soft text-primary-dark"
+                  : "text-subdued hover:bg-muted hover:text-text"
+              }`}
+            >
+              <BookText className="size-4 shrink-0" aria-hidden="true" />
+              <span className="ps-nav-label">Documents</span>
+            </Link>
+          </li>
           {canManageEmployees(user?.role) ? (
             <li>
               <Link

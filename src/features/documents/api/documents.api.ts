@@ -4,7 +4,7 @@ export const OVERDUE_FILTER = "__overdue";
 export const RETAINED_FILTER = "__retained";
 export const RETAINED_STATES = ["superseded", "cancelled"];
 
-export interface DashboardItem {
+export interface DocumentItem {
   document_id: string;
   display_id: string;
   version: string;
@@ -41,28 +41,28 @@ export interface DashboardItem {
   last_modified_at: string | null;
 }
 
-export interface DashboardCard {
+export interface DocumentStatusCard {
   key: string;
   label: string;
   count: number;
 }
 
-export interface DashboardResponse {
+export interface DocumentsResponse {
   role: string;
-  cards: DashboardCard[];
+  cards: DocumentStatusCard[];
   buckets: { key: string; label: string; sub: string; count: number }[];
   overdue_count: number;
   retained_count: number;
   active_count: number;
   sla_days: Record<string, number>;
   can_create: boolean;
-  items: DashboardItem[];
+  items: DocumentItem[];
 }
 
 interface CloseRequest { category: string; reason: string; password?: string }
 interface CloseResponse { document_id: string; status: string; message: string }
 
-function normalizeDashboardItem(raw: any): DashboardItem {
+function normalizeDocumentItem(raw: any): DocumentItem {
   const document_id = String(raw.document_id ?? raw.job_id ?? raw.id ?? "");
   const docNo = (raw.document_no || raw.bmr_number || raw.product_code || "").trim();
   const doc_type = String(raw.doc_type ?? "BMR").toUpperCase();
@@ -115,7 +115,7 @@ function normalizeDashboardItem(raw: any): DashboardItem {
   };
 }
 
-export async function getDashboard(): Promise<DashboardResponse> {
+export async function getDocuments(): Promise<DocumentsResponse> {
   let response: any;
   try {
     response = await httpClient.get<any>("/api/documents/dashboard/me");
@@ -137,7 +137,7 @@ export async function getDashboard(): Promise<DashboardResponse> {
   }
   const data = response?.data ?? {};
   const rawList = Array.isArray(data.items) ? data.items : Array.isArray(data.documents) ? data.documents : [];
-  const items = rawList.map(normalizeDashboardItem);
+  const items = rawList.map(normalizeDocumentItem);
   const rawCards = Array.isArray(data.cards)
     ? data.cards.map((c: any) => ({
         key: String(c.key),
@@ -146,33 +146,33 @@ export async function getDashboard(): Promise<DashboardResponse> {
       }))
     : [];
 
-  const cards: DashboardCard[] =
+  const cards: DocumentStatusCard[] =
     rawCards.length > 0
       ? rawCards
       : [
-          { key: "draft", label: "Draft", count: items.filter((i: DashboardItem) => i.status === "draft").length },
+          { key: "draft", label: "Draft", count: items.filter((i: DocumentItem) => i.status === "draft").length },
           {
             key: "in_review",
             label: "In review",
-            count: items.filter((i: DashboardItem) => ["in_review", "under_review", "submitted"].includes(i.status)).length,
+            count: items.filter((i: DocumentItem) => ["in_review", "under_review", "submitted"].includes(i.status)).length,
           },
           {
             key: "in_approval",
             label: "In approval",
-            count: items.filter((i: DashboardItem) => ["in_approval", "pending_approval"].includes(i.status)).length,
+            count: items.filter((i: DocumentItem) => ["in_approval", "pending_approval"].includes(i.status)).length,
           },
           {
             key: "approved_for_print",
             label: "Approved / Ready for print",
-            count: items.filter((i: DashboardItem) => ["approved", "approved_for_print"].includes(i.status)).length,
+            count: items.filter((i: DocumentItem) => ["approved", "approved_for_print"].includes(i.status)).length,
           },
           {
             key: "returned_for_correction",
             label: "Returned for correction",
-            count: items.filter((i: DashboardItem) => ["returned", "returned_for_correction"].includes(i.status)).length,
+            count: items.filter((i: DocumentItem) => ["returned", "returned_for_correction"].includes(i.status)).length,
           },
-          { key: "rejected", label: "Rejected", count: items.filter((i: DashboardItem) => i.status === "rejected").length },
-          { key: "overdue", label: "Overdue", count: items.filter((i: DashboardItem) => i.is_overdue).length },
+          { key: "rejected", label: "Rejected", count: items.filter((i: DocumentItem) => i.status === "rejected").length },
+          { key: "overdue", label: "Overdue", count: items.filter((i: DocumentItem) => i.is_overdue).length },
         ];
 
   const buckets = Array.isArray(data.buckets)
