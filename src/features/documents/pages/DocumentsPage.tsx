@@ -1,6 +1,7 @@
 import {
   AlertCircle,
   AlertTriangle,
+  ChevronRight,
   Clock,
   Clock3,
   FileEdit,
@@ -39,6 +40,8 @@ import { CloseDocumentModal, type CloseMode } from "../components/CloseDocumentM
 import { DocumentCard } from "../components/DocumentCard";
 import { DocumentList } from "../components/DocumentList";
 import { GlassSelect } from "../../../shared/ui/GlassSelect";
+import { findModule } from "../../modules/model/modules";
+import { getRememberedModule } from "../../modules/model/selectedModule";
 
 /**
  * The Documents page — where every non-administrator lands.
@@ -72,6 +75,14 @@ const STATUS_CARD_META: Record<
   overdue: { icon: AlertTriangle, family: "rose" },
 };
 
+/** The big page title for each module card the user can arrive from; any other module shows "Documents". */
+const MODULE_PAGE_TITLE: Record<string, string> = {
+  BATCH_DOC_101: "Batch documents",
+  PROC_VALID_201: "Validation reports",
+  CPV_202: "CPV report",
+  APQR_203: "Report",
+};
+
 const DEFAULT_CARD_META = { icon: FileText, family: "mist" as CardFamily };
 
 type ViewMode = "card" | "list";
@@ -82,13 +93,20 @@ const VIEW_TABS: {
   label: string;
   Icon: React.ComponentType<{ className?: string }>;
 }[] = [
-  { mode: "card", label: "Cards", Icon: LayoutGrid },
-  { mode: "list", label: "List", Icon: List },
-];
+    { mode: "card", label: "Cards", Icon: LayoutGrid },
+    { mode: "list", label: "List", Icon: List },
+  ];
 
 export function DocumentsPage() {
   const user = useAuthStore((state) => state.user);
   const navigate = useNavigate();
+  // The module card the user signed in from (Batch documents, Process validation, CPV, APQR,
+  // eLogBook ...). It names the screen; without one the page keeps its plain title.
+  const sourceModule = useMemo(() => findModule(getRememberedModule()), []);
+  const sourceModuleName = sourceModule?.name.trim();
+  const pageTitle =
+    (sourceModule && MODULE_PAGE_TITLE[sourceModule.key]) ??
+    (user?.role === "preparer" ? "Your documents" : "Documents");
 
   const [data, setData] = useState<DocumentsResponse | null>(null);
   const [isLoading, setLoading] = useState(true);
@@ -149,18 +167,18 @@ export function DocumentsPage() {
   const items = useMemo(() => data?.items ?? [], [data]);
 
   /** Documents in the selected status, before search / form / type narrow them. */
-const inStatus = useMemo(() => {
-  if (statusFilter === RETAINED_FILTER) {
-    return items.filter((item) => RETAINED_STATES.includes(item.state));
-  }
-  if (statusFilter === OVERDUE_FILTER || statusFilter === "overdue") {
-    return items.filter((item) => item.bucket === "overdue");
-  }
-  if (statusFilter) {
-    return items.filter((item) => item.bucket === statusFilter);
-  }
-  return items.filter((item) => !RETAINED_STATES.includes(item.state));
-}, [items, statusFilter]);
+  const inStatus = useMemo(() => {
+    if (statusFilter === RETAINED_FILTER) {
+      return items.filter((item) => RETAINED_STATES.includes(item.state));
+    }
+    if (statusFilter === OVERDUE_FILTER || statusFilter === "overdue") {
+      return items.filter((item) => item.bucket === "overdue");
+    }
+    if (statusFilter) {
+      return items.filter((item) => item.bucket === statusFilter);
+    }
+    return items.filter((item) => !RETAINED_STATES.includes(item.state));
+  }, [items, statusFilter]);
 
   const visible = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -274,13 +292,31 @@ const inStatus = useMemo(() => {
           <div className="mx-auto">
             {/* Band: page title and the number-first stat cards over their glows. */}
             <section className="ps-band -mx-4 -mt-4 px-4 pb-5 pt-4 lg:-mx-6 lg:-mt-6 lg:px-6 lg:pt-6">
-            <div className="relative z-[1] mb-5 flex flex-wrap items-end gap-4">
-              <h1 className="text-h1 font-semibold tracking-tight">
-                {user?.role === "preparer" ? "Your documents" : "Documents"}
-              </h1>
-              <span className="flex-1" />
+              <div className="relative z-[1] mb-5 flex flex-wrap items-end gap-4">
+                <div className="flex min-w-0 flex-col gap-1">
+                  {sourceModuleName ? (
+                    <nav aria-label="Breadcrumb">
+                      <ol className="m-0 flex list-none items-center gap-1.5 p-0 text-small text-subdued">
+                        <li aria-current="page" className="font-semibold text-text">
+                          {sourceModuleName}
+                        </li>
+                        <li aria-hidden="true">
+                          <ChevronRight className="size-3.5" />
+                        </li>
+                        <li>Documents</li>
+                      </ol>
+                    </nav>
+                  ) : null}
+                  <h1 className="text-h1 font-semibold tracking-tight">
+                    {pageTitle}
+                  </h1>
+                  {sourceModule?.line ? (
+                    <p className="m-0 text-small text-subdued">{sourceModule.line}</p>
+                  ) : null}
+                </div>
+                <span className="flex-1" />
 
-              {/* {data ? (
+                {/* {data ? (
                 <span className="inline-flex items-center gap-2 rounded-pill border border-border-strong bg-surface px-3.5 py-1.5 text-micro text-subdued">
                   <Clock3 className="size-3.5" aria-hidden="true" />
                   Step limits — review <b className="font-mono font-semibold text-text">{data.sla_days?.in_review ?? 3}d</b> ·
@@ -289,24 +325,24 @@ const inStatus = useMemo(() => {
                 </span>
               ) : null} */}
 
-              {!canCreate ? (
-                <span className="max-w-[20ch] text-right text-micro leading-tight text-subdued">
-                  <b className="font-semibold">Prepared By</b> only
-                </span>
-              ) : null}
+                {!canCreate ? (
+                  <span className="max-w-[20ch] text-right text-micro leading-tight text-subdued">
+                    <b className="font-semibold">Prepared By</b> only
+                  </span>
+                ) : null}
 
-              <button
-                type="button"
-                disabled={!canCreate}
-                onClick={() => navigate(ROUTES.newDocument)}
-                className="inline-flex h-10 items-center gap-2 rounded-control bg-primary px-4 text-small font-semibold text-white transition hover:bg-primary-dark disabled:cursor-not-allowed disabled:bg-muted disabled:text-subdued"
-              >
-                <Plus className="size-4" aria-hidden="true" />
-                New document
-              </button>
-            </div>
+                <button
+                  type="button"
+                  disabled={!canCreate}
+                  onClick={() => navigate(ROUTES.newDocument)}
+                  className="inline-flex h-10 items-center gap-2 rounded-control bg-primary px-4 text-small font-semibold text-white transition hover:bg-primary-dark disabled:cursor-not-allowed disabled:bg-muted disabled:text-subdued"
+                >
+                  <Plus className="size-4" aria-hidden="true" />
+                  New document
+                </button>
+              </div>
             </section>
- 
+
             {/* Status Summary Cards - Responsive 7-Column Lifecycle Grid */}
             {/* <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
               {isLoading && !data
@@ -459,11 +495,10 @@ const inStatus = useMemo(() => {
                     aria-label={label}
                     title={label}
                     onClick={() => changeView(mode)}
-                    className={`inline-flex h-[34px] items-center gap-1.5 px-3 text-micro font-medium transition ${
-                      viewMode === mode
-                        ? "bg-primary text-white"
-                        : "text-subdued hover:bg-accent-soft hover:text-primary-dark"
-                    }`}
+                    className={`inline-flex h-[34px] items-center gap-1.5 px-3 text-micro font-medium transition ${viewMode === mode
+                      ? "bg-primary text-white"
+                      : "text-subdued hover:bg-accent-soft hover:text-primary-dark"
+                      }`}
                   >
                     <Icon className="size-3.5" aria-hidden="true" />
                     {/* {label} */}
