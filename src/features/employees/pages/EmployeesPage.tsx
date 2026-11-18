@@ -9,6 +9,7 @@ import { listEmployees, type Employee } from "../api/employees.api";
 import { ChangePasswordDialog } from "../components/ChangePasswordDialog";
 import { DeleteEmployeeDialog } from "../components/DeleteEmployeeDialog";
 import { EmployeeFormDialog } from "../components/EmployeeFormDialog";
+import { GlassSelect } from "../../../shared/ui/GlassSelect";
 
 type DialogState =
   | { kind: "add" }
@@ -88,7 +89,7 @@ export function EmployeesPage() {
         <AppSidebar user={user} />
 
         <main className="min-h-0 min-w-0 p-4 lg:h-full lg:overflow-y-auto lg:p-6">
-          <div className="mx-auto max-w-7xl space-y-5">
+          <div className="mx-auto space-y-5">
             <header className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h1 className="text-h1 font-semibold tracking-tight">Employee management</h1>
@@ -139,7 +140,7 @@ export function EmployeesPage() {
                   className="h-9 w-[260px] rounded-control border border-border-strong bg-surface pl-9 pr-3 text-small focus:border-primary focus:outline-none"
                 />
               </div>
-              <select
+              <GlassSelect
                 aria-label="Filter by status"
                 value={statusFilter}
                 onChange={(event) => setStatusFilter(event.target.value)}
@@ -149,7 +150,7 @@ export function EmployeesPage() {
                 {statuses.map((status) => (
                   <option key={status} value={status}>{status}</option>
                 ))}
-              </select>
+              </GlassSelect>
             </div>
 
             {isLoading ? (

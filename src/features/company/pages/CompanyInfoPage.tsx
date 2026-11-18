@@ -33,6 +33,7 @@ import { CompanyApprovalPanel } from "../components/CompanyApprovalPanel";
 import { LetterheadPreview } from "../components/LetterheadPreview";
 import { LogoDropzone } from "../components/LogoDropzone";
 import { ReasonForChangeModal, type FieldChange } from "../components/ReasonForChangeModal";
+import { GlassSelect } from "../../../shared/ui/GlassSelect";
 
 const FONTS = Object.keys(FONT_STACKS);
 
@@ -456,7 +457,7 @@ export function CompanyInfoPage() {
 
                   <div className="grid grid-cols-3 gap-3">
                     <Field label="Font" required>
-                      <select
+                      <GlassSelect
                         required
                         value={form.font_name}
                         disabled={!canEditForm || isSaving}
@@ -469,7 +470,7 @@ export function CompanyInfoPage() {
                             {font}
                           </option>
                         ))}
-                      </select>
+                      </GlassSelect>
                     </Field>
 
                     <Field label="Size (pt)" required>
@@ -505,7 +506,7 @@ export function CompanyInfoPage() {
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Field label="Header size" required>
-                      <select
+                      <GlassSelect
                         required
                         value={form.header_size}
                         disabled={!canEditForm || isSaving}
@@ -518,11 +519,11 @@ export function CompanyInfoPage() {
                             {size}&quot;
                           </option>
                         ))}
-                      </select>
+                      </GlassSelect>
                     </Field>
 
                     <Field label="Footer size" required>
-                      <select
+                      <GlassSelect
                         required
                         value={form.footer_size}
                         disabled={!canEditForm || isSaving}
@@ -535,7 +536,7 @@ export function CompanyInfoPage() {
                             {size}&quot;
                           </option>
                         ))}
-                      </select>
+                      </GlassSelect>
                     </Field>
                   </div>
 
@@ -543,7 +544,7 @@ export function CompanyInfoPage() {
                     <p className="text-small font-semibold">Footer template numbers</p>
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
                       <Field label="Document type">
-                        <select
+                        <GlassSelect
                           value={selectedFooterTemplate}
                           disabled={isSaving}
                           onChange={(event) =>
@@ -556,7 +557,7 @@ export function CompanyInfoPage() {
                               {label}
                             </option>
                           ))}
-                        </select>
+                        </GlassSelect>
                       </Field>
 
                       <Field label="Template no.">

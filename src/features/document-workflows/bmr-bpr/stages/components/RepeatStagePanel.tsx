@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { RepeatSlot, StageField, StageInputsResponse } from "../../stage-input/api/stageInputs.types";
 import type { ConditionSources } from "../model/stageRepeats";
 import { StageParamPanel } from "./StageParamPanel";
+import { GlassSelect } from "../../../../../shared/ui/GlassSelect";
 
 export function RepeatStagePanel({ axis, slots, fields, reference, byUnit, conditionSources, onUnitFieldChange, onCopyUnit }: {
   axis: string;
@@ -30,10 +31,10 @@ export function RepeatStagePanel({ axis, slots, fields, reference, byUnit, condi
       <p className="text-small text-subdued">{active.name}{active.lot_no ? ` · Lot ${active.lot_no}` : ""}{active.colour ? ` · ${active.colour}` : ""}</p>
       {sources.length ? <div className="flex flex-wrap items-center gap-2">
         <label className="text-small">Copy inputs from
-          <select value={copyFrom} onChange={(event) => setCopyFrom(event.target.value)} className="ml-2 rounded-control border border-border bg-surface p-2">
+          <GlassSelect value={copyFrom} onChange={(event) => setCopyFrom(event.target.value)} className="ml-2 rounded-control border border-border bg-surface p-2">
             <option value="">Select {axis}…</option>
             {sources.map((slot) => <option key={slot.key} value={slot.key}>{slot.name}</option>)}
-          </select>
+          </GlassSelect>
         </label>
         <button type="button" disabled={!sources.some((slot) => slot.key === copyFrom)} onClick={() => onCopyUnit(copyFrom, active.key)}
           className="rounded-control border border-border px-3 py-2 text-small disabled:opacity-50">Copy to {active.name}</button>

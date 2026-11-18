@@ -7,6 +7,7 @@ import type {
 } from "../../stage-input/api/stageInputs.types";
 import { layerSlots, type ConditionSources } from "../model/stageRepeats";
 import { StageFieldInput } from "../../stage-input/components/StageFieldInput";
+import { GlassSelect } from "../../../../../shared/ui/GlassSelect";
 
 /**
  * Select-stages in-process parameter panel — the designed "common params" layout
@@ -79,7 +80,7 @@ export function StageParamPanel({ fields, values, reference, onChange, condition
         />
         {conditionSources[field.key]?.length ? <label className="mt-1 block text-micro text-subdued">
           Copy a recorded limit
-          <select value="" className="ml-2 rounded-control border border-border bg-surface p-1" onChange={(event) => {
+          <GlassSelect value="" className="ml-2 rounded-control border border-border bg-surface p-1" onChange={(event) => {
             if (event.target.value === "") return;
             const source = conditionSources[field.key][Number(event.target.value)];
             onChange(field.key, structuredClone(source.value));
@@ -87,7 +88,7 @@ export function StageParamPanel({ fields, values, reference, onChange, condition
           }}>
             <option value="">Choose source…</option>
             {conditionSources[field.key].map((source, index) => <option key={index} value={index}>{source.label}</option>)}
-          </select>
+          </GlassSelect>
         </label> : null}
         </div>
       ))}
@@ -247,7 +248,7 @@ function LimitControls({
       <div className="flex min-w-[370px] flex-wrap items-center gap-2">
         {meta.mode === "limit" ? (
           <>
-            <select
+            <GlassSelect
               value={meta.ltype}
               disabled={!enabled}
               onChange={(event) => onLtype(event.target.value as Ltype)}
@@ -256,7 +257,7 @@ function LimitControls({
               <option value="range">Range (min–max)</option>
               <option value="nmt">Not more than (NMT)</option>
               <option value="nlt">Not less than (NLT)</option>
-            </select>
+            </GlassSelect>
 
             {meta.ltype === "range" ? (
               <>

@@ -92,7 +92,7 @@ export function MasterDataPage() {
       <div className="lg:grid lg:h-[calc(100vh-var(--topbar-h))] lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden">
         <AppSidebar user={user} />
         <main className="min-w-0 min-h-0 p-4 lg:p-6 lg:h-full lg:overflow-y-auto">
-          <div className="mx-auto max-w-4xl space-y-5">
+          <div className="mx-auto space-y-5">
             <header className="flex flex-wrap items-end justify-between gap-3">
               <div>
                 <h1 className="text-h1 font-semibold">Master data</h1>

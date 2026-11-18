@@ -9,6 +9,7 @@ import { AppSidebar } from "../../../app/layout/AppSidebar";
 import { DocxViewer } from "../../document-workflows/shared/components/DocxViewer";
 import { getDocumentPdf } from "../../document-workflows/bmr-bpr/generate/api/generate.api";
 import { finalizeDocument, getReviewPageData, type FinalizeAttachment, type ReviewPageData } from "../api/review.api";
+import { DateField } from "../../../shared/ui/DateField";
 
 export function DocumentFinalizePage() {
   const { documentId = "" } = useParams();
@@ -167,7 +168,7 @@ export function DocumentFinalizePage() {
                   <Field label="CCN number" value={ccnNo} onChange={setCcnNo} />
                   <label className="flex flex-col gap-1.5 text-small font-medium">
                     CCN approval date
-                    <input type="date" value={ccnApprovalDate} onChange={(event) => setCcnApprovalDate(event.target.value)} className="h-10 rounded-control text-text border border-border bg-surface px-3 font-normal focus:outline-none focus:ring-1 focus:ring-primary/25" />
+                    <DateField value={ccnApprovalDate} onChange={setCcnApprovalDate} aria-label="CCN approval date" className="h-10 rounded-control text-text border border-border bg-surface px-3 font-normal" />
                   </label>
                 </div>
 

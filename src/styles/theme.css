@@ -1,0 +1,1535 @@
+/*
+ * PharmaSynapse app themes: LIGHT GLASS (default) and NAVY (html[data-theme="dark"]).
+ * Recipes follow the design system README chapters LIGHT GLASS and NAVY THEME.
+ *
+ * Loaded after global.css, so these rules sit after Tailwind's utilities.
+ * Ground rules that keep existing screens intact:
+ *  - Generic cards get a translucent fill only, never backdrop-filter, because a filter
+ *    turns an element into the containing block for position:fixed children (dialogs).
+ *  - Anything inside `.text-black` is a rendered GMP document page. It always keeps the
+ *    light palette, in both themes, the way print does.
+ */
+
+/* ── Family shades: raw values (h-*) and the theme-aware names Tailwind reads ── */
+:root {
+  --h-harbor-50: 241 248 255;
+  --h-harbor-100: 224 239 255;
+  --h-harbor-200: 196 223 254;
+  --h-harbor-300: 158 200 247;
+  --h-harbor-400: 116 169 228;
+  --h-harbor-500: 80 139 203;
+  --h-harbor-600: 54 112 174;
+  --h-harbor-700: 36 88 143;
+  --h-harbor-800: 22 66 112;
+  --h-harbor-900: 11 45 80;
+  --h-harbor-950: 4 28 53;
+  --h-sage-50: 242 249 244;
+  --h-sage-100: 226 241 231;
+  --h-sage-200: 201 228 210;
+  --h-sage-300: 166 208 180;
+  --h-sage-400: 126 179 144;
+  --h-sage-500: 92 151 113;
+  --h-sage-600: 65 124 87;
+  --h-sage-700: 46 99 67;
+  --h-sage-800: 31 76 49;
+  --h-sage-900: 18 53 32;
+  --h-sage-950: 8 33 19;
+  --h-iris-50: 247 245 255;
+  --h-iris-100: 237 234 254;
+  --h-iris-200: 220 215 250;
+  --h-iris-300: 196 188 241;
+  --h-iris-400: 166 154 219;
+  --h-iris-500: 137 123 194;
+  --h-iris-600: 111 97 165;
+  --h-iris-700: 88 75 136;
+  --h-iris-800: 66 55 105;
+  --h-iris-900: 46 37 75;
+  --h-iris-950: 29 22 50;
+  --h-honey-50: 251 246 236;
+  --h-honey-100: 246 236 215;
+  --h-honey-200: 236 219 180;
+  --h-honey-300: 220 193 132;
+  --h-honey-400: 195 160 79;
+  --h-honey-500: 168 129 27;
+  --h-honey-600: 137 103 0;
+  --h-honey-700: 110 82 0;
+  --h-honey-800: 83 61 0;
+  --h-honey-900: 58 42 0;
+  --h-honey-950: 37 26 0;
+  --h-clay-50: 255 244 240;
+  --h-clay-100: 253 231 224;
+  --h-clay-200: 249 211 197;
+  --h-clay-300: 239 181 161;
+  --h-clay-400: 216 144 119;
+  --h-clay-500: 189 113 86;
+  --h-clay-600: 160 86 60;
+  --h-clay-700: 131 66 42;
+  --h-clay-800: 101 47 28;
+  --h-clay-900: 72 31 16;
+  --h-clay-950: 48 18 7;
+  --h-rose-50: 255 243 245;
+  --h-rose-100: 255 229 234;
+  --h-rose-200: 255 205 214;
+  --h-rose-300: 255 167 186;
+  --h-rose-400: 236 124 151;
+  --h-rose-500: 210 89 121;
+  --h-rose-600: 179 61 95;
+  --h-rose-700: 147 41 74;
+  --h-rose-800: 115 26 55;
+  --h-rose-900: 82 13 37;
+  --h-rose-950: 55 6 22;
+  --h-mist-50: 244 247 250;
+  --h-mist-100: 234 237 240;
+  --h-mist-200: 213 222 228;
+  --h-mist-300: 189 197 204;
+  --h-mist-400: 158 166 172;
+  --h-mist-500: 129 137 143;
+  --h-mist-600: 103 110 116;
+  --h-mist-700: 80 88 93;
+  --h-mist-800: 59 66 71;
+  --h-mist-900: 39 46 51;
+  --h-mist-950: 22 29 33;
+  --harbor-50: var(--h-harbor-50);
+  --harbor-100: var(--h-harbor-100);
+  --harbor-200: var(--h-harbor-200);
+  --harbor-300: var(--h-harbor-300);
+  --harbor-400: var(--h-harbor-400);
+  --harbor-500: var(--h-harbor-500);
+  --harbor-600: var(--h-harbor-600);
+  --harbor-700: var(--h-harbor-700);
+  --harbor-800: var(--h-harbor-800);
+  --harbor-900: var(--h-harbor-900);
+  --harbor-950: var(--h-harbor-950);
+  --sage-50: var(--h-sage-50);
+  --sage-100: var(--h-sage-100);
+  --sage-200: var(--h-sage-200);
+  --sage-300: var(--h-sage-300);
+  --sage-400: var(--h-sage-400);
+  --sage-500: var(--h-sage-500);
+  --sage-600: var(--h-sage-600);
+  --sage-700: var(--h-sage-700);
+  --sage-800: var(--h-sage-800);
+  --sage-900: var(--h-sage-900);
+  --sage-950: var(--h-sage-950);
+  --iris-50: var(--h-iris-50);
+  --iris-100: var(--h-iris-100);
+  --iris-200: var(--h-iris-200);
+  --iris-300: var(--h-iris-300);
+  --iris-400: var(--h-iris-400);
+  --iris-500: var(--h-iris-500);
+  --iris-600: var(--h-iris-600);
+  --iris-700: var(--h-iris-700);
+  --iris-800: var(--h-iris-800);
+  --iris-900: var(--h-iris-900);
+  --iris-950: var(--h-iris-950);
+  --honey-50: var(--h-honey-50);
+  --honey-100: var(--h-honey-100);
+  --honey-200: var(--h-honey-200);
+  --honey-300: var(--h-honey-300);
+  --honey-400: var(--h-honey-400);
+  --honey-500: var(--h-honey-500);
+  --honey-600: var(--h-honey-600);
+  --honey-700: var(--h-honey-700);
+  --honey-800: var(--h-honey-800);
+  --honey-900: var(--h-honey-900);
+  --honey-950: var(--h-honey-950);
+  --clay-50: var(--h-clay-50);
+  --clay-100: var(--h-clay-100);
+  --clay-200: var(--h-clay-200);
+  --clay-300: var(--h-clay-300);
+  --clay-400: var(--h-clay-400);
+  --clay-500: var(--h-clay-500);
+  --clay-600: var(--h-clay-600);
+  --clay-700: var(--h-clay-700);
+  --clay-800: var(--h-clay-800);
+  --clay-900: var(--h-clay-900);
+  --clay-950: var(--h-clay-950);
+  --rose-50: var(--h-rose-50);
+  --rose-100: var(--h-rose-100);
+  --rose-200: var(--h-rose-200);
+  --rose-300: var(--h-rose-300);
+  --rose-400: var(--h-rose-400);
+  --rose-500: var(--h-rose-500);
+  --rose-600: var(--h-rose-600);
+  --rose-700: var(--h-rose-700);
+  --rose-800: var(--h-rose-800);
+  --rose-900: var(--h-rose-900);
+  --rose-950: var(--h-rose-950);
+  --mist-50: var(--h-mist-50);
+  --mist-100: var(--h-mist-100);
+  --mist-200: var(--h-mist-200);
+  --mist-300: var(--h-mist-300);
+  --mist-400: var(--h-mist-400);
+  --mist-500: var(--h-mist-500);
+  --mist-600: var(--h-mist-600);
+  --mist-700: var(--h-mist-700);
+  --mist-800: var(--h-mist-800);
+  --mist-900: var(--h-mist-900);
+  --mist-950: var(--h-mist-950);
+  /* Light glass tokens */
+  --glass-page: #f2f5f9;
+  --glass-menu: rgba(255, 255, 255, 0.55);
+  --glass-card: rgba(255, 255, 255, 0.6);
+  --glass-overlay: rgba(255, 255, 255, 0.82);
+  --glass-dialog: rgba(255, 255, 255, 0.88);
+  --glass-chip: rgba(255, 255, 255, 0.62);
+  --glass-rim: rgba(255, 255, 255, 0.9);
+  --glass-divider: rgba(213, 222, 228, 0.9);
+  --glass-blur: blur(24px) saturate(160%);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --shadow-card: 0 1px 2px rgba(11, 45, 80, 0.05), 0 12px 32px rgba(11, 45, 80, 0.08);
+  --shadow-card-hover: 0 1px 2px rgba(11, 45, 80, 0.06), 0 16px 40px rgba(11, 45, 80, 0.12);
+  --shadow-btn: 0 1px 2px rgba(11, 45, 80, 0.12);
+  --paper: #ffffff;
+  --paper-edge: #dfe5eb;
+  --table-head: #f4f7fa;
+  --control-edge: #676e74;
+  --menu-text: #3b4247;
+  --menu-icon: #50585d;
+  --page-glows:
+    radial-gradient(420px 360px at 112px 208px, rgba(116, 169, 228, 0.42), transparent 70%),
+    radial-gradient(380px 380px at 120px calc(100% - 220px), rgba(126, 179, 144, 0.28), transparent 70%),
+    radial-gradient(520px 360px at 46% 6%, rgba(166, 154, 219, 0.26), transparent 70%),
+    radial-gradient(460px 340px at 78% 4%, rgba(236, 124, 151, 0.16), transparent 70%),
+    radial-gradient(560px 420px at 96% 46%, rgba(116, 169, 228, 0.22), transparent 70%),
+    radial-gradient(520px 420px at 58% 92%, rgba(126, 179, 144, 0.2), transparent 70%),
+    radial-gradient(440px 360px at 30% 60%, rgba(216, 144, 119, 0.12), transparent 70%);
+}
+
+/* ── NAVY ── */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --harbor-50: var(--h-harbor-950);
+  --harbor-100: var(--h-harbor-900);
+  --harbor-200: var(--h-harbor-800);
+  --harbor-300: var(--h-harbor-700);
+  --harbor-400: var(--h-harbor-600);
+  --harbor-500: var(--h-harbor-500);
+  --harbor-600: var(--h-harbor-400);
+  --harbor-700: var(--h-harbor-300);
+  --harbor-800: var(--h-harbor-200);
+  --harbor-900: var(--h-harbor-100);
+  --harbor-950: var(--h-harbor-50);
+  --sage-50: var(--h-sage-950);
+  --sage-100: var(--h-sage-900);
+  --sage-200: var(--h-sage-800);
+  --sage-300: var(--h-sage-700);
+  --sage-400: var(--h-sage-600);
+  --sage-500: var(--h-sage-500);
+  --sage-600: var(--h-sage-400);
+  --sage-700: var(--h-sage-300);
+  --sage-800: var(--h-sage-200);
+  --sage-900: var(--h-sage-100);
+  --sage-950: var(--h-sage-50);
+  --iris-50: var(--h-iris-950);
+  --iris-100: var(--h-iris-900);
+  --iris-200: var(--h-iris-800);
+  --iris-300: var(--h-iris-700);
+  --iris-400: var(--h-iris-600);
+  --iris-500: var(--h-iris-500);
+  --iris-600: var(--h-iris-400);
+  --iris-700: var(--h-iris-300);
+  --iris-800: var(--h-iris-200);
+  --iris-900: var(--h-iris-100);
+  --iris-950: var(--h-iris-50);
+  --honey-50: var(--h-honey-950);
+  --honey-100: var(--h-honey-900);
+  --honey-200: var(--h-honey-800);
+  --honey-300: var(--h-honey-700);
+  --honey-400: var(--h-honey-600);
+  --honey-500: var(--h-honey-500);
+  --honey-600: var(--h-honey-400);
+  --honey-700: var(--h-honey-300);
+  --honey-800: var(--h-honey-200);
+  --honey-900: var(--h-honey-100);
+  --honey-950: var(--h-honey-50);
+  --clay-50: var(--h-clay-950);
+  --clay-100: var(--h-clay-900);
+  --clay-200: var(--h-clay-800);
+  --clay-300: var(--h-clay-700);
+  --clay-400: var(--h-clay-600);
+  --clay-500: var(--h-clay-500);
+  --clay-600: var(--h-clay-400);
+  --clay-700: var(--h-clay-300);
+  --clay-800: var(--h-clay-200);
+  --clay-900: var(--h-clay-100);
+  --clay-950: var(--h-clay-50);
+  --rose-50: var(--h-rose-950);
+  --rose-100: var(--h-rose-900);
+  --rose-200: var(--h-rose-800);
+  --rose-300: var(--h-rose-700);
+  --rose-400: var(--h-rose-600);
+  --rose-500: var(--h-rose-500);
+  --rose-600: var(--h-rose-400);
+  --rose-700: var(--h-rose-300);
+  --rose-800: var(--h-rose-200);
+  --rose-900: var(--h-rose-100);
+  --rose-950: var(--h-rose-50);
+  --mist-50: var(--h-mist-950);
+  --mist-100: var(--h-mist-900);
+  --mist-200: var(--h-mist-800);
+  --mist-300: var(--h-mist-700);
+  --mist-400: var(--h-mist-600);
+  --mist-500: var(--h-mist-500);
+  --mist-600: var(--h-mist-400);
+  --mist-700: var(--h-mist-300);
+  --mist-800: var(--h-mist-200);
+  --mist-900: var(--h-mist-100);
+  --mist-950: var(--h-mist-50);
+  --accent: #74a9e4;
+  --accent-strong: #9ec8f7;
+  --accent-soft: #1f4367; /* rgba(158,200,247,0.14) over #0B2D50 */
+  --page: #0b2d50;
+  --surface: #041c35;
+  --sunken: #041c35;
+  --line: #164270;
+  --line-strong: #3b5b7e;
+  --ink: #f4f7fa;
+  --ink-2: #bdc5cc;
+  --ink-3: #9ea6ac;
+  --draft-fg: #ecdbb4;
+  --draft-bg: #3a2a00;
+  --inreview-fg: #dcd7fa;
+  --inreview-bg: #2e254b;
+  --approved-fg: #c9e4d2;
+  --approved-bg: #123520;
+  --superseded-fg: #d5dee4;
+  --superseded-bg: #272e33;
+  --rejected-fg: #ffcdd6;
+  --rejected-bg: #520d25;
+  --danger: #ec7c97;
+  --danger-soft: #520d25;
+  --danger-ink: #ffa7ba;
+  --focus-ring: #9ec8f7;
+
+  --color-background: 11 45 80;   /* #0B2D50 work area */
+  --color-surface: 4 28 53;       /* #041C35 paper */
+  --color-muted: 22 66 112;       /* #164270 */
+  --color-border: 22 66 112;      /* #164270 */
+  --color-text: 244 247 250;      /* #F4F7FA */
+  --color-subdued: 189 197 204;   /* #BDC5CC */
+  --color-primary: 116 169 228;   /* #74A9E4 */
+  --color-primary-dark: 158 200 247; /* #9EC8F7 hover and link ink */
+  --color-success: 126 179 144;   /* #7EB390 */
+  --color-danger: 236 124 151;    /* #EC7C97 */
+
+  --shadow-overlay: 0 12px 32px -8px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --shadow-modal: 0 24px 60px -12px rgba(0, 0, 0, 0.7), 0 4px 12px rgba(0, 0, 0, 0.4);
+  --scrim: rgba(0, 0, 0, 0.55);
+
+  --glass-page: #0b2d50;
+  --glass-overlay: rgba(11, 45, 80, 0.88);
+  --glass-dialog: rgba(11, 45, 80, 0.92);
+  --glass-chip: rgba(255, 255, 255, 0.06);
+  --glass-rim: rgba(255, 255, 255, 0.12);
+  --glass-divider: rgba(158, 200, 247, 0.16);
+  --glass-highlight: inset 0 0 0 0 transparent;
+  --soft-dark: rgba(0, 0, 0, 0.5);
+  --soft-light: rgba(158, 200, 247, 0.06);
+  --soft-edge: rgba(158, 200, 247, 0.08);
+  --shadow-card: 6px 6px 16px var(--soft-dark), -6px -6px 16px var(--soft-light);
+  --shadow-card-hover: 10px 10px 26px var(--soft-dark), -10px -10px 26px var(--soft-light);
+  --shadow-btn: 3px 3px 8px rgba(0, 0, 0, 0.5), -3px -3px 8px var(--soft-light);
+  --paper: #041c35;
+  --paper-edge: #164270;
+  --table-head: #0b2d50;
+  --control-edge: #81898f;
+  --menu-text: #c4dfff;
+  --menu-icon: #9ec8f7;
+  --page-glows: none;
+}
+
+/* Rendered document pages keep the light palette in navy, like print. */
+/* Rendered documents (app-built pages, Word previews, PDF pages) always keep the light
+   palette in navy: a document is paper, like print. */
+:root[data-theme="dark"] :is(.text-black, .format-preview-docx, .docx-wrapper, section.docx, .react-pdf__Document, .react-pdf__Page) {
+  color-scheme: light;
+  --harbor-50: var(--h-harbor-50);
+  --harbor-100: var(--h-harbor-100);
+  --harbor-200: var(--h-harbor-200);
+  --harbor-300: var(--h-harbor-300);
+  --harbor-400: var(--h-harbor-400);
+  --harbor-500: var(--h-harbor-500);
+  --harbor-600: var(--h-harbor-600);
+  --harbor-700: var(--h-harbor-700);
+  --harbor-800: var(--h-harbor-800);
+  --harbor-900: var(--h-harbor-900);
+  --harbor-950: var(--h-harbor-950);
+  --sage-50: var(--h-sage-50);
+  --sage-100: var(--h-sage-100);
+  --sage-200: var(--h-sage-200);
+  --sage-300: var(--h-sage-300);
+  --sage-400: var(--h-sage-400);
+  --sage-500: var(--h-sage-500);
+  --sage-600: var(--h-sage-600);
+  --sage-700: var(--h-sage-700);
+  --sage-800: var(--h-sage-800);
+  --sage-900: var(--h-sage-900);
+  --sage-950: var(--h-sage-950);
+  --iris-50: var(--h-iris-50);
+  --iris-100: var(--h-iris-100);
+  --iris-200: var(--h-iris-200);
+  --iris-300: var(--h-iris-300);
+  --iris-400: var(--h-iris-400);
+  --iris-500: var(--h-iris-500);
+  --iris-600: var(--h-iris-600);
+  --iris-700: var(--h-iris-700);
+  --iris-800: var(--h-iris-800);
+  --iris-900: var(--h-iris-900);
+  --iris-950: var(--h-iris-950);
+  --honey-50: var(--h-honey-50);
+  --honey-100: var(--h-honey-100);
+  --honey-200: var(--h-honey-200);
+  --honey-300: var(--h-honey-300);
+  --honey-400: var(--h-honey-400);
+  --honey-500: var(--h-honey-500);
+  --honey-600: var(--h-honey-600);
+  --honey-700: var(--h-honey-700);
+  --honey-800: var(--h-honey-800);
+  --honey-900: var(--h-honey-900);
+  --honey-950: var(--h-honey-950);
+  --clay-50: var(--h-clay-50);
+  --clay-100: var(--h-clay-100);
+  --clay-200: var(--h-clay-200);
+  --clay-300: var(--h-clay-300);
+  --clay-400: var(--h-clay-400);
+  --clay-500: var(--h-clay-500);
+  --clay-600: var(--h-clay-600);
+  --clay-700: var(--h-clay-700);
+  --clay-800: var(--h-clay-800);
+  --clay-900: var(--h-clay-900);
+  --clay-950: var(--h-clay-950);
+  --rose-50: var(--h-rose-50);
+  --rose-100: var(--h-rose-100);
+  --rose-200: var(--h-rose-200);
+  --rose-300: var(--h-rose-300);
+  --rose-400: var(--h-rose-400);
+  --rose-500: var(--h-rose-500);
+  --rose-600: var(--h-rose-600);
+  --rose-700: var(--h-rose-700);
+  --rose-800: var(--h-rose-800);
+  --rose-900: var(--h-rose-900);
+  --rose-950: var(--h-rose-950);
+  --mist-50: var(--h-mist-50);
+  --mist-100: var(--h-mist-100);
+  --mist-200: var(--h-mist-200);
+  --mist-300: var(--h-mist-300);
+  --mist-400: var(--h-mist-400);
+  --mist-500: var(--h-mist-500);
+  --mist-600: var(--h-mist-600);
+  --mist-700: var(--h-mist-700);
+  --mist-800: var(--h-mist-800);
+  --mist-900: var(--h-mist-900);
+  --mist-950: var(--h-mist-950);  --color-background: 242 245 249;
+  --color-surface: 255 255 255;
+  --color-muted: 238 242 246;
+  --color-border: 223 229 235;
+  --color-text: 22 29 33;
+  --color-subdued: 80 88 93;
+  --color-primary: 36 88 143;
+  --color-primary-dark: 22 66 112;
+  --color-success: 65 124 87;
+  --color-danger: 179 61 95;
+  --accent-soft: #e0efff;
+  --sunken: #eef2f6;
+  --line: #dfe5eb;
+  --line-strong: #bdc5cc;
+  --paper: #ffffff;
+  --paper-edge: #dfe5eb;
+  --table-head: #f4f7fa;
+}
+
+/* ── Page ground and glows ── */
+body,
+.min-h-screen.bg-background {
+  background-color: var(--glass-page);
+  background-image: var(--page-glows);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+main.bg-background {
+  background-color: transparent;
+}
+
+/* Theme switch: one smooth crossfade of the whole page (see ThemeToggle). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 320ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Side menu ── */
+.ps-sidebar.bg-surface {
+  background-color: var(--glass-menu);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border-right-color: rgba(255, 255, 255, 0.85);
+}
+
+.ps-sidebar a,
+.ps-sidebar li > span {
+  color: var(--menu-text);
+  border: 1px solid transparent;
+}
+
+.ps-sidebar a svg {
+  color: var(--menu-icon);
+}
+
+.ps-sidebar a:not([aria-current="page"]):hover {
+  background-color: rgba(255, 255, 255, 0.7);
+  color: #161d21;
+}
+
+.ps-sidebar a[aria-current="page"] {
+  background-color: rgba(255, 255, 255, 0.88);
+  border-color: #c4dffe;
+  color: #164270;
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(11, 45, 80, 0.06);
+}
+
+/* The current item's icon sits on a solid Harbor tile. The negative margin keeps the
+   label exactly where it was, so the row doesn't shift when it becomes current. */
+.ps-sidebar a[aria-current="page"] svg {
+  box-sizing: content-box;
+  padding: 5px;
+  margin: -5px;
+  border-radius: 8px;
+  background-color: #24588f;
+  color: #ffffff;
+}
+
+/* ── Collapsed rail (SideNav collapsed state) ──
+   html[data-sidebar="collapsed"] shrinks --sidebar-w to 64px, so every screen's grid
+   column follows. The rail keeps its glass and item states and shows icons only.
+   Hovering it (or tabbing into it) expands it to full width as an overlay over the
+   content, without moving the page: width over 320ms, labels fade in at the end,
+   and it closes in 200ms. */
+:root[data-sidebar="collapsed"] {
+  --sidebar-w: 64px;
+}
+
+@keyframes ps-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (min-width: 1024px) {
+  .ps-sidebar .ps-nav-label {
+    transition: opacity 100ms ease;
+  }
+
+  :root[data-sidebar="collapsed"] .ps-sidebar {
+    position: relative;
+    z-index: 30;
+    overflow: hidden;
+    transition:
+      width 200ms cubic-bezier(0.4, 0, 1, 1),
+      box-shadow 200ms cubic-bezier(0.4, 0, 1, 1);
+  }
+
+  :root[data-sidebar="collapsed"] .ps-sidebar :is(a, li > span, .ps-sidebar__toggle) {
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  :root[data-sidebar="collapsed"] .ps-sidebar .ps-nav-label {
+    opacity: 0;
+  }
+
+  /* Footer: just the log out button, centred in the rail. */
+  :root[data-sidebar="collapsed"] .ps-sidebar__foot {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  :root[data-sidebar="collapsed"] .ps-sidebar__user {
+    display: none;
+  }
+
+  /* Expanded as an overlay on hover, or when a keyboard user tabs into it.
+     .ps-rail-hold waits for the pointer to leave after collapsing, so the menu
+     doesn't spring open under the cursor that just collapsed it. */
+  :root[data-sidebar="collapsed"]:not(.ps-rail-hold) .ps-sidebar:is(:hover, :has(:focus-visible)) {
+    width: 232px;
+    background-color: var(--glass-overlay);
+    box-shadow: var(--shadow-overlay);
+    transition:
+      width 320ms cubic-bezier(0, 0, 0.2, 1) 120ms,
+      box-shadow 320ms cubic-bezier(0, 0, 0.2, 1) 120ms;
+  }
+
+  :root[data-sidebar="collapsed"]:not(.ps-rail-hold) .ps-sidebar:is(:hover, :has(:focus-visible)) .ps-nav-label {
+    opacity: 1;
+    transition: opacity 100ms ease 340ms;
+  }
+
+  :root[data-sidebar="collapsed"]:not(.ps-rail-hold) .ps-sidebar:is(:hover, :has(:focus-visible)) .ps-sidebar__user {
+    display: block;
+    animation: ps-fade-in 100ms ease 340ms both;
+  }
+
+  :root[data-sidebar="collapsed"]:not(.ps-rail-hold) .ps-sidebar:is(:hover, :has(:focus-visible)) .ps-sidebar__foot {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+/* Collapse and expand: the menu and the content morph as GPU snapshots, pinned to
+   their top left so text slides and clips rather than stretching. */
+.ps-rail-morph .ps-sidebar {
+  view-transition-name: ps-rail;
+}
+
+.ps-rail-morph .ps-sidebar ~ main {
+  view-transition-name: ps-main;
+}
+
+::view-transition-group(ps-rail),
+::view-transition-group(ps-main) {
+  animation-duration: 320ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+::view-transition-old(ps-rail),
+::view-transition-new(ps-rail),
+::view-transition-old(ps-main),
+::view-transition-new(ps-main) {
+  width: 100%;
+  height: 100%;
+  object-fit: none;
+  object-position: left top;
+}
+
+/* ── Top bar ── */
+.ps-topbar.bg-surface {
+  background-color: transparent;
+  border-bottom-color: var(--glass-divider);
+}
+
+/* Glass lives on a pseudo layer, so menus and toasts inside keep their positioning. */
+.ps-topbar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-color: var(--glass-overlay);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+
+.ps-topbar .rounded-pill.bg-muted {
+  background-color: var(--glass-chip);
+  border-color: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 1px 2px rgba(11, 45, 80, 0.05);
+}
+
+.ps-chip-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background-color: var(--glass-chip);
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  color: #50585d;
+  box-shadow: 0 1px 2px rgba(11, 45, 80, 0.05);
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.ps-chip-button:hover {
+  background-color: rgba(255, 255, 255, 0.9);
+  color: #161d21;
+}
+
+.ps-chip-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── Cards: glass with a rim, highlight and soft shadow ── */
+.rounded-card.bg-surface,
+.rounded-panel.bg-surface {
+  background-color: var(--glass-card);
+  border-color: var(--glass-rim);
+  box-shadow: var(--glass-highlight), var(--shadow-card);
+}
+
+/* Dense data always sits on paper inside the glass. Never applied inside a rendered
+   document: its tables keep their own Word/PDF formatting. */
+.rounded-card.bg-surface table:not(:is(.text-black, .format-preview-docx, .docx-wrapper, section.docx, .react-pdf__Document, .react-pdf__Page) *),
+.rounded-panel.bg-surface table:not(:is(.text-black, .format-preview-docx, .docx-wrapper, section.docx, .react-pdf__Document, .react-pdf__Page) *) {
+  background-color: var(--paper);
+}
+
+.rounded-card.bg-surface thead:not(:is(.text-black, .format-preview-docx, .docx-wrapper, section.docx, .react-pdf__Document, .react-pdf__Page) *),
+.rounded-card.bg-surface thead th:not(:is(.text-black, .format-preview-docx, .docx-wrapper, section.docx, .react-pdf__Document, .react-pdf__Page) *) {
+  background-color: var(--table-head);
+}
+
+/* Floating menus and popovers: glass overlay, which may blur (they hold no fixed children). */
+.rounded-panel.bg-surface.shadow-auth,
+.rounded-panel.bg-surface.shadow-modal,
+.rounded-card.bg-surface.shadow-overlay {
+  background-color: var(--glass-overlay);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+
+/* Dialog panels and the dimmed, blurred scrim behind them. */
+.rounded-modal.bg-surface.shadow-modal {
+  background-color: var(--glass-dialog);
+  border-color: var(--glass-rim);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+
+[style*="--scrim"] {
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+/* ── Controls ── */
+.bg-primary.text-white {
+  box-shadow: var(--shadow-btn);
+}
+
+:is(input:not([type="checkbox"]):not([type="radio"]), select, textarea, .ps-select-trigger, .ps-date-trigger):is(.border-border, .border-border-strong):not(:is(.text-black, .format-preview-docx, .docx-wrapper, section.docx, .react-pdf__Document, .react-pdf__Page) *) {
+  border-color: var(--control-edge);
+}
+
+/* ─────────────────────────── NAVY overrides ─────────────────────────── */
+
+:root[data-theme="dark"] body,
+:root[data-theme="dark"] .min-h-screen.bg-background {
+  background-image: none;
+}
+
+/* Frame: side menu and top bar on deep navy. */
+:root[data-theme="dark"] .ps-sidebar.bg-surface {
+  background-color: #041c35;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border-right-color: rgba(158, 200, 247, 0.08);
+}
+
+:root[data-theme="dark"] .ps-sidebar a:not([aria-current="page"]):hover {
+  background-color: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+}
+
+:root[data-theme="dark"] .ps-sidebar a[aria-current="page"] {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  box-shadow: none;
+}
+
+:root[data-theme="dark"] .ps-sidebar a[aria-current="page"] svg {
+  background-color: #74a9e4;
+  color: #041c35;
+}
+
+:root[data-theme="dark"] .ps-topbar::before {
+  background-color: #041c35;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+:root[data-theme="dark"] .ps-topbar .rounded-pill.bg-muted,
+:root[data-theme="dark"] .ps-chip-button {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  box-shadow: none;
+}
+
+:root[data-theme="dark"] .ps-chip-button:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+/* The reversed lockup on navy grounds (same file name pattern, no markup change). */
+:root[data-theme="dark"] img[src="/pharmasynapse-lockup.svg"] {
+  content: url("/pharmasynapse-lockup-reversed.svg");
+}
+
+/* Cards: soft raised navy, no glass. */
+:root[data-theme="dark"] .rounded-card.bg-surface,
+:root[data-theme="dark"] .rounded-panel.bg-surface {
+  background-color: #0b2d50;
+  border-color: var(--soft-edge);
+}
+
+/* Plain paper in navy, except document pages. */
+:root[data-theme="dark"] .bg-white:not(:is(.text-black, .format-preview-docx, .docx-wrapper, section.docx, .react-pdf__Document, .react-pdf__Page)):not(:is(.text-black, .format-preview-docx, .docx-wrapper, section.docx, .react-pdf__Document, .react-pdf__Page) *) {
+  background-color: var(--paper);
+}
+
+/* Dark ink on light navy accents, where markup asks for white text. */
+:root[data-theme="dark"] :is(.bg-primary, .bg-danger, .bg-success).text-white:not(.text-black *) {
+  color: #041c35;
+}
+
+:root[data-theme="dark"] .bg-text.text-white {
+  background-color: #f4f7fa;
+  color: #161d21;
+}
+
+/* ─────────────────────────── Dashboard band and stat cards ─────────────────────────── */
+
+.ps-band {
+  position: relative;
+  overflow: clip; /* glows fade inside the band, never over the cards below */
+  margin-bottom: 0;
+}
+
+:root[data-theme="dark"] .ps-band {
+  background-color: #041c35;
+  overflow: clip;
+  padding-bottom: 28px;
+  margin-bottom: 20px;
+  --color-text: 255 255 255;
+  --color-subdued: 196 223 254;
+}
+
+.ps-fam-harbor { --f200: var(--h-harbor-200); --f300: var(--h-harbor-300); --f400: var(--h-harbor-400); }
+.ps-fam-sage   { --f200: var(--h-sage-200);   --f300: var(--h-sage-300);   --f400: var(--h-sage-400); }
+.ps-fam-iris   { --f200: var(--h-iris-200);   --f300: var(--h-iris-300);   --f400: var(--h-iris-400); }
+.ps-fam-honey  { --f200: var(--h-honey-200);  --f300: var(--h-honey-300);  --f400: var(--h-honey-400); }
+.ps-fam-clay   { --f200: var(--h-clay-200);   --f300: var(--h-clay-300);   --f400: var(--h-clay-400); }
+.ps-fam-rose   { --f200: var(--h-rose-200);   --f300: var(--h-rose-300);   --f400: var(--h-rose-400); }
+.ps-fam-mist   { --f200: var(--h-mist-200);   --f300: var(--h-mist-300);   --f400: var(--h-mist-400); }
+
+/* GlowFrame, kind stat: one family glow painted behind the card. */
+.ps-glowframe {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+}
+
+.ps-glowframe__glow {
+  position: absolute;
+  inset: -56px -40px;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(
+    50% 50% at 50% 46%,
+    rgb(var(--f400) / 0.72) 0%,
+    rgb(var(--f400) / 0.6) 30%,
+    rgb(var(--f400) / 0.24) 62%,
+    transparent 100%
+  );
+  -webkit-mask-image: radial-gradient(50% 50% at 50% 46%, #000 52%, transparent 100%);
+  mask-image: radial-gradient(50% 50% at 50% 46%, #000 52%, transparent 100%);
+}
+
+:root[data-theme="dark"] .ps-glowframe__glow {
+  inset: -40px -24px;
+  background: radial-gradient(50% 50% at 50% 64%, rgb(var(--f400) / 1) 0%, rgb(var(--f400) / 0.55) 45%, transparent 100%);
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.ps-stat {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  padding: 16px 18px;
+  border-radius: 16px;
+  text-align: left;
+  background-color: rgba(255, 255, 255, 0.66);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-rim);
+  box-shadow: var(--glass-highlight), 0 1px 2px rgba(11, 45, 80, 0.05), 0 12px 32px rgba(11, 45, 80, 0.09);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.ps-stat:hover {
+  border-color: rgb(var(--f300));
+  box-shadow: var(--glass-highlight), 0 16px 40px rgba(11, 45, 80, 0.12);
+}
+
+.ps-stat:hover .ps-stat__label {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.ps-stat:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.ps-stat[aria-pressed="true"] {
+  border-color: rgb(var(--f400));
+  box-shadow: 0 0 0 2px rgb(var(--f400) / 0.55), 0 16px 40px rgba(11, 45, 80, 0.12);
+}
+
+.ps-stat__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ps-stat__tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background-color: rgb(var(--f400));
+  color: #041c35;
+}
+
+.ps-stat__active {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  background-color: rgba(255, 255, 255, 0.8);
+  color: #164270;
+  border: 1px solid rgb(var(--f300));
+}
+
+.ps-stat__num {
+  margin-top: 14px;
+  font-size: 34px;
+  line-height: 1.1;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: #161d21;
+}
+
+.ps-stat__label {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.35;
+  font-weight: 500;
+  color: #3b4247;
+}
+
+.ps-stat__note {
+  margin-top: 4px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: #50585d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ps-stat--skeleton {
+  min-height: 136px;
+}
+
+:root[data-theme="dark"] .ps-stat {
+  background-color: rgba(4, 28, 53, 0.55);
+  -webkit-backdrop-filter: blur(32px) saturate(140%);
+  backdrop-filter: blur(32px) saturate(140%);
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: none;
+}
+
+:root[data-theme="dark"] .ps-stat:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+:root[data-theme="dark"] .ps-stat[aria-pressed="true"] {
+  border-color: rgb(var(--f300));
+  box-shadow: 0 0 0 2px rgb(var(--f300) / 0.45);
+}
+
+:root[data-theme="dark"] .ps-stat__num { color: #ffffff; }
+:root[data-theme="dark"] .ps-stat__label { color: rgb(var(--f200)); }
+:root[data-theme="dark"] .ps-stat__note { color: #c4dfff; }
+:root[data-theme="dark"] .ps-stat__active {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+
+/* ─────────────────── Module map and sign-in (landing design) ───────────────────
+   Token values from the landing design, under --lp-* so they never collide with the
+   app's own variables. Tailwind classes such as text-text-2 or bg-chip-fill read these. */
+@font-face {
+  font-family: "Material Symbols Outlined";
+  font-style: normal;
+  font-weight: 300;
+  font-display: block;
+  src: url("/fonts/MaterialSymbolsOutlined-300.woff2") format("woff2");
+}
+
+:root {
+  --lp-page: #f2f5f9;
+  --lp-card: #eef2f6;
+  --lp-inset: #dfe5eb;
+  --lp-paper: #ffffff;
+  --lp-border-control: #676e74;
+  --lp-text-2: #50585d;
+  --lp-text-3: #5e656b;
+  --lp-primary-hover: #164270;
+  --lp-primary-soft: #f1f8ff;
+  --lp-on-primary: #ffffff;
+  --lp-accent: #24588f;
+  --lp-danger-text: #93294a;
+  --lp-fill-disabled: #dfe5eb;
+  --lp-text-disabled: #5e656b;
+  --lp-chip-fill: rgba(255, 255, 255, 0.62);
+  --lp-chip-rim: rgba(255, 255, 255, 0.92);
+  --lp-glass-card: rgba(255, 255, 255, 0.6);
+  --lp-glass-rim: rgba(255, 255, 255, 0.9);
+  --lp-soft-edge: transparent;
+  --lp-menu-icon: #50585d;
+  --lp-focus-ring: #24588f;
+  --lp-toast: #161d21;
+  --lp-shadow-card: 0 1px 2px rgba(11, 45, 80, 0.05), 0 12px 32px rgba(11, 45, 80, 0.08);
+  --lp-glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --lp-raised-md: none;
+  --lp-halo: rgba(36, 88, 143, 0.16);
+  --lp-btn-secondary-edge: #bdc5cc;
+  --lp-row-hover: #f4f7fa;
+  --lp-shadow-primary: 0 1px 2px rgba(11, 45, 80, 0.12);
+  --lp-raised-primary: none;
+  --lp-warning: #6e5200;
+  --lp-glow-harbor: 116, 169, 228;
+  --lp-glow-iris: 166, 154, 219;
+  --lp-glow-sage: 126, 179, 144;
+  --lp-glow-clay: 216, 144, 119;
+  --lp-glow-honey: 195, 160, 79;
+  --lp-glow-card-alpha: 0.3;
+}
+
+:root[data-theme="dark"] {
+  --lp-page: #0b2d50;
+  --lp-card: #0b2d50;
+  --lp-inset: #0b2d50;
+  --lp-paper: #041c35;
+  --lp-border-control: #81898f;
+  --lp-text-2: #bdc5cc;
+  --lp-text-3: #9ea6ac;
+  --lp-primary-hover: #9ec8f7;
+  --lp-primary-soft: rgba(158, 200, 247, 0.14);
+  --lp-on-primary: #041c35;
+  --lp-accent: #9ec8f7;
+  --lp-danger-text: #ffa7ba;
+  --lp-fill-disabled: #3b4247;
+  --lp-text-disabled: #81898f;
+  --lp-chip-fill: rgba(255, 255, 255, 0.06);
+  --lp-chip-rim: rgba(255, 255, 255, 0.16);
+  --lp-glass-card: #0b2d50;
+  --lp-glass-rim: rgba(255, 255, 255, 0.12);
+  --lp-soft-edge: rgba(158, 200, 247, 0.08);
+  --lp-menu-icon: #c4dffe;
+  --lp-focus-ring: #9ec8f7;
+  --lp-shadow-card: none;
+  --lp-glass-highlight: inset 0 0 0 0 transparent;
+  --lp-raised-md: 6px 6px 16px rgba(0, 0, 0, 0.5), -6px -6px 16px rgba(158, 200, 247, 0.06);
+  --lp-halo: rgba(158, 200, 247, 0.2);
+  --lp-btn-secondary-edge: rgba(158, 200, 247, 0.08);
+  --lp-row-hover: rgba(158, 200, 247, 0.08);
+  --lp-shadow-primary: none;
+  --lp-raised-primary: 3px 3px 8px rgba(0, 0, 0, 0.5), -3px -3px 8px rgba(158, 200, 247, 0.06);
+  --lp-warning: #dcc184;
+  --lp-glow-card-alpha: 0;
+}
+
+/* Material Symbols Outlined at weight 300, the design system icon set. */
+.ps-icon {
+  font-family: "Material Symbols Outlined";
+  font-weight: 300;
+  font-style: normal;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Module map: harbor glow near the top left, sage near the bottom left. */
+.app-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(420px 360px at 112px 208px, rgba(var(--lp-glow-harbor), 0.42), transparent 70%),
+    radial-gradient(380px 380px at 120px calc(100% - 220px), rgba(var(--lp-glow-sage), 0.28), transparent 70%);
+}
+
+:root[data-theme="dark"] .app-glow::before {
+  display: none;
+}
+
+/* Sign-in: the five-family glow behind the form column. */
+.auth-glow {
+  background:
+    radial-gradient(620px 540px at 10% 16%, rgba(var(--lp-glow-harbor), 0.55), transparent 70%),
+    radial-gradient(580px 520px at 90% 12%, rgba(var(--lp-glow-iris), 0.5), transparent 70%),
+    radial-gradient(640px 580px at 8% 90%, rgba(var(--lp-glow-sage), 0.45), transparent 70%),
+    radial-gradient(600px 560px at 92% 88%, rgba(var(--lp-glow-clay), 0.42), transparent 70%),
+    radial-gradient(460px 400px at 52% 104%, rgba(var(--lp-glow-honey), 0.32), transparent 70%);
+}
+
+.card-glow-harbor {
+  background: radial-gradient(60% 73% at 50% 50%, rgba(var(--lp-glow-harbor), var(--lp-glow-card-alpha)), transparent 70%);
+}
+
+.frosted-card {
+  background: color-mix(in srgb, var(--lp-paper) 86%, transparent);
+}
+
+/* The app's own glass page ground stays off the module map and sign-in screens. */
+body:has(.ps-public) {
+  background-image: none;
+}
+
+/* ─────────────────── Dropdowns, date picker and loading (design system) ───────────────────
+   Select: 36px field, 10px radius, chevron turns 180° while open. The list opens 8px from
+   the field at its width on overlay glass, 12px radius, 36px rows, the highlighted row in
+   accent tint, the selected row with a check, and the keyboard hints footer.
+   Date picker: the same field with a calendar icon and a 296px glass popover. */
+:root {
+  --dd-row-active: #f1f8ff;
+  --dd-row-active-ring: #c4dffe;
+  --dd-row-selected: #e0efff;
+  --dd-row-selected-text: #164270;
+  --dd-kbd-fill: #eef2f6;
+  --dd-kbd-edge: #bdc5cc;
+  --dd-kbd-text: #161d21;
+  --dd-nav-fill: rgba(255, 255, 255, 0.7);
+  --dd-on-accent: #ffffff;
+  --dd-halo: rgba(36, 88, 143, 0.16);
+  --skel-fill: #eef2f6;
+  --skel-shimmer: rgba(255, 255, 255, 0.75);
+}
+
+:root[data-theme="dark"] {
+  --dd-row-active: rgba(158, 200, 247, 0.08);
+  --dd-row-active-ring: rgba(158, 200, 247, 0.24);
+  --dd-row-selected: rgba(158, 200, 247, 0.14);
+  --dd-row-selected-text: #ffffff;
+  --dd-kbd-fill: #0b2d50;
+  --dd-kbd-edge: #164270;
+  --dd-kbd-text: #f4f7fa;
+  --dd-nav-fill: rgba(255, 255, 255, 0.06);
+  --dd-on-accent: #041c35;
+  --dd-halo: rgba(158, 200, 247, 0.2);
+  --skel-fill: #164270;
+  --skel-shimmer: rgba(158, 200, 247, 0.12);
+}
+
+/* The native select stays in the page for forms, out of sight. */
+.ps-select-native {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Field triggers keep the page's own classes for size, border and fill. */
+.ps-select-trigger.ps-select-trigger,
+.ps-date-trigger.ps-date-trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  padding-right: 36px;
+  text-align: left;
+  cursor: pointer;
+  color: rgb(var(--color-text));
+  transition: border-color 100ms ease, box-shadow 100ms ease;
+}
+
+.ps-select-trigger:disabled,
+.ps-date-trigger:disabled {
+  cursor: not-allowed;
+}
+
+.ps-select-trigger:not(:disabled):hover,
+.ps-date-trigger:not(:disabled):hover {
+  border-color: var(--accent);
+}
+
+.ps-select-trigger[data-open],
+.ps-date-trigger[data-open] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--dd-halo);
+}
+
+.ps-select-trigger__value,
+.ps-date-trigger__value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ps-date-trigger__value.is-empty {
+  color: var(--ink-3);
+}
+
+.ps-select-trigger__chevron,
+.ps-date-trigger__icon {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  width: 18px;
+  height: 18px;
+  margin-top: -9px;
+  color: var(--ink-2);
+  pointer-events: none;
+  transition: transform 160ms cubic-bezier(0.2, 0, 0, 1), color 100ms ease;
+}
+
+.ps-select-trigger[data-open] .ps-select-trigger__chevron {
+  transform: rotate(180deg);
+  color: var(--accent);
+}
+
+.ps-date-trigger[data-open] .ps-date-trigger__icon {
+  color: var(--accent);
+}
+
+/* The glass panel, rendered at page level. */
+.ps-dropdown {
+  position: fixed;
+  z-index: 70;
+  min-width: 264px; /* room for the keyboard hints footer; inside the 240-320px menu range */
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  border-radius: 12px;
+  background-color: var(--glass-overlay);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-rim);
+  box-shadow: var(--glass-highlight), var(--shadow-overlay);
+  overflow: hidden;
+  font-family: var(--font-sans);
+  color: rgb(var(--color-text));
+  animation: ps-drop-in 220ms cubic-bezier(0, 0, 0.2, 1) both;
+}
+
+.ps-dropdown--up {
+  animation-name: ps-drop-in-up;
+}
+
+@keyframes ps-drop-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ps-drop-in-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.ps-dropdown__list {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+}
+
+.ps-dropdown__group {
+  padding: 8px 12px 4px;
+  font: 500 11px/16px var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.ps-dropdown__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 20px;
+  cursor: pointer;
+  transition: background-color 100ms ease, box-shadow 100ms ease;
+}
+
+.ps-dropdown__row[aria-selected="true"] {
+  background-color: var(--dd-row-selected);
+  color: var(--dd-row-selected-text);
+  font-weight: 500;
+}
+
+.ps-dropdown__row.is-active:not([aria-selected="true"]) {
+  background-color: var(--dd-row-active);
+  box-shadow: inset 0 0 0 1.5px var(--dd-row-active-ring);
+}
+
+.ps-dropdown__row.is-active[aria-selected="true"] {
+  box-shadow: inset 0 0 0 1.5px var(--dd-row-active-ring);
+}
+
+.ps-dropdown__row[aria-disabled="true"] {
+  color: var(--ink-3);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.ps-dropdown__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ps-dropdown__check {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--accent);
+}
+
+.ps-dropdown__foot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 14px;
+  height: 41px;
+  padding: 0 12px;
+  border-top: 1px solid var(--glass-divider);
+  font-size: 12.5px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.ps-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 5px;
+  margin-right: 4px;
+  box-sizing: border-box;
+  border-radius: 5px;
+  border: 1px solid var(--dd-kbd-edge);
+  background-color: var(--dd-kbd-fill);
+  font: 400 11.5px/1 var(--font-mono);
+  color: var(--dd-kbd-text);
+}
+
+/* Date picker popover. */
+.ps-datepick {
+  padding: 12px;
+}
+
+.ps-datepick__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 36px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.ps-datepick__nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background-color: var(--dd-nav-fill);
+  color: var(--ink-2);
+  transition: background-color 100ms ease, color 100ms ease;
+}
+
+.ps-datepick__nav svg {
+  width: 16px;
+  height: 16px;
+}
+
+.ps-datepick__nav:hover {
+  background-color: var(--dd-row-selected);
+  color: var(--accent);
+}
+
+.ps-datepick__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 36px);
+  gap: 2px;
+  justify-content: space-between;
+}
+
+.ps-datepick__dow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.ps-datepick__day {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  font: 400 14px/20px var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+  transition: background-color 100ms ease, color 100ms ease, box-shadow 100ms ease;
+}
+
+.ps-datepick__day:hover {
+  background-color: var(--dd-row-selected);
+}
+
+.ps-datepick__day:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.ps-datepick__day--out {
+  color: var(--ink-3);
+}
+
+.ps-datepick__day--today {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  font-weight: 500;
+}
+
+.ps-datepick__day[aria-selected="true"] {
+  background-color: var(--accent);
+  color: var(--dd-on-accent);
+  font-weight: 500;
+}
+
+.ps-datepick__day[aria-disabled="true"] {
+  color: var(--ink-3);
+  opacity: 0.45;
+  cursor: not-allowed;
+  background-color: transparent;
+}
+
+.ps-datepick__foot {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--glass-divider);
+}
+
+.ps-datepick__link {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent);
+  transition: background-color 100ms ease;
+}
+
+.ps-datepick__link:hover {
+  background-color: var(--dd-row-selected);
+}
+
+.ps-datepick__link:disabled {
+  color: var(--ink-3);
+  cursor: not-allowed;
+  background: none;
+}
+
+/* Spinner: an accent ring with a gap, one turn every 800ms. Lucide spinner icons are
+   drawn as the same ring, so every loader in the app matches. */
+.animate-spin {
+  animation-duration: 800ms;
+}
+
+svg.animate-spin {
+  box-sizing: border-box;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 9999px;
+}
+
+svg.animate-spin > * {
+  display: none;
+}
+
+/* Skeleton: bars in the skeleton fill with a shimmer every 1.4s. */
+.animate-pulse,
+.ps-stat--skeleton {
+  position: relative;
+  overflow: hidden;
+  animation: none;
+  background-color: var(--skel-fill);
+}
+
+.animate-pulse::after,
+.ps-stat--skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, var(--skel-shimmer), transparent);
+  animation: ps-shimmer 1.4s linear infinite;
+}
+
+@keyframes ps-shimmer {
+  to { transform: translateX(100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse::after,
+  .ps-stat--skeleton::after { animation: none; }
+  .ps-dropdown { animation: none; }
+}
+
+/* ─────────────────────────── Fallbacks and guards ─────────────────────────── */
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .ps-sidebar.bg-surface { background-color: #f7f9fb; }
+  .ps-topbar::before,
+  .rounded-panel.bg-surface.shadow-auth,
+  .rounded-panel.bg-surface.shadow-modal,
+  .rounded-modal.bg-surface.shadow-modal,
+  .ps-stat { background-color: #ffffff; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  body,
+  .min-h-screen.bg-background { background-image: none; }
+  .ps-glowframe__glow { display: none; }
+}
+
+@media (prefers-contrast: more) {
+  .rounded-card.bg-surface,
+  .ps-stat { border-color: var(--control-edge); }
+}
+
+/* Print is always white and flat. */
+@media print {
+  body,
+  .min-h-screen.bg-background {
+    background: #ffffff !important;
+  }
+  .ps-glowframe__glow { display: none; }
+}

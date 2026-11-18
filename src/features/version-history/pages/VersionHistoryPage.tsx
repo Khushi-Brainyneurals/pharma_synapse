@@ -10,6 +10,7 @@ import {
   getVersionHistory,
   type VersionHistoryItem,
 } from "../api/versionHistory.api";
+import { GlassSelect } from "../../../shared/ui/GlassSelect";
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   bmr: "Batch Manufacturing Record (BMR)",
@@ -109,7 +110,7 @@ export function VersionHistoryPage() {
       <div className="lg:grid lg:h-[calc(100vh-var(--topbar-h))] lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden">
         <AppSidebar user={user} />
         <main className="min-w-0 min-h-0 p-4 lg:p-6 lg:h-full lg:overflow-y-auto">
-          <div className="mx-auto max-w-7xl space-y-4">
+          <div className="mx-auto space-y-4">
             <header className="flex flex-wrap items-end justify-between gap-3">
               <div>
                 <p className="text-micro font-semibold uppercase tracking-overline text-primary">
@@ -139,7 +140,7 @@ export function VersionHistoryPage() {
                 <label className="text-micro font-semibold uppercase tracking-overline text-subdued">
                   Document type
                 </label>
-                <select
+                <GlassSelect
                   value={docType}
                   onChange={(e) => setDocType(e.target.value)}
                   className="h-9 w-64 rounded-control border border-border-strong bg-surface px-3 text-small outline-none focus:border-primary focus:ring-2 focus:ring-primary/30"
@@ -150,7 +151,7 @@ export function VersionHistoryPage() {
                       {labelFor(DOC_TYPE_LABELS, opt)}
                     </option>
                   ))}
-                </select>
+                </GlassSelect>
               </div>
               {docTypeSelected ? (
                 <button

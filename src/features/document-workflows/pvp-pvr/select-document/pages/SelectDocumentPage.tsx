@@ -216,7 +216,7 @@ export function SelectDocumentPage() {
       <AppHeader user={user} unit={context?.unit ?? null} isLoadingUnit={isLoadingContext} />
       <div className="grid min-h-0 grid-cols-1 lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)]">
         <AppSidebar user={user} />
-        <main className="min-h-0 min-w-0 overflow-y-auto overscroll-contain px-4 py-6 sm:px-6 lg:px-8">
+        <main className="min-h-0 min-w-0 overflow-y-auto overscroll-contain px-4 py-6 sm:px-6">
           <section className="mx-auto rounded-panel border border-border bg-surface shadow-sm">
             <div className="p-5 sm:p-6">
               <DocumentStepper steps={PVP_PVR_DOCUMENT_STEPS} activeStepId="select-document" onStepClick={goToStep} />

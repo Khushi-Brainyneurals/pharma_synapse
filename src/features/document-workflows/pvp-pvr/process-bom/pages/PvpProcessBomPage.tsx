@@ -21,6 +21,7 @@ import {
   type PvpBomResponse,
   type PvpMaterialSpecificationRow,
 } from "../api/processBom.api";
+import { GlassSelect } from "../../../../../shared/ui/GlassSelect";
 
 type TabId = "process-flow" | "bom" | "material-specifications";
 const TABS: { id: TabId; label: string }[] = [
@@ -258,7 +259,7 @@ function tabClass(active: boolean): string {
     "px-4 py-3 text-small font-semibold transition-colors",
   ].join(" ");
   const selected = "border-primary/25 bg-accent-soft text-primary-dark";
-  const idle = "border-[#dce3e8] bg-white text-[#536273] hover:border-[#9acdcc]";
+  const idle = "border-[#DFE5EB] bg-white text-[#50585D] hover:border-[#9EC8F7]";
 
   return [base, active ? selected : idle].join(" ");
 }
@@ -306,11 +307,11 @@ function MaterialSpecificationTable({ rows, saving, onChange }: { rows: PvpMater
             <td className="border border-border px-3 py-2.5">{row.material_name || "—"}</td>
             <td className="border border-border px-3 py-2.5">{row.functional_category || "—"}</td>
             <td className="border border-border px-3 py-2">
-              <select aria-label={`Specification for ${row.material_name || `row ${row.serial_number}`}`} disabled={saving || row.available_specifications.length === 0} value={row.selected_specification_no} onChange={(event) => onChange(index, event.target.value)} className="min-h-10 w-full rounded-control border border-border bg-surface px-3 py-2 text-small text-text outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:bg-muted disabled:text-subdued">
+              <GlassSelect aria-label={`Specification for ${row.material_name || `row ${row.serial_number}`}`} disabled={saving || row.available_specifications.length === 0} value={row.selected_specification_no} onChange={(event) => onChange(index, event.target.value)} className="min-h-10 w-full rounded-control border border-border bg-surface px-3 py-2 text-small text-text outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:bg-muted disabled:text-subdued">
                 <option value="">{row.available_specifications.length ? "Select a specification" : "No approved specifications"}</option>
                 {row.available_specifications.map((option, optionIndex) => <option key={`${option.specification_no}-${optionIndex}`} value={option.specification_no}>{option.specification_no}{option.material_name ? ` — ${option.material_name}` : ""}</option>)}
                 {row.selected_specification_no && !row.available_specifications.some((option) => option.specification_no === row.selected_specification_no) ? <option value={row.selected_specification_no}>{row.selected_specification_no}</option> : null}
-              </select>
+              </GlassSelect>
             </td>
           </tr>)}</tbody>
         </table>

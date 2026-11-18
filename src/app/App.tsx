@@ -6,6 +6,8 @@ import { SetPasswordPage } from "../features/auth/pages/SetPasswordPage";
 import { useAuthStore } from "../features/auth/state/auth.store";
 import { EmployeeAdminRoute } from "../features/employees/routing/EmployeeAdminRoute";
 import { LoginStatesPage } from "../features/auth/pages/LoginStatesPage";
+import { ModuleMapPage } from "../features/modules/pages/ModuleMapPage";
+import { getPostLoginPath } from "./routing/postLoginPath";
 import { ProtectedRoute } from "../features/auth/routing/ProtectedRoute";
 import { AppHeader } from "./layout/AppHeader";
 import { AppSidebar } from "./layout/AppSidebar";
@@ -83,11 +85,13 @@ export function App() {
   return (
     <ErrorBoundary>
       <Routes>
+        {/* First screen: the module map. Signed-in users go straight to their dashboard. */}
+        <Route path={ROUTES.modules} element={<ModuleMapRoute />} />
         <Route path={ROUTES.login} element={<LoginPage />} />
         <Route path={ROUTES.setPassword} element={<SetPasswordPage />} />
         {env.isDev ? <Route path="/login/states" element={<LoginStatesPage />} /> : null}
         <Route element={<ProtectedRoute />}>
-          <Route path="/" element={<LazyPage><DashboardPage /></LazyPage>} />
+          <Route path={ROUTES.dashboard} element={<LazyPage><DashboardPage /></LazyPage>} />
           <Route path={ROUTES.newDocument} element={<LazyPage><NewDocumentSelectorPage /></LazyPage>} />
           <Route path={ROUTES.documentInputs} element={<LazyPage><CoreInputsPage /></LazyPage>} />
           <Route path="/documents/:documentId/pvp-pvr/select-document" element={<LazyPage><PvpSelectDocumentPage /></LazyPage>} />
@@ -109,7 +113,7 @@ export function App() {
           </Route>
           <Route path={ROUTES.documentReview} element={<LazyPage><DocumentReviewPage /></LazyPage>} />
           <Route path={ROUTES.documentFinalize} element={<LazyPage><DocumentFinalizePage /></LazyPage>} />
-          <Route path="/session" element={<Navigate to="/" replace />} />
+          <Route path="/session" element={<Navigate to={ROUTES.dashboard} replace />} />
           <Route path={ROUTES.versionHistory} element={<LazyPage><VersionHistoryPage /></LazyPage>} />
           <Route path={ROUTES.notifications} element={<LazyPage><NotificationsPage /></LazyPage>} />
           <Route path={ROUTES.auditTrail} element={<LazyPage><AuditTrailPage /></LazyPage>} />
@@ -120,10 +124,20 @@ export function App() {
           <Route path="/master-data-setup/batch-docs" element={<LazyPage><MdBatchDocsPage /></LazyPage>} />
           <Route path="/master-data-setup/preview" element={<LazyPage><MdPreviewPage /></LazyPage>} />
         </Route>
-        <Route path="*" element={<Navigate to={ROUTES.login} replace />} />
+        <Route path="*" element={<Navigate to={ROUTES.modules} replace />} />
       </Routes>
     </ErrorBoundary>
   );
+}
+
+/** "/" shows the module map, or sends a signed-in person to where they work. */
+function ModuleMapRoute() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const user = useAuthStore((state) => state.user);
+  if (isAuthenticated && user) {
+    return <Navigate to={getPostLoginPath(user.role)} replace />;
+  }
+  return <ModuleMapPage />;
 }
 
 function LazyPage({ children }: { children: ReactNode }) {
@@ -139,8 +153,8 @@ function RouteLoadingFallback() {
       <div className="lg:grid lg:h-[calc(100vh-var(--topbar-h))] lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden">
         <AppSidebar user={user} />
         <main className="flex min-h-[calc(100vh-var(--topbar-h))] min-w-0 items-center justify-center bg-background px-6 lg:h-full" aria-live="polite" aria-busy="true">
-          <div className="flex items-center gap-3 rounded-control px-4 py-3 text-small text-subdued">
-            <span className="size-4 animate-spin rounded-full border-2 border-primary/25 border-t-primary" aria-hidden="true" />
+          <div className="flex flex-col items-center gap-3 rounded-control px-4 py-3 text-small text-subdued">
+            <span className="size-8 animate-spin rounded-full border-[3px] border-primary border-t-transparent" aria-hidden="true" />
             <span>Loading page…</span>
           </div>
         </main>

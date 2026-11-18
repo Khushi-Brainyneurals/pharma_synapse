@@ -48,7 +48,7 @@ export function ReviewQueuePage() {
         <AppSidebar user={user} />
 
         <main className="min-w-0 min-h-0 p-4 lg:p-6 lg:h-full lg:overflow-y-auto">
-          <div className="mx-auto max-w-5xl space-y-5">
+          <div className="mx-auto space-y-5">
             <header>
               <h1 className="text-h1 font-semibold">
                 {isPreparer ? "My documents" : "Review queue"}

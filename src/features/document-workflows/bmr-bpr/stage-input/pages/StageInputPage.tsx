@@ -24,6 +24,7 @@ import {
   type StageAssetScope,
 } from "../model/schemaForm";
 import { filterByStage } from "../model/stageMatch";
+import { GlassSelect } from "../../../../../shared/ui/GlassSelect";
 
 type Mode = "equipment" | "instrument";
 type StageInputTab = Mode | "ipqc";
@@ -566,14 +567,14 @@ export function StageInputPage() {
                             return (
                             <div key={`${parameter}-${index}`} className="grid items-center gap-3 px-5 py-3 sm:grid-cols-[1fr_240px]">
                               <span className="text-small font-medium">{parameter}</span>
-                              <select
+                              <GlassSelect
                                 value={frequency}
                                 onChange={(event) => setIpqcFrequency(storedIndex, event.target.value)}
                                 className="h-9 rounded-control border border-border-strong bg-surface px-3 text-small"
                               >
                                 <option value="">Select frequency…</option>
                                 {frequencyOptions.map((frequency) => <option key={frequency} value={frequency}>{frequency}</option>)}
-                              </select>
+                              </GlassSelect>
                             </div>
                           );})}
                         </div>
@@ -601,14 +602,14 @@ export function StageInputPage() {
                                 return (
                                   <div key={cppName} className="grid items-center gap-3 px-5 py-3 sm:grid-cols-[1fr_240px]">
                                     <span className="text-small font-medium">{cppName}</span>
-                                    <select
+                                    <GlassSelect
                                       value={cppFrequencyValues[frequencyKey] ?? ""}
                                       onChange={(event) => setCppFrequencyValues((current) => ({ ...current, [frequencyKey]: event.target.value }))}
                                       className="h-9 rounded-control border border-border-strong bg-surface px-3 text-small"
                                     >
                                       <option value="">Select frequency…</option>
                                       {frequencyOptions.map((frequency) => <option key={frequency} value={frequency}>{frequency}</option>)}
-                                    </select>
+                                    </GlassSelect>
                                   </div>
                                 );
                               })}

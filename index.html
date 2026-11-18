@@ -4,6 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/pharmasynapse-mark.svg" />
+    <script>
+      // Apply the saved theme and menu state before first paint, so nothing flashes or jumps.
+      try {
+        if (localStorage.getItem("ps-theme") === "dark") document.documentElement.dataset.theme = "dark";
+        if (localStorage.getItem("ps-sidebar") === "collapsed") document.documentElement.dataset.sidebar = "collapsed";
+      } catch (e) {}
+    </script>
     <title>Pharma Synapse · Brainy Neurals</title>
   </head>
   <body>

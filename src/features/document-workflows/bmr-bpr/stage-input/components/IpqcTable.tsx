@@ -1,5 +1,6 @@
 import { AlertCircle } from "lucide-react";
 import { Identifier } from "../../../../../shared/ui/Identifier";
+import { GlassSelect } from "../../../../../shared/ui/GlassSelect";
 
 export interface IpqcRow {
   test: string;
@@ -57,7 +58,7 @@ export function IpqcTable({ rows, frequencies, onChange }: IpqcTableProps) {
             />
 
             <div>
-              <select
+              <GlassSelect
                 value={row.frequency}
                 onChange={(event) => set(index, { frequency: event.target.value })}
                 aria-invalid={missing}
@@ -73,7 +74,7 @@ export function IpqcTable({ rows, frequencies, onChange }: IpqcTableProps) {
                     {frequency}
                   </option>
                 ))}
-              </select>
+              </GlassSelect>
 
               {missing ? (
                 <p className="mt-1 flex items-center gap-1 text-micro text-danger">

@@ -39,6 +39,7 @@ import {
   type AuditFilters,
   type AuditRecord,
 } from "../api/auditTrail.api";
+import { DateField } from "../../../shared/ui/DateField";
 
 type Tone = "neutral" | "danger" | "warn" | "success" | "info";
 
@@ -451,6 +452,10 @@ function JsonDetail({ label, value }: { label: string; value: unknown }) {
 }
 
 function FilterInput({ label, onChange, ...props }: { label: string; onChange: (value: string) => void; value: string; type?: string; inputMode?: "numeric"; placeholder?: string }) {
+  if (props.type === "date") {
+    // The design system date picker: reads "12 Nov 2026", opens a glass calendar.
+    return <div className="block min-w-0"><span className="mb-1 block text-micro font-medium uppercase tracking-overline text-subdued">{label}</span><DateField value={props.value} onChange={onChange} aria-label={label} placeholder="Any date" className="h-9 w-full min-w-0 rounded-control border border-border bg-background px-3 text-small outline-none" /></div>;
+  }
   return <label className="block min-w-0"><span className="mb-1 block text-micro font-medium uppercase tracking-overline text-subdued">{label}</span><input {...props} onChange={(event) => onChange(event.target.value)} className="h-9 w-full min-w-0 rounded-control border border-border bg-background px-3 text-small outline-none placeholder:text-subdued focus:border-primary focus:ring-2 focus:ring-primary/30" /></label>;
 }
 
