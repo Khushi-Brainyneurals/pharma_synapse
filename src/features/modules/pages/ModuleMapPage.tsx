@@ -1,7 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { getLoginRoute } from "../../../app/routing/routes";
 import { rememberModule } from "../model/selectedModule";
-import { Button } from "../../../shared/ps/Button";
 import { Logo } from "../../../shared/ps/Logo";
 import { ThemeToggle } from "../../../shared/ui/ThemeToggle";
 import { ModuleCard } from "../components/ModuleCard";
@@ -22,7 +21,6 @@ export function ModuleMapPage() {
         <Logo width={240} />
         <span className="flex-auto" />
         <ThemeToggle />
-        <Button onClick={() => navigate(getLoginRoute())}>Sign in</Button>
       </header>
 
       <main className="mx-auto box-border flex w-full max-w-[1180px] flex-auto flex-col gap-4 px-6 pb-5 pt-4">
