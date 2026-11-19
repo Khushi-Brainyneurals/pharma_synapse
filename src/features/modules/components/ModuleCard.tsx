@@ -18,7 +18,7 @@ export function ModuleCard({ module, onOpen }: ModuleCardProps) {
       onClick={() => {
         if (!module.disabled) onOpen(module);
       }}
-      className="box-border flex h-full cursor-pointer flex-col gap-2 overflow-hidden rounded-card border border-glass-rim bg-glass-card p-4 text-left shadow-glass-card backdrop-blur-glass backdrop-saturate-[1.6] transition-[border-color,box-shadow] duration-1 hover:border-primary dark:border-soft-edge dark:bg-card dark:shadow-raised dark:backdrop-blur-none dark:hover:border-primary disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-glass-rim dark:disabled:hover:border-soft-edge"
+      className="box-border flex h-full cursor-pointer flex-col gap-4 overflow-hidden rounded-card border border-glass-rim bg-glass-card px-4 py-3 text-left shadow-glass-card backdrop-blur-glass backdrop-saturate-[1.6] transition-[border-color,box-shadow] duration-1 hover:border-primary dark:border-soft-edge dark:bg-card dark:shadow-raised dark:backdrop-blur-none dark:hover:border-primary disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-glass-rim dark:disabled:hover:border-soft-edge"
     >
       <span className="flex items-center gap-2.5">
         <IconTile family={module.family} icon={module.icon} />
@@ -33,16 +33,6 @@ export function ModuleCard({ module, onOpen }: ModuleCardProps) {
       </span>
       <span className="text-[12.5px] leading-[18px] text-text-2 [text-wrap:pretty]" style={clamp(3)}>
         {module.line}
-      </span>
-      <span className="mt-auto flex flex-wrap gap-1.5">
-        {module.departments.map((d) => (
-          <span
-            key={d}
-            className="inline-flex items-center whitespace-nowrap rounded-full border border-border bg-inset px-2.5 py-0.5 text-[11.5px] font-medium leading-4 text-text-2"
-          >
-            {d}
-          </span>
-        ))}
       </span>
     </button>
   );
