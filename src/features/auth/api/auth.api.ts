@@ -7,14 +7,23 @@ import type {
   LoginRequest,
   LoginResponse,
   LogoutRequest,
+  UserFeatures,
 } from "./auth.types";
 
 type BackendLoginResponse = Partial<LoginResponse> & {
   access_token?: string;
   refresh_token?: string;
   token?: string;
-  data?: Partial<LoginResponse>;
+  data?: Partial<LoginResponse> & { access?: LoginAccess };
+  access?: LoginAccess;
 };
+
+/** The `access` block of the login response: what this user may do in the module. */
+interface LoginAccess {
+  access_type?: string;
+  document_types?: string[];
+  features?: UserFeatures;
+}
 
 export async function login(request: LoginRequest): Promise<AuthSession> {
   if (env.useMockApi) {
@@ -44,6 +53,14 @@ function transformLoginResponse(
   const refreshToken = payload.refreshToken ?? payload.refresh_token ?? response.refresh_token;
   const addressId = payload.addressId ?? payload.address_id ?? response.addressId ?? response.address_id;
   const address = payload.address ?? response.address;
+  // The backend sends the flags as `access.features`; older shapes put them at the top or on the user.
+  const features = pickFeatures(
+    payload.access?.features,
+    response.access?.features,
+    payload.features,
+    payload.user?.features,
+    response.features,
+  );
 
   if (!accessToken) {
     throw new Error("LOGIN_RESPONSE_INVALID");
@@ -65,8 +82,20 @@ function transformLoginResponse(
       role: payload.user?.role ?? request.role,
       addressId: payload.user?.addressId ?? addressId,
       address: payload.user?.address ?? address,
+      features,
     },
   };
+}
+
+/** The first feature-flag object the login response carries, keeping only boolean flags. */
+function pickFeatures(...candidates: unknown[]): UserFeatures {
+  const source = candidates.find(
+    (value): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value),
+  );
+  if (!source) return {};
+  return Object.fromEntries(
+    Object.entries(source).filter(([, value]) => typeof value === "boolean"),
+  ) as UserFeatures;
 }
 
 async function mockLogin(request: LoginRequest): Promise<AuthSession> {

@@ -6,6 +6,7 @@ import {
   FilePlus,
   History,
   BookText,
+  LayoutDashboard,
   Loader2,
   LogOut,
   PanelLeftClose,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { masterDataAccess } from "../../features/master-data-setup/access";
 import { canManageEmployees } from "../../features/employees/access";
+import { dashboardAccess } from "../../features/dashboard/access";
 import { useState } from "react";
 import { useSidebarCollapsed } from "./useSidebarCollapsed";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -82,6 +84,23 @@ export function AppSidebar({ user }: AppSidebarProps) {
       className="ps-sidebar hidden shrink-0 border-r border-border bg-surface lg:flex lg:h-full lg:w-sidebar-w lg:flex-col">
       <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-4" aria-label="Primary">
         <ul className="space-y-1">
+          {/* Dashboard comes first, for users whose login features grant a dashboard. */}
+          {dashboardAccess(user).canView ? (
+            <li>
+              <Link
+                to={ROUTES.dashboard}
+                aria-current={location.pathname === ROUTES.dashboard ? "page" : undefined}
+                className={`flex min-h-row-h items-center gap-3 rounded-control px-3 text-small font-medium transition focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                  location.pathname === ROUTES.dashboard
+                    ? "border border-primary/25 bg-accent-soft text-primary-dark"
+                    : "text-subdued hover:bg-muted hover:text-text"
+                }`}
+              >
+                <LayoutDashboard className="size-4 shrink-0" aria-hidden="true" />
+                <span className="ps-nav-label">Dashboard</span>
+              </Link>
+            </li>
+          ) : null}
           <li>
             <Link
               to={ROUTES.documents}

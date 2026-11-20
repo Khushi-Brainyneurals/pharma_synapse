@@ -7,6 +7,9 @@ export interface LoginRequest {
   module: string;
 }
 
+/** Feature flags from the login response, e.g. `personal_dashboard`, `company_dashboard`. */
+export type UserFeatures = Record<string, boolean>;
+
 export interface AuthenticatedUser {
   id: string;
   username: string;
@@ -16,6 +19,7 @@ export interface AuthenticatedUser {
   unitName?: string | null;
   addressId?: number | null;
   address?: string | null;
+  features?: UserFeatures;
 }
 
 export interface LoginResponse {
@@ -27,6 +31,7 @@ export interface LoginResponse {
   addressId?: number | null;
   address_id?: number | null;
   address?: string | null;
+  features?: UserFeatures;
   user: AuthenticatedUser;
 }
 

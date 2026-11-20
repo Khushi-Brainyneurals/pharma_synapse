@@ -1,9 +1,16 @@
-import type { UserRole } from "../../features/auth/model/roles";
+import type { AuthenticatedUser } from "../../features/auth/api/auth.types";
+import { dashboardAccess } from "../../features/dashboard/access";
 import { ROUTES } from "./routes";
 
-/** Documents resume from their cards; signing in opens Documents, admins open employees. */
-export function getPostLoginPath(role: UserRole | string) {
-  if (role === "admin" || role === "superadmin") {
+/**
+ * Where a signed-in user lands: the Dashboard when their login features grant one,
+ * otherwise admins open employees and everyone else opens Documents.
+ */
+export function getPostLoginPath(user: Pick<AuthenticatedUser, "role" | "features">) {
+  if (dashboardAccess(user as AuthenticatedUser).canView) {
+    return ROUTES.dashboard;
+  }
+  if (user.role === "admin" || user.role === "superadmin") {
     return ROUTES.employees;
   }
   return ROUTES.documents;

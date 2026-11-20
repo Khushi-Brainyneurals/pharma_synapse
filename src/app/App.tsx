@@ -13,6 +13,7 @@ import { AppHeader } from "./layout/AppHeader";
 import { AppSidebar } from "./layout/AppSidebar";
 import { ROUTES } from "./routing/routes";
 
+const DashboardPage = lazy(() => import("../features/dashboard/pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
 const DocumentsPage = lazy(() => import("../features/documents/pages/DocumentsPage").then((m) => ({ default: m.DocumentsPage })));
 const CoreInputsPage = lazy(() => import("../features/document-workflows/bmr-bpr/inputs/pages/CoreInputsPage").then((m) => ({ default: m.CoreInputsPage })));
 const NewDocumentSelectorPage = lazy(() => import("../features/document-workflows/selection/pages/NewDocumentSelectorPage").then((m) => ({ default: m.NewDocumentSelectorPage })));
@@ -114,8 +115,8 @@ export function App() {
           <Route path={ROUTES.documentReview} element={<LazyPage><DocumentReviewPage /></LazyPage>} />
           <Route path={ROUTES.documentFinalize} element={<LazyPage><DocumentFinalizePage /></LazyPage>} />
           <Route path="/session" element={<Navigate to={ROUTES.documents} replace />} />
-          {/* Old bookmarks: the Dashboard tab is now Documents. */}
-          <Route path="/dashboard" element={<Navigate to={ROUTES.documents} replace />} />
+          {/* Without a dashboard feature flag the page sends the user on to Documents. */}
+          <Route path={ROUTES.dashboard} element={<LazyPage><DashboardPage /></LazyPage>} />
           <Route path={ROUTES.versionHistory} element={<LazyPage><VersionHistoryPage /></LazyPage>} />
           <Route path={ROUTES.notifications} element={<LazyPage><NotificationsPage /></LazyPage>} />
           <Route path={ROUTES.auditTrail} element={<LazyPage><AuditTrailPage /></LazyPage>} />
@@ -137,7 +138,7 @@ function ModuleMapRoute() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const user = useAuthStore((state) => state.user);
   if (isAuthenticated && user) {
-    return <Navigate to={getPostLoginPath(user.role)} replace />;
+    return <Navigate to={getPostLoginPath(user)} replace />;
   }
   return <ModuleMapPage />;
 }

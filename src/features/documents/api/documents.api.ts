@@ -62,7 +62,7 @@ export interface DocumentsResponse {
 interface CloseRequest { category: string; reason: string; password?: string }
 interface CloseResponse { document_id: string; status: string; message: string }
 
-function normalizeDocumentItem(raw: any): DocumentItem {
+export function normalizeDocumentItem(raw: any): DocumentItem {
   const document_id = String(raw.document_id ?? raw.job_id ?? raw.id ?? "");
   const docNo = (raw.document_no || raw.bmr_number || raw.product_code || "").trim();
   const doc_type = String(raw.doc_type ?? "BMR").toUpperCase();

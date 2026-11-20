@@ -93,7 +93,7 @@ export function LoginPage() {
   });
 
   if (isAuthenticated && user) {
-    return <Navigate to={getPostLoginPath(user.role)} replace />;
+    return <Navigate to={getPostLoginPath(user)} replace />;
   }
 
   async function onSubmit(values: LoginFormValues) {
@@ -117,7 +117,7 @@ export function LoginPage() {
       });
       if (module) rememberModule(module.key, module.name, module.description ?? undefined);
       setSession(session);
-      navigate(getPostLoginPath(session.user.role), { replace: true });
+      navigate(getPostLoginPath(session.user), { replace: true });
     } catch (error) {
       // An expired password isn't a dead end: send them to the one place that fixes it.
       if (isPasswordExpired(error)) {
