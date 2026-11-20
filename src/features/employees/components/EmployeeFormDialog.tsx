@@ -1,17 +1,18 @@
 import { Loader2 } from "lucide-react";
-import { useMemo, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { getApiErrorMessage } from "../../../shared/api/apiError";
 import { Dialog } from "../../../shared/ui/Dialog";
 import { Input } from "../../../shared/ui/Input";
 import { PasswordInput } from "../../../shared/ui/PasswordInput";
-import { LOGIN_ROLE_OPTIONS } from "../../auth/model/roles";
 import {
   createEmployee,
   updateEmployee,
   type Employee,
   type EmployeeCreate,
   type EmployeeUpdate,
+  type ModuleRoleAssignment,
 } from "../api/employees.api";
+import { ModuleRolesField } from "./ModuleRolesField";
 
 interface EmployeeFormDialogProps {
   employee?: Employee;
@@ -21,7 +22,7 @@ interface EmployeeFormDialogProps {
 
 interface FormState {
   user_id: string;
-  roles: string[];
+  module_roles: ModuleRoleAssignment[];
   department: string;
   unit: string;
   address_id: string;
@@ -33,7 +34,7 @@ export function EmployeeFormDialog({ employee, onClose, onSaved }: EmployeeFormD
   const isEditing = Boolean(employee);
   const [form, setForm] = useState<FormState>(() => ({
     user_id: employee?.user_id ?? "",
-    roles: employee?.roles ?? [],
+    module_roles: normaliseModuleRoles(employee?.module_roles),
     department: employee?.department ?? "",
     unit: employee?.unit ?? "",
     address_id: employee ? String(employee.address_id) : "",
@@ -44,32 +45,17 @@ export function EmployeeFormDialog({ employee, onClose, onSaved }: EmployeeFormD
   const [requestError, setRequestError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  const roleOptions = useMemo(() => {
-    const known = new Set<string>(LOGIN_ROLE_OPTIONS.map((option) => option.value));
-    const extra = form.roles
-      .filter((role) => !known.has(role))
-      .map((role) => ({ value: role, label: role }));
-    return [...LOGIN_ROLE_OPTIONS, ...extra];
-  }, [form.roles]);
-
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: undefined }));
   }
 
-  function toggleRole(role: string) {
-    set(
-      "roles",
-      form.roles.includes(role)
-        ? form.roles.filter((value) => value !== role)
-        : [...form.roles, role],
-    );
-  }
-
   function validate() {
     const next: typeof errors = {};
     if (!form.user_id.trim()) next.user_id = "User ID is required.";
-    if (form.roles.length === 0) next.roles = "Select at least one role.";
+    if (form.module_roles.every((entry) => entry.roles.length === 0)) {
+      next.module_roles = "Select a module and assign at least one role.";
+    }
     if (!form.department.trim()) next.department = "Department is required.";
     if (!form.unit.trim()) next.unit = "Unit is required.";
     if (!/^\d+$/.test(form.address_id)) next.address_id = "Enter a numeric address ID.";
@@ -87,7 +73,9 @@ export function EmployeeFormDialog({ employee, onClose, onSaved }: EmployeeFormD
     setRequestError(null);
     const common: EmployeeUpdate = {
       user_id: form.user_id.trim(),
-      roles: form.roles,
+      // Flat list of every assigned role key, de-duplicated across modules.
+      roles: [...new Set(form.module_roles.flatMap((entry) => entry.roles.map((r) => r.role)))],
+      module_roles: form.module_roles,
       department: form.department.trim(),
       unit: form.unit.trim(),
       address_id: Number(form.address_id),
@@ -186,32 +174,12 @@ export function EmployeeFormDialog({ employee, onClose, onSaved }: EmployeeFormD
           ) : null}
         </div>
 
-        <fieldset>
-          <legend className="text-small font-semibold">
-            Roles <span className="text-danger">*</span>
-          </legend>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            {roleOptions.map((role) => (
-              <label
-                key={role.value}
-                className={`flex cursor-pointer items-center gap-2 rounded-control border px-3 py-2 text-small ${
-                  form.roles.includes(role.value)
-                    ? "border-primary bg-accent-soft"
-                    : "border-border bg-surface"
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={form.roles.includes(role.value)}
-                  onChange={() => toggleRole(role.value)}
-                  className="size-4 accent-primary"
-                />
-                {role.label}
-              </label>
-            ))}
-          </div>
-          {errors.roles ? <p className="mt-1 text-micro text-danger">{errors.roles}</p> : null}
-        </fieldset>
+        <ModuleRolesField
+          value={form.module_roles}
+          onChange={(next) => set("module_roles", next)}
+          error={errors.module_roles}
+          disabled={isSaving}
+        />
 
         <div className="flex justify-end gap-2 border-t border-border pt-4">
           <button
@@ -234,4 +202,13 @@ export function EmployeeFormDialog({ employee, onClose, onSaved }: EmployeeFormD
       </form>
     </Dialog>
   );
+}
+
+function normaliseModuleRoles(raw: Employee["module_roles"]): ModuleRoleAssignment[] {
+  return (raw ?? []).map((entry) => ({
+    module: entry.module,
+    roles: entry.roles.map((role) =>
+      typeof role === "string" ? { role, active: true } : { role: role.role, active: role.active },
+    ),
+  }));
 }

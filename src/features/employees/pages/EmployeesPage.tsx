@@ -9,6 +9,7 @@ import { listEmployees, type Employee } from "../api/employees.api";
 import { ChangePasswordDialog } from "../components/ChangePasswordDialog";
 import { DeleteEmployeeDialog } from "../components/DeleteEmployeeDialog";
 import { EmployeeFormDialog } from "../components/EmployeeFormDialog";
+import { EmployeeModuleRoles, moduleRolesSearchText, useModuleLabels } from "../components/EmployeeModuleRoles";
 import { GlassSelect } from "../../../shared/ui/GlassSelect";
 
 type DialogState =
@@ -55,6 +56,8 @@ export function EmployeesPage() {
     [employees],
   );
 
+  const moduleLabels = useModuleLabels(employees);
+
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return employees.filter((employee) => {
@@ -63,13 +66,14 @@ export function EmployeesPage() {
       return [
         employee.user_id,
         employee.roles.join(" "),
+        moduleRolesSearchText(employee, moduleLabels),
         employee.department,
         employee.unit,
         employee.address,
         employee.status,
       ].some((value) => value.toLowerCase().includes(needle));
     });
-  }, [employees, query, statusFilter]);
+  }, [employees, query, statusFilter, moduleLabels]);
 
   async function mutationSucceeded(message: string) {
     setDialog(null);
@@ -183,12 +187,8 @@ export function EmployeesPage() {
                     {visible.map((employee) => (
                       <tr key={employee.user_id} className="border-b border-sunken last:border-0 hover:bg-sunken/50">
                         <Cell><Identifier>{employee.user_id}</Identifier></Cell>
-                        <Cell>
-                          <div className="flex flex-wrap gap-1">
-                            {employee.roles.map((role) => (
-                              <span key={role} className="rounded-pill border border-border bg-sunken px-2 py-0.5 text-micro font-medium">{role}</span>
-                            ))}
-                          </div>
+                        <Cell wide>
+                          <EmployeeModuleRoles employee={employee} labels={moduleLabels} />
                         </Cell>
                         <Cell>{employee.department || "—"}</Cell>
                         <Cell>{employee.unit || "—"}</Cell>
@@ -250,8 +250,8 @@ function Header({ children }: { children: React.ReactNode }) {
   return <th className="whitespace-nowrap px-4 py-3">{children}</th>;
 }
 
-function Cell({ children }: { children: React.ReactNode }) {
-  return <td className="max-w-48 px-4 py-3 text-small text-subdued">{children}</td>;
+function Cell({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
+  return <td className={`${wide ? "min-w-64 max-w-md" : "max-w-48"} px-4 py-3 text-small text-subdued`}>{children}</td>;
 }
 
 function RowAction({

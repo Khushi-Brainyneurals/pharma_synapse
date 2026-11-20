@@ -1,8 +1,20 @@
 import { httpClient } from "../../../shared/api/httpClient";
 
+export interface ModuleRoleEntry {
+  role: string;
+  active: boolean;
+}
+
+export interface ModuleRoleAssignment {
+  module: string;
+  roles: ModuleRoleEntry[];
+}
+
 export interface Employee {
   user_id: string;
   roles: string[];
+  /** The API may also return a bare role key string; normalised in the form. */
+  module_roles?: { module: string; roles: (ModuleRoleEntry | string)[] }[];
   department: string;
   unit: string;
   address_id: number;
@@ -14,6 +26,7 @@ export interface Employee {
 export interface EmployeeCreate {
   user_id: string;
   roles: string[];
+  module_roles: ModuleRoleAssignment[];
   department: string;
   unit: string;
   address_id: number;
