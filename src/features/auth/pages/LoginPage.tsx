@@ -1,9 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState, type KeyboardEvent } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { useForm } from "react-hook-form";
 import { Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { getPostLoginPath } from "../../../app/routing/postLoginPath";
 import { ROUTES } from "../../../app/routing/routes";
+import { getApiErrorMessage } from "../../../shared/api/apiError";
+import { Callout } from "../../../shared/ui/Callout";
 import { Button } from "../../../shared/ps/Button";
 import { Field, inputClass, labelClass } from "../../../shared/ps/Field";
 import { Icon } from "../../../shared/ps/Icon";
@@ -11,13 +13,14 @@ import { TILE_FAMILY } from "../../../shared/ps/IconTile";
 import { Logo } from "../../../shared/ps/Logo";
 import { PasswordInput } from "../../../shared/ps/PasswordInput";
 import { InfoTip } from "../../../shared/ps/Tooltip";
-import { findModule } from "../../modules/model/modules";
-import { getRememberedModule, rememberModule } from "../../modules/model/selectedModule";
+import { getModuleVisual } from "../../modules/model/modules";
+import { getRememberedModule, getRememberedModuleDescription, getRememberedModuleName, rememberModule } from "../../modules/model/selectedModule";
+import { getModuleRoles, type ModuleRolesResponse } from "../../modules/api/modules.api";
 import { login } from "../api/auth.api";
 import { getLoginFeedback, isPasswordExpired, type LoginFeedback } from "../api/auth.errors";
 import { AuthShell } from "../components/AuthShell";
-import { RoleFieldset } from "../components/RoleFieldset";
-import { getLoginRoleGroups } from "../model/loginRoles";
+import { RoleFieldset, RoleFieldsetSkeleton } from "../components/RoleFieldset";
+import { groupApiRoles } from "../model/loginRoles";
 import { loginSchema, type LoginFormValues } from "../model/login.schema";
 import type { UserRole } from "../model/roles";
 import { useAuthStore } from "../state/auth.store";
@@ -46,10 +49,34 @@ export function LoginPage() {
   const setSession = useAuthStore((state) => state.setSession);
 
   const moduleKey = params.get("module") ?? getRememberedModule() ?? undefined;
-  const found = findModule(moduleKey);
-  // Disabled modules cannot be signed in to, even by URL.
-  const module = found?.disabled ? undefined : found;
-  const roleGroups = getLoginRoleGroups(module?.key);
+  const moduleName = moduleKey && getRememberedModule() === moduleKey ? getRememberedModuleName() : null;
+  const moduleDescription = moduleKey && getRememberedModule() === moduleKey ? getRememberedModuleDescription() : null;
+  const module = moduleKey && moduleName
+    ? { key: moduleKey, name: moduleName, description: moduleDescription, ...getModuleVisual(moduleKey) }
+    : null;
+  const [rolesResponse, setRolesResponse] = useState<ModuleRolesResponse | null>(null);
+  const [rolesLoading, setRolesLoading] = useState(Boolean(moduleKey));
+  const [rolesError, setRolesError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setRolesResponse(null);
+    setRolesError(null);
+    if (!moduleKey) {
+      setRolesLoading(false);
+      return () => { active = false; };
+    }
+    setRolesLoading(true);
+    getModuleRoles(moduleKey)
+      .then((response) => { if (active) setRolesResponse(response); })
+      .catch((cause: unknown) => {
+        if (active) setRolesError(getApiErrorMessage(cause, "Available roles could not be loaded. Please try again."));
+      })
+      .finally(() => { if (active) setRolesLoading(false); });
+    return () => { active = false; };
+  }, [moduleKey]);
+
+  const roleGroups = rolesResponse ? groupApiRoles(rolesResponse.roles) : [];
 
   const [capsOn, setCapsOn] = useState(false);
   const [feedback, setFeedback] = useState<LoginFeedback | null>(null);
@@ -71,13 +98,24 @@ export function LoginPage() {
 
   async function onSubmit(values: LoginFormValues) {
     setFeedback(null);
+    if (
+      !moduleKey ||
+      rolesLoading ||
+      rolesError ||
+      !rolesResponse?.module_login_available ||
+      !rolesResponse.roles.some((role) => role.key === values.role)
+    ) {
+      setFeedback({ variant: "danger", message: "Select a role available for this module." });
+      return;
+    }
     try {
       const session = await login({
         username: values.username.trim(),
         password: values.password,
         role: values.role as UserRole,
+        module: moduleKey,
       });
-      if (module) rememberModule(module.key);
+      if (module) rememberModule(module.key, module.name, module.description ?? undefined);
       setSession(session);
       navigate(getPostLoginPath(session.user.role), { replace: true });
     } catch (error) {
@@ -115,7 +153,7 @@ export function LoginPage() {
               <h1 id="screen-title" className="m-0 text-lg font-medium leading-[26px] tracking-[-0.015em] text-text">
                 Sign in to {module.name}
               </h1>
-              <p className="m-0 text-[12.5px] leading-[18px] text-text-3">{module.line}</p>
+              <p className="m-0 text-[12.5px] leading-[18px] text-text-3">{module.description}</p>
             </div>
           </div>
         ) : null}
@@ -191,7 +229,20 @@ export function LoginPage() {
               ) : null}
             </div>
 
-            <RoleFieldset groups={roleGroups} field={register("role")} error={errors.role?.message} disabled={isSubmitting} />
+            {rolesLoading ? (
+              <RoleFieldsetSkeleton />
+            ) : null}
+            {rolesError ? <Callout tone="danger" title="Unable to load roles">{rolesError}</Callout> : null}
+            {!moduleKey ? <Callout title="Select a module">Choose a module before signing in.</Callout> : null}
+            {!rolesLoading && !rolesError && rolesResponse && !rolesResponse.module_login_available ? (
+              <Callout title="Sign-in unavailable">This module is not available for sign-in.</Callout>
+            ) : null}
+            {!rolesLoading && !rolesError && rolesResponse?.module_login_available && rolesResponse.roles.length === 0 ? (
+              <Callout title="No roles available">There are no roles available for this module.</Callout>
+            ) : null}
+            {roleGroups.length > 0 ? (
+              <RoleFieldset groups={roleGroups} field={register("role")} error={errors.role?.message} disabled={isSubmitting || rolesLoading} />
+            ) : null}
           </div>
 
           <div className="flex flex-col gap-3">

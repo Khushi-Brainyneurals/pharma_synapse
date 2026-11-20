@@ -31,7 +31,7 @@ export function ModuleCard({ module, onOpen }: ModuleCardProps) {
           </span>
         ) : null}
       </span>
-      <span className="text-[12.5px] leading-[18px] text-text-2 [text-wrap:pretty]" style={clamp(3)}>
+      <span className="text-[12.5px] leading-[18px] text-text-2 [text-wrap:pretty]" style={clamp(2)}>
         {module.line}
       </span>
     </button>

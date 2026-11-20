@@ -1,54 +1,66 @@
+import type { ModuleItem, ModuleSection } from "../api/modules.api";
 import type { Family } from "../../../shared/ps/IconTile";
 
-export type ModuleStatus = "built" | "plan";
+interface ModuleVisual {
+  icon: string;
+  family: Family;
+}
 
-export interface AppModule {
-  key: string;
+/** Presentation only: module identity, labels, descriptions, and availability come from the API. */
+const MODULE_VISUALS: Record<string, ModuleVisual> = {
+  BATCH_DOC_101: { icon: "description", family: "clay" },
+  ISSUANCE_102: { icon: "assignment_turned_in", family: "honey" },
+  EBMR_EXEC_103: { icon: "edit_document", family: "sage" },
+  ELOGBOOK_104: { icon: "menu_book", family: "iris" },
+  MFC_MPC_301: { icon: "receipt_long", family: "harbor" },
+  SPEC_MOA_302: { icon: "biotech", family: "iris" },
+  SOP_PREP_303: { icon: "school", family: "sage" },
+  MASTER_HISTORY_304: { icon: "history", family: "rose" },
+  MASTER_DATA_305: { icon: "inventory_2", family: "harbor" },
+  ASSET_COMPLIANCE_104: { icon: "menu_book", family: "iris" },
+  PROC_VALID_201: { icon: "science", family: "iris" },
+  CPV_202: { icon: "monitoring", family: "harbor" },
+  APQR_203: { icon: "fact_check", family: "sage" },
+  STABILITY_204: { icon: "thermostat", family: "clay" },
+  QMS_401: { icon: "report_problem", family: "clay" },
+  ADMIN_ACCESS_901: { icon: "manage_accounts", family: "harbor" },
+};
+
+export function getModuleVisual(moduleKey: string): ModuleVisual {
+  return MODULE_VISUALS[moduleKey] ?? { icon: "apps", family: "clay" };
+}
+
+/** Module data rendered on the public map, adapted directly from the API. */
+export interface AppModule extends ModuleItem {
   name: string;
-  group: ModuleGroup;
-  status: ModuleStatus;
+  group: string;
   line: string;
   icon: string;
   family: Family;
-  /** Shown on the map but not openable yet. */
-  disabled?: boolean;
-  /** Longer description, shown as the card tooltip. */
-  detail?: string;
+  disabled: boolean;
+  detail: string;
+  status: "built" | "plan";
 }
 
-export const MODULE_GROUPS = [
-  "Batch records",
-  "Validation and trending",
-  "Master documents and data",
-  "Quality Events Management",
-  "Administration",
-] as const;
+export function modulesByGroup(sections: ModuleSection[], loginEnabled = true) {
+  const groups = sections
+    .map(({ name, modules }) => ({
+      group: name,
+      modules: modules.map((module): AppModule => {
+      const visual = getModuleVisual(module.key);
+      return {
+        ...module,
+        name: module.label,
+        group: name,
+        line: module.description,
+        ...visual,
+        disabled: !loginEnabled || !module.login_available,
+        detail: module.description,
+        status: loginEnabled && module.login_available ? "built" : "plan",
+      };
+      }),
+    }))
+    .filter(({ modules }) => modules.length > 0);
 
-export type ModuleGroup = (typeof MODULE_GROUPS)[number];
-
-// The module table from the design handoff (data/19-modules.js), in map order.
-export const MODULES: AppModule[] = [
-  { key: "BATCH_DOC_101", name: "Batch documents", group: "Batch records", status: "built", line: "BMRs and BPRs, from draft to effective.", icon: "description", family: "clay" },
-  { key: "ISSUANCE_102", name: "Issuance", group: "Batch records", status: "built", line: "Controlled copies, receipts and reconciliation.", icon: "assignment_turned_in", family: "honey" },
-  { key: "EBMR_EXEC_103", name: "eBMR execution", group: "Batch records", status: "plan", line: "The issued record, filled on the floor.", icon: "edit_document", family: "sage", disabled: true },
-  { key: "ASSET_COMPLIANCE_104", name: "Asset Compliance & Scheduling", group: "Batch records", status: "built", line: "Equipment / Instrument / Utility Scheduling, alerts and compliance", icon: "menu_book", family: "iris" },
-  { key: "PROC_VALID_201", name: "Process validation", group: "Validation and trending", status: "built", line: "Protocols, executed readings and reports.", icon: "science", family: "iris" },
-  { key: "CPV_202", name: "CPV (Continued process verification)", group: "Validation and trending", status: "built", line: "Watch parameters trended batch over batch.", icon: "monitoring", family: "harbor" },
-  { key: "APQR_203", name: "Annual product quality review", group: "Validation and trending", status: "built", line: "The yearly review, assembled from evidence.", icon: "fact_check", family: "sage" },
-  { key: "STABILITY_204", name: "Stability", group: "Validation and trending", status: "plan", line: "Studies, pull schedules and trends.", icon: "thermostat", family: "clay", disabled: true },
-  { key: "MFC_MPC_301", name: "MFC and MPC", group: "Master documents and data", status: "plan", line: "Master formula and packing cards, versioned.", icon: "receipt_long", family: "clay", disabled: true },
-  { key: "SPEC_MOA_302", name: "Specifications and MoA", group: "Master documents and data", status: "plan", line: "QC specifications and methods of analysis.", icon: "biotech", family: "iris", disabled: true },
-  { key: "SOP_PREP_303", name: "SOP preparation", group: "Master documents and data", status: "plan", line: "Controlled copy distribution and training management.", icon: "school", family: "sage", disabled: true },
-  { key: "QMS_401", name: "Quality Management System (QMS)", group: "Quality Events Management", status: "plan", line: "Deviation, changes, QRM, investigation etc. linked records.", detail: "Quality compliance, deviations, investigations, CAPA, change management, risk assessment, audits, complaints and recall management.", icon: "report_problem", family: "clay", disabled: true },
-  { key: "ADMIN_ACCESS_901", name: "Admin and Access Control ", group: "Administration", status: "built", line: "Manage users, roles, permissions and company settings.", detail: "Add and manage employees, assign roles and access, review permissions and maintain company and plant settings.", icon: "manage_accounts", family: "harbor" },
-];
-
-export function findModule(key: string | null | undefined): AppModule | undefined {
-  return key ? MODULES.find((m) => m.key === key) : undefined;
-}
-
-export function modulesByGroup() {
-  return MODULE_GROUPS.map((group) => ({ group, modules: MODULES.filter((m) => m.group === group) })).filter(
-    (g) => g.modules.length > 0,
-  );
+  return groups;
 }

@@ -40,8 +40,7 @@ import { CloseDocumentModal, type CloseMode } from "../components/CloseDocumentM
 import { DocumentCard } from "../components/DocumentCard";
 import { DocumentList } from "../components/DocumentList";
 import { GlassSelect } from "../../../shared/ui/GlassSelect";
-import { findModule } from "../../modules/model/modules";
-import { getRememberedModule } from "../../modules/model/selectedModule";
+import { getRememberedModule, getRememberedModuleDescription, getRememberedModuleName } from "../../modules/model/selectedModule";
 
 /**
  * The Documents page — where every non-administrator lands.
@@ -102,10 +101,11 @@ export function DocumentsPage() {
   const navigate = useNavigate();
   // The module card the user signed in from (Batch documents, Process validation, CPV, APQR,
   // eLogBook ...). It names the screen; without one the page keeps its plain title.
-  const sourceModule = useMemo(() => findModule(getRememberedModule()), []);
-  const sourceModuleName = sourceModule?.name.trim();
+  const sourceModuleKey = useMemo(() => getRememberedModule(), []);
+  const sourceModuleName = useMemo(() => getRememberedModuleName()?.trim(), []);
+  const sourceModuleDescription = useMemo(() => getRememberedModuleDescription(), []);
   const pageTitle =
-    (sourceModule && MODULE_PAGE_TITLE[sourceModule.key]) ??
+    (sourceModuleKey && MODULE_PAGE_TITLE[sourceModuleKey]) ??
     (user?.role === "preparer" ? "Your documents" : "Documents");
 
   const [data, setData] = useState<DocumentsResponse | null>(null);
@@ -310,8 +310,8 @@ export function DocumentsPage() {
                   <h1 className="text-h1 font-semibold tracking-tight">
                     {pageTitle}
                   </h1>
-                  {sourceModule?.line ? (
-                    <p className="m-0 text-small text-subdued">{sourceModule.line}</p>
+                  {sourceModuleDescription ? (
+                    <p className="m-0 text-small text-subdued">{sourceModuleDescription}</p>
                   ) : null}
                 </div>
                 <span className="flex-1" />

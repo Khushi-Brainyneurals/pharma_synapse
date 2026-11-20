@@ -4,6 +4,7 @@ export interface LoginRequest {
   username: string;
   password: string;
   role: UserRole;
+  module: string;
 }
 
 export interface AuthenticatedUser {

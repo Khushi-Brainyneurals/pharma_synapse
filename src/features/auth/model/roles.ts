@@ -45,11 +45,11 @@ export const USER_ROLE_OPTIONS = Object.values(USER_ROLES).map((value) => ({
   label: USER_ROLE_LABELS[value],
 }));
 
-// Role choices for the login screen's "User" tab. A distinct (shorter) label set
-// from USER_ROLE_LABELS, scoped to login — other screens keep the longer labels.
+// Role choices used by employee administration; login role choices come from the module API.
 export const LOGIN_ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: USER_ROLES.PREPARED_BY, label: "Prepared By" },
   { value: USER_ROLES.REVIEWER_QA, label: "Reviewer QA" },
   { value: USER_ROLES.REVIEWER_PR, label: "Reviewer PR" },
   { value: USER_ROLES.APPROVED_BY, label: "Approved By" },
 ];
+

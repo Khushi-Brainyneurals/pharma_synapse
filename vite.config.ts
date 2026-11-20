@@ -16,6 +16,10 @@ export default defineConfig(({ mode }) => {
         "/password": { target, changeOrigin: true },
         "/logout": { target, changeOrigin: true },
         "/refresh": { target, changeOrigin: true },
+        "/notifications": { target, changeOrigin: true },
+        "/employees": { target, changeOrigin: true },
+        "/audit": { target, changeOrigin: true },
+        "/master-data-setup/preview": { target, changeOrigin: true },
         "/login": {
           target,
           changeOrigin: true,
