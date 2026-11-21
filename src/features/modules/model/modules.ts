@@ -17,7 +17,7 @@ const MODULE_VISUALS: Record<string, ModuleVisual> = {
   SOP_PREP_303: { icon: "school", family: "sage" },
   MASTER_HISTORY_304: { icon: "history", family: "rose" },
   MASTER_DATA_305: { icon: "inventory_2", family: "harbor" },
-  ASSET_COMPLIANCE_104: { icon: "menu_book", family: "iris" },
+  ASSET_COMPLIANCE_501: { icon: "menu_book", family: "sage" },
   PROC_VALID_201: { icon: "science", family: "iris" },
   CPV_202: { icon: "monitoring", family: "harbor" },
   APQR_203: { icon: "fact_check", family: "sage" },

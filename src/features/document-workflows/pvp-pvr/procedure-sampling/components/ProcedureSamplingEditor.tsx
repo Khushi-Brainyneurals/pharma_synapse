@@ -247,18 +247,20 @@ function ParamColGroup() {
   );
 }
 
-function ParameterSection({
+export function ParameterSection({
   title,
   sourceRows,
   rows,
   onChange,
   disabled,
+  packing = false,
 }: {
   title: string;
   sourceRows?: JsonRecord[];
   rows: JsonRecord[];
   onChange: (rows: JsonRecord[]) => void;
   disabled: boolean;
+  packing?: boolean;
 }) {
   const existing = (sourceRows ?? []).map((row) =>
     asString(row.parameter).trim().toLowerCase(),
@@ -435,7 +437,7 @@ function ParameterSection({
             onClick={() =>
               onChange([
                 ...rows,
-                {
+                packing ? { parameter: "", limit: "" } : {
                   parameter: "",
                   limit: "",
                   layer: "",
@@ -497,14 +499,16 @@ function groupParameterRows(rows: JsonRecord[]) {
   };
 }
 
-function AnalyticalSection({
+export function AnalyticalSection({
   rows,
   onChange,
   disabled,
+  qualityAttributes,
 }: {
   rows: JsonRecord[];
   onChange: (rows: JsonRecord[]) => void;
   disabled: boolean;
+  qualityAttributes?: string[];
 }) {
   const [adding, setAdding] = useState(false);
   const [attribute, setAttribute] = useState("");
@@ -585,7 +589,14 @@ function AnalyticalSection({
           <div className="border-t border-dashed border-primary/30 bg-accent-soft/60 px-3 py-2.5">
             {adding ? (
               <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-center">
-                <input
+                {qualityAttributes ? <SelectMenu
+                  ariaLabel="Quality attribute"
+                  placeholder="Select quality attribute"
+                  value={attribute}
+                  options={qualityAttributes}
+                  disabled={disabled}
+                  onChange={setAttribute}
+                /> : <input
                   autoFocus
                   aria-label="Quality attribute"
                   className={inputClass}
@@ -593,7 +604,7 @@ function AnalyticalSection({
                   onChange={(e) => setAttribute(e.target.value)}
                   onKeyDown={onKeyDown}
                   placeholder="Quality attribute"
-                />
+                />}
                 <input
                   aria-label="Method name"
                   className={inputClass}
@@ -940,7 +951,7 @@ function LabeledInput({
   );
 }
 
-function TestsBox({
+export function TestsBox({
   available,
   selected,
   disabled,
@@ -1300,6 +1311,59 @@ function CompressionRows({
       ) : null}
     </section>
   );
+}
+
+export function PackingChallengeStudies({
+  rows,
+  tests,
+  primary,
+  onChange,
+}: {
+  rows: JsonRecord[];
+  tests: string[];
+  primary: boolean;
+  onChange: (rows: JsonRecord[]) => void;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const bodyId = useId();
+  const update = (index: number, value: JsonRecord) => updateAt(rows, index, value, onChange);
+  return <section className="overflow-hidden rounded-card border border-border bg-surface">
+    <header className="flex items-center gap-3 border-b border-border bg-muted/50 px-4 py-2">
+      <button type="button" aria-expanded={expanded} aria-controls={bodyId} aria-label={expanded ? "Collapse challenge studies" : "Expand challenge studies"} onClick={() => setExpanded((value) => !value)} className="grid size-9 shrink-0 place-items-center rounded-control border border-border bg-surface text-subdued hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+        {expanded ? <ChevronUp className="size-4" aria-hidden="true" /> : <ChevronDown className="size-4" aria-hidden="true" />}
+      </button>
+      <h4 className="text-small font-semibold">Challenge studies</h4>
+      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-micro font-semibold text-primary-dark">{rows.length}</span>
+      <div className="ml-auto"><AddButton onClick={() => {
+        setExpanded(true);
+        onChange([...rows, { id: crypto.randomUUID(), condition: "", type: "main", run_time_min: "", ipqc_sample_qty: "", ...(primary ? { sampling_point: "" } : {}), ipqc_tests: [], qc: { qc_sample_quantity: "", test: [], required: false } }]);
+      }} /></div>
+    </header>
+    {expanded ? <div id={bodyId} className="divide-y divide-border">
+      {rows.map((row, index) => <div key={row.id ?? index} className="grid gap-5 p-5">
+        <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,0.8fr)_auto]">
+          <LabeledInput label="Condition" value={row.condition ?? ""} placeholder="Describe the challenge" disabled={false} onChange={(value) => update(index, { ...row, condition: value })} />
+          <LabeledInput label="Study type / group" value={row.type ?? "main"} placeholder="main, repack, strip…" disabled={false} onChange={(value) => update(index, { ...row, type: value })} />
+          <LabeledInput label="Run time (min)" value={row.run_time_min ?? ""} placeholder="Minutes" disabled={false} onChange={(value) => update(index, { ...row, run_time_min: value})} />
+          <button type="button" title="Remove study" aria-label={`Remove challenge study ${index + 1}`} onClick={() => onChange(rows.filter((_, i) => i !== index))} className="flex h-9 items-center justify-center gap-2 rounded-control px-3 text-small font-medium text-subdued transition-colors hover:bg-danger-soft hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><Trash2 className="size-4" aria-hidden="true" /></button>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <CheckCard badge="IPQC" badgeClass="bg-primary/10 text-primary-dark" title="In-process check" cardClass="border-primary/30">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <LabeledInput label="Sample quantity" value={row.ipqc_sample_qty ?? ""} placeholder="e.g. 20 blisters" disabled={false} onChange={(value) => update(index, { ...row, ipqc_sample_qty: value })} />
+              {primary ? <LabeledInput label="Sampling point" value={row.sampling_point ?? ""} placeholder="e.g. Prior to cartoning" disabled={false} onChange={(value) => update(index, { ...row, sampling_point: value })} /> : null}
+            </div>
+            <TestsBox available={tests} selected={row.ipqc_tests ?? []} disabled={false} onChange={(value) => update(index, { ...row, ipqc_tests: value })} />
+          </CheckCard>
+          <CheckCard badge="QC" badgeClass="bg-muted text-text" title="Sent to QC" cardClass="border-border">
+            <LabeledInput label="Sample quantity" value={row.qc?.qc_sample_quantity ?? ""} placeholder="Optional" disabled={false} onChange={(value) => update(index, { ...row, qc: { ...(row.qc ?? {}), qc_sample_quantity: value, test: row.qc?.test ?? [], required: row.qc?.required ?? false } })} />
+            <TestsBox available={tests} selected={row.qc?.test ?? []} disabled={false} onChange={(value) => update(index, { ...row, qc: { ...(row.qc ?? {}), qc_sample_quantity: row.qc?.qc_sample_quantity ?? "", test: value, required: row.qc?.required ?? false } })} />
+          </CheckCard>
+        </div>
+      </div>)}
+      {rows.length === 0 ? <p className="px-5 py-6 text-small text-subdued">No challenge studies defined. Use Add to create one.</p> : null}
+    </div> : null}
+  </section>;
 }
 
 function DiagramSection({

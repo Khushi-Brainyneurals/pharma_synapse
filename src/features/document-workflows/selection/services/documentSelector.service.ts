@@ -36,7 +36,7 @@ export async function loadDocumentSelectorContext(
   };
 }
 
-function optionForBackendValue(options: DocumentOption[], value: string, useShortLabel = false): DocumentOption {
+export function optionForBackendValue(options: DocumentOption[], value: string, useShortLabel = false): DocumentOption {
   const normalized = value.replace(/-/g, "_").toLowerCase();
   const template = options.find((option) =>
     option.backendValue.replace(/-/g, "_").toLowerCase() === normalized,
@@ -46,7 +46,8 @@ function optionForBackendValue(options: DocumentOption[], value: string, useShor
   if (template) return { ...template, backendValue: value };
   const label = value.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
   return {
-    id: value.replace(/_/g, "-"),
+    // Keep unknown backend values intact so callers can round-trip them as IDs.
+    id: value,
     backendValue: value,
     label,
     shortLabel: useShortLabel ? value.toUpperCase() : undefined,

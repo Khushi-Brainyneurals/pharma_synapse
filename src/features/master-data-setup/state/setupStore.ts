@@ -36,7 +36,7 @@ function readInitialBatchOthers(): MasterOtherDocStatus[] {
   return [];
 }
 
-function readInitialType(): { dosageFormId: string; documentTypeId: string } {
+function readInitialType(): { dosageFormId: string; documentTypeId: string; pvpSourceKey: string | null } {
   try {
     if (typeof window !== "undefined" && window.localStorage) {
       const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -46,6 +46,7 @@ function readInitialType(): { dosageFormId: string; documentTypeId: string } {
           return {
             dosageFormId: parsed.dosageFormId || "tablet",
             documentTypeId: parsed.documentTypeId || "bmr",
+            pvpSourceKey: typeof parsed.pvpSourceKey === "string" ? parsed.pvpSourceKey : null,
           };
         }
       }
@@ -53,13 +54,13 @@ function readInitialType(): { dosageFormId: string; documentTypeId: string } {
   } catch {
     // ignore storage errors
   }
-  return { dosageFormId: "tablet", documentTypeId: "bmr" };
+  return { dosageFormId: "tablet", documentTypeId: "bmr", pvpSourceKey: null };
 }
 
-function persistSelectedType(dosageFormId: string, documentTypeId: string) {
+function persistSelectedType(dosageFormId: string, documentTypeId: string, pvpSourceKey: string | null) {
   try {
     if (typeof window !== "undefined" && window.localStorage) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ dosageFormId, documentTypeId }));
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ dosageFormId, documentTypeId, pvpSourceKey }));
     }
   } catch {
     // ignore storage errors
@@ -109,6 +110,13 @@ function formatStageTitle(stageKey: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function detectUploadedFormat(fileName: string): "PDF" | "DOCX" | "FILE" {
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith(".pdf")) return "PDF";
+  if (lower.endsWith(".docx")) return "DOCX";
+  return "FILE";
+}
+
 export function mapBackendStagesToSections(stages: StageChecklistGroup[]): StageSection[] {
   return stages.map((stage: any) => {
     const meta = STAGE_KEY_META[stage.stage_key];
@@ -122,6 +130,7 @@ export function mapBackendStagesToSections(stages: StageChecklistGroup[]): Stage
         code: slot.code,
         name: slot.label || slot.name || slot.code,
         required: slot.required ?? true,
+        acceptedFileTypes: slot.accepted_file_types ?? undefined,
       })),
     };
   });
@@ -132,6 +141,7 @@ export function mapBackendSlotsToBatchDocs(slots: StageSlot[]): DocDef[] {
     code: slot.code,
     name: slot.label || slot.name || slot.code,
     required: slot.required ?? true,
+    acceptedFileTypes: slot.accepted_file_types ?? undefined,
   }));
 }
 
@@ -140,6 +150,7 @@ const initialType = readInitialType();
 interface SetupState {
   dosageFormId: string;
   documentTypeId: string;
+  pvpSourceKey: string | null;
   stageSections: StageSection[];
   stageOthers: Record<string, MasterOtherDocStatus[]>;
   batchOthers: MasterOtherDocStatus[];
@@ -151,6 +162,7 @@ interface SetupState {
   previewed: Record<string, true>;
   setDosageFormId: (id: string) => void;
   setDocumentTypeId: (id: string) => void;
+  setPvpSourceKey: (key: string | null) => void;
   setSelectedType: (dosageFormId: string, documentTypeId: string) => void;
   setStageChecklistData: (res: StageChecklistResponse) => void;
   setStageOthers: (others: Record<string, MasterOtherDocStatus[]>) => void;
@@ -175,6 +187,7 @@ interface SetupState {
 export const useSetupStore = create<SetupState>((set) => ({
   dosageFormId: initialType.dosageFormId,
   documentTypeId: initialType.documentTypeId,
+  pvpSourceKey: initialType.pvpSourceKey,
   stageSections: STAGE_SECTIONS,
   stageOthers: {},
   batchOthers: readInitialBatchOthers(),
@@ -187,7 +200,7 @@ export const useSetupStore = create<SetupState>((set) => ({
   setDosageFormId: (id) =>
     set((s) => {
       if (s.dosageFormId === id) return s;
-      persistSelectedType(id, s.documentTypeId);
+      persistSelectedType(id, s.documentTypeId, s.pvpSourceKey);
       return {
         dosageFormId: id,
         uploads: {},
@@ -199,7 +212,7 @@ export const useSetupStore = create<SetupState>((set) => ({
   setDocumentTypeId: (id) =>
     set((s) => {
       if (s.documentTypeId === id) return s;
-      persistSelectedType(s.dosageFormId, id);
+      persistSelectedType(s.dosageFormId, id, s.pvpSourceKey);
       return {
         documentTypeId: id,
         uploads: {},
@@ -208,10 +221,16 @@ export const useSetupStore = create<SetupState>((set) => ({
         previewed: {},
       };
     }),
+  setPvpSourceKey: (key) =>
+    set((s) => {
+      if (s.pvpSourceKey === key) return s;
+      persistSelectedType(s.dosageFormId, s.documentTypeId, key);
+      return { pvpSourceKey: key };
+    }),
   setSelectedType: (dosageFormId, documentTypeId) =>
     set((s) => {
       if (s.dosageFormId === dosageFormId && s.documentTypeId === documentTypeId) return s;
-      persistSelectedType(dosageFormId, documentTypeId);
+      persistSelectedType(dosageFormId, documentTypeId, s.pvpSourceKey);
       return {
         dosageFormId,
         documentTypeId,
@@ -250,7 +269,7 @@ export const useSetupStore = create<SetupState>((set) => ({
           if (slot.uploaded) {
             const existing = s.uploads[slot.code];
             const fileName = slot.file_name || existing?.filename || `${slot.code}.docx`;
-            const format: "PDF" | "DOCX" = fileName.toLowerCase().endsWith(".pdf") ? "PDF" : "DOCX";
+            const format: "PDF" | "DOCX" | "FILE" = detectUploadedFormat(fileName);
             nextUploads[slot.code] = {
               filename: fileName,
               sizeKB: existing?.sizeKB ?? 24,
@@ -296,7 +315,7 @@ export const useSetupStore = create<SetupState>((set) => ({
         if (slot.uploaded) {
           const existing = s.batchUploads[slot.code];
           const fileName = slot.file_name || existing?.filename || `${slot.code}.docx`;
-          const format: "PDF" | "DOCX" = fileName.toLowerCase().endsWith(".pdf") ? "PDF" : "DOCX";
+          const format: "PDF" | "DOCX" | "FILE" = detectUploadedFormat(fileName);
           nextBatchUploads[slot.code] = {
             filename: fileName,
             sizeKB: existing?.sizeKB ?? 24,

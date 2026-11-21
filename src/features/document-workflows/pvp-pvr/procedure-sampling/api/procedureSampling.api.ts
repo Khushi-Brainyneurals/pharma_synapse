@@ -30,11 +30,39 @@ export interface GenerationProgress extends JsonRecord {
   result?: unknown;
 }
 
+export interface ProcedureReferencesSection {
+  number?: string;
+  title?: string;
+  status?: string;
+  content?: { paragraphs?: unknown[] };
+}
+
+export interface ProcedureReferencesResponse {
+  section?: ProcedureReferencesSection;
+}
+
 const root = (documentId: string) => `/api/documents/${encodeURIComponent(documentId)}/pvp/sections/procedure-sampling-plan`;
 
 export async function getProcedureStages(documentId: string): Promise<ProcedureStageList> {
   const { data } = await httpClient.get<ProcedureStageList>(root(documentId));
   return data;
+}
+
+export async function getProcedureReferences(documentId: string): Promise<ProcedureReferencesResponse> {
+  const { data } = await httpClient.get<ProcedureReferencesResponse>(
+    `/api/documents/${encodeURIComponent(documentId)}/pvp/references`,
+  );
+  return data;
+}
+
+export async function updateProcedureReferences(
+  documentId: string,
+  references: string[],
+): Promise<void> {
+  await httpClient.patch(
+    `/api/documents/${encodeURIComponent(documentId)}/pvp/references`,
+    { references },
+  );
 }
 
 export async function getProcedureStage(documentId: string, sectionKey: string): Promise<ProcedureStage> {
@@ -45,6 +73,14 @@ export async function getProcedureStage(documentId: string, sectionKey: string):
 export async function updateProcedureStage(documentId: string, sectionKey: string, data: JsonRecord): Promise<ProcedureStage> {
   const { data: response } = await httpClient.patch<JsonRecord>(`${root(documentId)}/stages/${encodeURIComponent(sectionKey)}`, { data });
   return (response.stage ?? response) as ProcedureStage;
+}
+
+export async function advanceProcedureSamplingProgress(documentId: string): Promise<JsonRecord> {
+  const { data } = await httpClient.put<JsonRecord>(
+    `/api/documents/${encodeURIComponent(documentId)}/pvp/progress`,
+    { screen: "generate-submit" },
+  );
+  return data;
 }
 
 export async function generateProcedureStage(documentId: string, sectionKey: string, regenerate: boolean): Promise<JsonRecord> {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { Check, ChevronDown, ChevronUp } from "lucide-react";
 import { AppHeader } from "../../../../../app/layout/AppHeader";
 import { AppSidebar } from "../../../../../app/layout/AppSidebar";
 import { getApiErrorMessage } from "../../../../../shared/api/apiError";
@@ -13,9 +13,12 @@ import { PVP_PVR_DOCUMENT_STEPS } from "../../../selection/model/documentSelecto
 import { DocumentStepper } from "../../../selection/components/DocumentStepper";
 import { SelectionStrip } from "../../../selection/components/SelectionStrip";
 import { ProcedureSamplingEditor } from "../components/ProcedureSamplingEditor";
+import { PackingStageEditor } from "../components/PackingStageEditor";
+import { ProcedureReferencesSection } from "../components/ProcedureReferencesSection";
 import {
   getProcedureStage,
   getProcedureStages,
+  advanceProcedureSamplingProgress,
   updateProcedureStage,
   type JsonRecord,
   type ProcedureStage,
@@ -30,8 +33,11 @@ const EDITABLE_FIELDS = [
   "granulation_group_sampling",
   "compression_plan",
   "sampling_diagram_labels",
+  "equipment_sop_numbers",
+  "selected_parameters",
+  "challenge_parameters",
+  "challenge_studies",
 ] as const;
-type EditableField = (typeof EDITABLE_FIELDS)[number];
 type SamplingRow = {
   stage: string;
   sample_quantity: string;
@@ -54,6 +60,9 @@ export function PvpProcedureSamplingPage() {
   const { document, isLoading: isLoadingDocument } = useDocument(documentId);
   const { goToStep } = useStepNavigation(documentId);
   const [stages, setStages] = useState<ProcedureStageSummary[]>([]);
+  const [packType, setPackType] = useState("");
+  const [pvpMode, setPvpMode] = useState("");
+  const [packingReadiness, setPackingReadiness] = useState<JsonRecord | null>(null);
   const [stage, setStage] = useState<ProcedureStage | null>(null);
   const [selectedKey, setSelectedKey] = useState(searchParams.get("section_key") ?? "");
   const [expandedStageKey, setExpandedStageKey] = useState<string | null>(searchParams.get("section_key"));
@@ -75,6 +84,9 @@ export function PvpProcedureSamplingPage() {
     try {
       const result = await getProcedureStages(documentId);
       const listed = result.section?.stages ?? result.stages ?? [];
+      setPvpMode(String(result.pvp_mode ?? ""));
+      setPackType(String(result.pack_type ?? result.section?.pack_type ?? ""));
+      setPackingReadiness((result.readiness_counts ?? result.section?.readiness_counts ?? result.readiness ?? null) as JsonRecord | null);
       setStages(listed.filter((item) => typeof item.section_key === "string"));
       if (listed.length && !selectedKey) {
         setSelectedKey(listed[0].section_key);
@@ -126,7 +138,9 @@ export function PvpProcedureSamplingPage() {
     if (selectedKey) void loadStage(selectedKey);
   }, [selectedKey, loadStage]);
   const stageKind = useMemo(() => getStageKind(stage), [stage]);
-  const isDispensing = stage?.section_key === "dispensing_rm";
+  const isPacking = ["dispensing_packing_material", "primary_packing", "secondary_packing"].includes(stage?.section_key ?? "");
+  const isDispensing = stage?.section_key === "dispensing_rm" || stage?.section_key === "dispensing_packing_material";
+  const isPackingReadOnly = stage?.section_key === "dispensing_packing_material";
   const hasDuplicateParameters = Boolean(
     stage &&
     (hasDuplicates(
@@ -138,7 +152,7 @@ export function PvpProcedureSamplingPage() {
         draft.additional_cqa_rows ?? [],
       )),
   );
-  const setField = (field: EditableField, value: any) =>
+  const setField = (field: string, value: any) =>
     setDraft((current) => ({ ...current, [field]: value }));
 
   function openStage(key: string) {
@@ -152,6 +166,7 @@ export function PvpProcedureSamplingPage() {
 
   async function saveStage(): Promise<boolean> {
     if (!stage || isSaving) return false;
+    if (isPackingReadOnly) return true;
     if (hasDuplicateParameters) {
       setError(
         "Parameter names must be unique and cannot duplicate backend source rows.",
@@ -162,7 +177,15 @@ export function PvpProcedureSamplingPage() {
     for (const field of EDITABLE_FIELDS) {
       if (JSON.stringify(draft[field]) !== JSON.stringify(originalDraft[field]))
         data[field] = removeNulls(
-          field === "compression_plan"
+          isPacking && ["additional_cpp_rows", "additional_cqa_rows"].includes(field)
+            ? (draft[field] ?? []).map((row: JsonRecord) => ({ parameter: row.parameter, limit: row.limit }))
+            : isPacking && field === "analytical_methodology"
+              ? (draft[field] ?? []).map((row: JsonRecord) => ({ quality_attribute: row.quality_attribute, method_name: row.method_name }))
+              : isPacking && field === "equipment_sop_numbers"
+                ? (draft.equipment_sop_numbers ?? [])
+                    .filter((row: JsonRecord) => (stage.equipment_details ?? []).some((equipment: JsonRecord) => String(equipment.id_no) === String(row.id_no)))
+                    .map((row: JsonRecord) => ({ id_no: row.id_no, operation_sop_no: row.operation_sop_no }))
+            : field === "compression_plan"
             ? cleanCompressionPlan(draft.compression_plan)
             : draft[field],
         );
@@ -209,7 +232,9 @@ export function PvpProcedureSamplingPage() {
 
   const content =
     stage && !isLoadingStage ? (
-      <ProcedureSamplingEditor
+      isPacking ? (
+        <PackingStageEditor stage={stage} draft={draft} onFieldChange={setField} readOnly={isPackingReadOnly} />
+      ) : <ProcedureSamplingEditor
         stage={stage}
         stageKind={stageKind}
         isDispensing={isDispensing}
@@ -264,8 +289,9 @@ export function PvpProcedureSamplingPage() {
                 Procedure &amp; Sampling Plan
               </h1>
               <p className="mt-1.5 text-small text-subdued">
-                Review stage inputs, edit sampling details, and generate the
-                procedure preview.
+                {packType
+                  ? "Review the BPR sourced packing stages, enter document-specific challenge and sampling inputs, then continue when packing readiness is met."
+                  : "Review stage inputs, edit sampling details, and generate the procedure preview."}
               </p>
             </header>
             <div className="flex-1 bg-muted/50 px-4 py-5 sm:px-6 lg:px-8">
@@ -293,6 +319,10 @@ export function PvpProcedureSamplingPage() {
                     Loading stages…
                   </div>
                 ) : null}
+                {pvpMode === "packing" || document?.pvp_mode === "packing" ? <div className="mb-4 grid gap-3">
+                  <PackTypeCard value={packType} />
+                  {/* {packingReadiness ? <div className="rounded-card border border-border bg-surface px-4 py-3 text-small"><strong>Readiness:</strong> <span className="text-subdued">{Object.entries(packingReadiness).map(([key, value]) => `${key.replace(/_/g, " ")} ${typeof value === "object" ? JSON.stringify(value) : String(value)}`).join(" · ")}</span></div> : null} */}
+                </div> : null}
                 {!isLoading && stages.length === 0 && !error ? (
                   <div className="rounded-card border border-border bg-surface p-8 text-center text-small text-subdued">
                     No procedure stages are available for this document.
@@ -369,7 +399,7 @@ export function PvpProcedureSamplingPage() {
                                             : "All changes saved")}
                                       </div>
                                       <div className="flex flex-wrap gap-2">
-                                        <button
+                                        {!isPackingReadOnly ? <button
                                           type="button"
                                           disabled={
                                             !dirty ||
@@ -382,8 +412,8 @@ export function PvpProcedureSamplingPage() {
                                           {isSaving
                                             ? "Saving…"
                                             : "Save changes"}
-                                        </button>
-                                        {!isDispensing ? (
+                                        </button> : null}
+                                        {!isDispensing && !isPacking ? (
                                           <button
                                             type="button"
                                             disabled={
@@ -415,6 +445,7 @@ export function PvpProcedureSamplingPage() {
                     </div>
                   </section>
                 ) : null}
+                <ProcedureReferencesSection documentId={documentId} />
               </div>
             </div>
             <footer className="sticky bottom-0 z-10 border-t border-border bg-surface px-4 py-3.5 shadow-auth sm:px-6 lg:px-8">
@@ -429,9 +460,10 @@ export function PvpProcedureSamplingPage() {
                 <button
                   type="button"
                   className="inline-flex items-center justify-center gap-2 rounded-control bg-primary px-5 py-2 text-small font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                  onClick={() => goToStep("generate-submit")}
+                  onClick={() => void continueToGenerate()}
+                  disabled={isSaving}
                 >
-                  Continue to generate
+                  {isSaving ? "Saving…" : "Continue to generate"}
                 </button>
               </div>
             </footer>
@@ -440,6 +472,54 @@ export function PvpProcedureSamplingPage() {
       </div>
     </div>
   );
+
+  async function continueToGenerate() {
+    if (isSaving) return;
+    if (isPacking) {
+      const saved = await saveStage();
+      if (!saved) return;
+      setIsSaving(true);
+      setError(null);
+      try {
+        await advanceProcedureSamplingProgress(documentId);
+        goToStep("generate-submit");
+      } catch (caught) {
+        setError(getApiErrorMessage(caught, "Packing readiness requirements are not complete."));
+      } finally {
+        setIsSaving(false);
+      }
+      return;
+    }
+    goToStep("generate-submit");
+  }
+}
+
+function PackTypeCard({ value }: { value: string }) {
+  const options = ["Blister", "Alu-Alu Blister", "Strip"];
+  const normalized = value.toLowerCase().replace(/[^a-z]/g, "");
+  const selected = normalized.includes("alualu")
+    ? "Alu-Alu Blister"
+    : normalized.includes("strip")
+      ? "Strip"
+      : normalized === "blister" || normalized === "blisterpack"
+        ? "Blister"
+        : "";
+
+  return <section className="rounded-card border border-border bg-surface p-4" aria-label="Pack type selected from BPR">
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <h2 className="text-small font-semibold">Pack type</h2>
+      {value ? <span className="text-micro text-subdued">Selected from BPR</span> : <span className="text-micro text-subdued">No pack type returned by BPR</span>}
+    </div>
+    <div className="grid gap-3 sm:grid-cols-3">
+      {options.map((option) => {
+        const active = selected === option;
+        return <div key={option} aria-current={active ? "true" : undefined} className={`flex min-h-16 items-center justify-between gap-3 rounded-control border px-4 py-3 text-small font-semibold transition-colors ${active ? "border-primary bg-primary/10 text-primary-dark ring-1 ring-primary" : "border-border bg-surface text-subdued"}`}>
+          <span>{option}</span>
+          {active ? <Check className="size-4 shrink-0 text-primary" aria-label="Selected" /> : null}
+        </div>;
+      })}
+    </div>
+  </section>;
 }
 
 function normalizeDraft(stage: ProcedureStage): JsonRecord {
@@ -468,6 +548,10 @@ function normalizeDraft(stage: ProcedureStage): JsonRecord {
           )
           .filter((item: string) => item && availableDiagramLabels.has(item))
       : [],
+    equipment_sop_numbers: clone(stage.equipment_sop_numbers ?? []),
+    selected_parameters: clone(stage.selected_parameters ?? []),
+    challenge_parameters: clone(stage.challenge_parameters ?? []),
+    challenge_studies: clone(stage.challenge_studies ?? []),
   };
 }
 function granulationGroups(value: unknown): JsonRecord[] {

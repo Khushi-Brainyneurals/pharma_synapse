@@ -9,7 +9,8 @@ import { DocumentPreviewDialog } from "./DocumentPreviewDialog";
 /**
  * One "upload the blank approved master format for this document" row. Clicking the drop
  * zone (or Replace) opens a real file picker; a dropped file works too. The chosen file's
- * actual name, size and format are captured — PDF/DOCX only, else an inline error. A
+ * actual name, size and format are captured — accepted file types come from the checklist,
+ * with PDF/DOCX as the fallback for older checklist responses. A
  * preparer (read-only) can Preview but not change anything.
  */
 export function UploadRow({
@@ -35,6 +36,8 @@ export function UploadRow({
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const user = useAuthStore((s) => s.user);
   const byLabel = user ? `${user.username} (${USER_ROLE_LABELS[user.role]})` : "You";
+  const acceptedTypes = getAcceptedTypes(doc.acceptedFileTypes);
+  const acceptedLabel = formatAcceptedTypes(acceptedTypes);
 
   const openPicker = () => inputRef.current?.click();
 
@@ -48,9 +51,8 @@ export function UploadRow({
 
   function accept(picked: File | undefined) {
     if (!picked) return;
-    const format = detectFormat(picked.name);
-    if (!format) {
-      setError(`${picked.name} — unsupported format. Upload PDF or DOCX only.`);
+    if (!isAcceptedFile(picked, acceptedTypes)) {
+      setError(`${picked.name} — unsupported format. Accepted file types: ${acceptedLabel}.`);
       return;
     }
     if (picked.size > 25 * 1024 * 1024) {
@@ -64,7 +66,7 @@ export function UploadRow({
       sizeKB: Math.max(1, Math.round(picked.size / 1024)),
       by: byLabel,
       at: nowStamp(),
-      format,
+      format: detectFormat(picked.name),
       blobUrl,
       rawFile: picked,
     });
@@ -94,7 +96,7 @@ export function UploadRow({
           <input
             ref={inputRef}
             type="file"
-            accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            accept={acceptedTypes.join(",")}
             className="hidden"
             onChange={(e) => {
               accept(e.target.files?.[0]);
@@ -172,7 +174,7 @@ export function UploadRow({
               <span className="min-w-0">
                 <span className="block truncate text-small font-medium text-text">Upload “{doc.name}” here</span>
                 <span className="block text-micro text-subdued">
-                  Drag &amp; drop or <span className="font-semibold text-primary">browse</span> · PDF or DOCX · max 25 MB · one file
+                  Drag &amp; drop or <span className="font-semibold text-primary">browse</span> · {acceptedLabel} · max 25 MB · one file
                 </span>
               </span>
             </button>
@@ -197,11 +199,46 @@ export function UploadRow({
   );
 }
 
-function detectFormat(name: string): "PDF" | "DOCX" | null {
+const DEFAULT_ACCEPTED_FILE_TYPES = [
+  ".pdf",
+  ".docx",
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+
+function getAcceptedTypes(types?: string[]): string[] {
+  const normalized = (types ?? [])
+    .map((type) => type.trim().toLowerCase())
+    .filter(Boolean)
+    .map((type) => (type.includes("/") || type.startsWith(".") ? type : `.${type}`));
+  return normalized.length > 0 ? normalized : DEFAULT_ACCEPTED_FILE_TYPES;
+}
+
+function isAcceptedFile(file: File, acceptedTypes: string[]): boolean {
+  const lowerName = file.name.toLowerCase();
+  const mimeType = file.type.toLowerCase();
+  return acceptedTypes.some((type) => {
+    if (type.startsWith(".")) return lowerName.endsWith(type);
+    if (type.endsWith("/*")) return mimeType.startsWith(type.slice(0, -1));
+    return mimeType === type;
+  });
+}
+
+function formatAcceptedTypes(acceptedTypes: string[]): string {
+  return acceptedTypes
+    .map((type) => {
+      if (type.startsWith(".")) return type;
+      const parts = type.split("/");
+      return parts[parts.length - 1] || type;
+    })
+    .join(", ");
+}
+
+function detectFormat(name: string): "PDF" | "DOCX" | "FILE" {
   const lower = name.toLowerCase();
   if (lower.endsWith(".pdf")) return "PDF";
-  if (lower.endsWith(".docx") || lower.endsWith(".doc")) return "DOCX";
-  return null;
+  if (lower.endsWith(".docx")) return "DOCX";
+  return "FILE";
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
