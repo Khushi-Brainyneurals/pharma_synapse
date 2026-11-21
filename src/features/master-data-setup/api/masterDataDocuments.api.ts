@@ -1,10 +1,31 @@
 import { httpClient } from "../../../shared/api/httpClient";
+import { useSetupStore } from "../state/setupStore";
+
+/** Add the selected PVP mode to Master Data Setup endpoints when applicable. */
+function masterDataUrl(productType: string, docType: string, path: string): string {
+  const url = `/api/master-data/${encodeURIComponent(productType)}/${encodeURIComponent(docType)}/${path}`;
+  if (docType.trim().toLowerCase() !== "pvp") return url;
+
+  const selectedMode = useSetupStore.getState().pvpSourceKey?.trim().toLowerCase() ?? "";
+  const pvpMode = selectedMode.includes("pack")
+    ? "packing"
+    : selectedMode.includes("manufact") || selectedMode === "bmr"
+      ? "manufacturing"
+      : selectedMode === "bpr"
+        ? "packing"
+        : null;
+  if (!pvpMode) return url;
+
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}pvp_mode=${encodeURIComponent(pvpMode)}`;
+}
 
 export interface StageSlot {
   code: string;
   label: string;
   required: boolean;
   renders_as?: string;
+  accepted_file_types?: string[] | null;
   uploaded: boolean;
   file_name?: string | null;
   uploaded_by?: string | null;
@@ -44,7 +65,7 @@ export async function getStageChecklist(
 ): Promise<StageChecklistResponse> {
   const [checklistRes, stagesRes] = await Promise.all([
     httpClient.get<StageChecklistResponse>(
-      `/api/master-data/${encodeURIComponent(productType)}/${encodeURIComponent(docType)}/checklist`,
+      masterDataUrl(productType, docType, "checklist"),
     ),
     httpClient
       .get<{ stages?: { key: string; label: string }[] }>(
@@ -73,7 +94,7 @@ export async function getOtherDocumentsChecklist(
   docType = "bmr",
 ): Promise<OtherDocumentsChecklistResponse> {
   const res = await httpClient.get<OtherDocumentsChecklistResponse>(
-    `/api/master-data/${encodeURIComponent(productType)}/${encodeURIComponent(docType)}/other-documents/checklist`,
+    masterDataUrl(productType, docType, "other-documents/checklist"),
   );
   return res.data;
 }
@@ -88,7 +109,7 @@ export async function uploadStageDocument(
   const formData = new FormData();
   formData.append("file", file);
   const res = await httpClient.post(
-    `/api/master-data/${encodeURIComponent(productType)}/${encodeURIComponent(docType)}/stages/${encodeURIComponent(stageKey)}/documents/${encodeURIComponent(docCode)}`,
+    masterDataUrl(productType, docType, `stages/${encodeURIComponent(stageKey)}/documents/${encodeURIComponent(docCode)}`),
     formData,
   );
   return res.data;
@@ -101,7 +122,7 @@ export async function removeStageDocument(
   docCode: string,
 ): Promise<void> {
   await httpClient.delete(
-    `/api/master-data/${encodeURIComponent(productType)}/${encodeURIComponent(docType)}/stages/${encodeURIComponent(stageKey)}/documents/${encodeURIComponent(docCode)}`,
+    masterDataUrl(productType, docType, `stages/${encodeURIComponent(stageKey)}/documents/${encodeURIComponent(docCode)}`),
   );
 }
 
@@ -114,7 +135,7 @@ export async function uploadOtherDocument(
   const formData = new FormData();
   formData.append("file", file);
   const res = await httpClient.post(
-    `/api/master-data/${encodeURIComponent(productType)}/${encodeURIComponent(docType)}/other-documents/${encodeURIComponent(docCode)}`,
+    masterDataUrl(productType, docType, `other-documents/${encodeURIComponent(docCode)}`),
     formData,
   );
   return res.data;
@@ -126,7 +147,7 @@ export async function removeOtherDocument(
   docCode: string,
 ): Promise<void> {
   await httpClient.delete(
-    `/api/master-data/${encodeURIComponent(productType)}/${encodeURIComponent(docType)}/other-documents/${encodeURIComponent(docCode)}`,
+    masterDataUrl(productType, docType, `other-documents/${encodeURIComponent(docCode)}`),
   );
 }
 
@@ -154,7 +175,7 @@ export async function uploadOtherStageDocument(
   const formData = new FormData();
   formData.append("file", file);
   const res = await httpClient.post<SavedStageDocument>(
-    `/api/master-data/${encodeURIComponent(productType)}/${encodeURIComponent(docType)}/stages/${encodeURIComponent(stageKey)}/documents/other`,
+    masterDataUrl(productType, docType, `stages/${encodeURIComponent(stageKey)}/documents/other`),
     formData,
   );
   return res.data;
@@ -170,7 +191,7 @@ export async function replaceOtherStageDocument(
   const formData = new FormData();
   formData.append("file", file);
   const res = await httpClient.post<SavedStageDocument>(
-    `/api/master-data/${encodeURIComponent(productType)}/${encodeURIComponent(docType)}/stages/${encodeURIComponent(stageKey)}/documents/other/${otherId}`,
+    masterDataUrl(productType, docType, `stages/${encodeURIComponent(stageKey)}/documents/other/${otherId}`),
     formData,
   );
   return res.data;
@@ -183,7 +204,7 @@ export async function removeOtherStageDocument(
   otherId: number,
 ): Promise<void> {
   await httpClient.delete(
-    `/api/master-data/${encodeURIComponent(productType)}/${encodeURIComponent(docType)}/stages/${encodeURIComponent(stageKey)}/documents/other/${otherId}`,
+    masterDataUrl(productType, docType, `stages/${encodeURIComponent(stageKey)}/documents/other/${otherId}`),
   );
 }
 
@@ -194,7 +215,7 @@ export async function getOtherStageDocumentPreviewBlob(
   otherId: number,
 ): Promise<Blob> {
   const res = await httpClient.get<Blob>(
-    `/api/master-data/${encodeURIComponent(productType)}/${encodeURIComponent(docType)}/stages/${encodeURIComponent(stageKey)}/documents/other/${otherId}/preview`,
+    masterDataUrl(productType, docType, `stages/${encodeURIComponent(stageKey)}/documents/other/${otherId}/preview`),
     { responseType: "blob" },
   );
   return res.data;
@@ -207,7 +228,7 @@ export async function getStageDocumentPreviewBlob(
   docCode: string,
 ): Promise<Blob> {
   const res = await httpClient.get<Blob>(
-    `/api/master-data/${encodeURIComponent(productType)}/${encodeURIComponent(docType)}/stages/${encodeURIComponent(stageKey)}/documents/${encodeURIComponent(docCode)}/preview`,
+    masterDataUrl(productType, docType, `stages/${encodeURIComponent(stageKey)}/documents/${encodeURIComponent(docCode)}/preview`),
     { responseType: "blob" },
   );
   return res.data;
@@ -219,7 +240,7 @@ export async function getOtherDocumentPreviewBlob(
   docCode: string,
 ): Promise<Blob> {
   const res = await httpClient.get<Blob>(
-    `/api/master-data/${encodeURIComponent(productType)}/${encodeURIComponent(docType)}/other-documents/${encodeURIComponent(docCode)}/preview`,
+    masterDataUrl(productType, docType, `other-documents/${encodeURIComponent(docCode)}/preview`),
     { responseType: "blob" },
   );
   return res.data;
@@ -242,7 +263,7 @@ export async function getStageApprovalStatus(
   docType = "bmr",
 ): Promise<StageApprovalStatus> {
   const res = await httpClient.get<StageApprovalStatus>(
-    `/api/master-data/${encodeURIComponent(productType)}/${encodeURIComponent(docType)}/approval`,
+    masterDataUrl(productType, docType, "approval"),
   );
   return res.data;
 }
@@ -252,7 +273,7 @@ export async function submitStageApproval(
   docType = "bmr",
 ): Promise<StageApprovalStatus> {
   const res = await httpClient.post<StageApprovalStatus>(
-    `/api/master-data/${encodeURIComponent(productType)}/${encodeURIComponent(docType)}/approval/submit`,
+    masterDataUrl(productType, docType, "approval/submit"),
   );
   return res.data;
 }
@@ -264,7 +285,7 @@ export async function decideStageApproval(
   reason = "",
 ): Promise<StageApprovalStatus> {
   const res = await httpClient.post<StageApprovalStatus>(
-    `/api/master-data/${encodeURIComponent(productType)}/${encodeURIComponent(docType)}/approval/decide?decision=${encodeURIComponent(decision)}`,
+    masterDataUrl(productType, docType, `approval/decide?decision=${encodeURIComponent(decision)}`),
     { reason },
   );
   return res.data;

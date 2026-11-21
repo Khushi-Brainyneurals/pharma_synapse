@@ -197,7 +197,7 @@ export function StageDocumentsPage() {
       <HowThisWorks
         items={[
           <>Open a stage with the <span className="font-semibold">arrow</span>.</>,
-          <>Each box tells you <span className="font-semibold">which document to upload</span> — one PDF or DOCX per box.</>,
+          <>Each box shows the <span className="font-semibold">accepted file types</span> for that document.</>,
           <><span className="font-semibold">Green tick = done.</span> Finish all {stageDocCount} and press Continue.</>,
         ]}
       />
@@ -234,7 +234,7 @@ export function StageDocumentsPage() {
                     {sec.title} {sec.note ? <span className="text-small font-normal text-subdued">({sec.note})</span> : null}
                   </span>
                   <span className="block text-micro text-subdued">
-                    {total} documents · all mandatory · one file per document · PDF or DOCX
+                    {total} documents · all mandatory · one accepted file per document
                   </span>
                 </span>
                 <span className="ml-auto flex items-center gap-3 whitespace-nowrap text-right">
@@ -287,7 +287,7 @@ export function StageDocumentsPage() {
                         sizeKB: 24,
                         by: item.uploaded_by || "Reviewer QA",
                         at: item.uploaded_at ? new Date(item.uploaded_at).toLocaleDateString() : "Uploaded",
-                        format: item.file_name.toLowerCase().endsWith(".pdf") ? "PDF" : "DOCX",
+                        format: getUploadedFormat(item.file_name),
                         stageKey,
                         otherId: item.id,
                       }}
@@ -329,4 +329,11 @@ export function StageDocumentsPage() {
       />
     </SetupShell>
   );
+}
+
+function getUploadedFormat(fileName: string): "PDF" | "DOCX" | "FILE" {
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith(".pdf")) return "PDF";
+  if (lower.endsWith(".docx")) return "DOCX";
+  return "FILE";
 }

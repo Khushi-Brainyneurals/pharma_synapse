@@ -208,7 +208,7 @@ export function BatchDocumentsPage() {
 
       <HowThisWorks
         items={[
-          <>Each box tells you <span className="font-semibold">which document to upload</span> — one PDF or DOCX per box.</>,
+          <>Each box shows the <span className="font-semibold">accepted file types</span> for that document.</>,
           <><span className="font-semibold">Green tick = done</span> · Replace or Remove anytime.</>,
           <>All {total} uploaded → <span className="font-semibold">Preview unlocks</span> · extra docs go in Others (optional).</>,
         ]}
@@ -218,7 +218,7 @@ export function BatchDocumentsPage() {
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div>
             <p className="text-base font-semibold">Batch-level documents — {typeMeta.label}</p>
-            <p className="text-micro text-subdued">{total} documents · all mandatory · one file per document · PDF or DOCX</p>
+            <p className="text-micro text-subdued">{total} documents · all mandatory · one accepted file per document</p>
           </div>
           <p className="text-right">
             <span className={`font-mono text-small font-semibold tabular-nums ${done === total && total > 0 ? "text-approved-fg" : "text-draft-fg"}`}>
@@ -278,7 +278,7 @@ export function BatchDocumentsPage() {
                   sizeKB: 24,
                   by: item.uploaded_by || user?.username || "Reviewer QA",
                   at: item.uploaded_at ? new Date(item.uploaded_at).toLocaleDateString() : "Uploaded",
-                  format: item.file_name.toLowerCase().endsWith(".pdf") ? "PDF" : "DOCX",
+                  format: getUploadedFormat(item.file_name),
                   stageKey: "batch_yield_reconciliation",
                   otherId: item.id,
                 }}
@@ -312,8 +312,15 @@ export function BatchDocumentsPage() {
         backTo={STEPS[1].route}
         backLabel="Stage documents"
         continueTo={STEPS[5].route}
-        continueLabel="Continue to Cover Page"
+        continueLabel="Continue to Preview"
       />
     </SetupShell>
   );
+}
+
+function getUploadedFormat(fileName: string): "PDF" | "DOCX" | "FILE" {
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith(".pdf")) return "PDF";
+  if (lower.endsWith(".docx")) return "DOCX";
+  return "FILE";
 }

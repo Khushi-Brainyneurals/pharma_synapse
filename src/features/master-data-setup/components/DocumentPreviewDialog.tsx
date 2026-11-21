@@ -36,8 +36,12 @@ export function DocumentPreviewDialog({ doc, file, onClose }: DocumentPreviewDia
     let cancelled = false;
 
     async function inspectAndSetBlob(b: Blob) {
-      let fmt: "PDF" | "DOCX" =
-        file.format === "DOCX" || file.filename.toLowerCase().endsWith(".docx") ? "DOCX" : "PDF";
+      let fmt: "PDF" | "DOCX" | null =
+        file.filename.toLowerCase().endsWith(".pdf")
+          ? "PDF"
+          : file.filename.toLowerCase().endsWith(".docx")
+            ? "DOCX"
+            : null;
       try {
         const head = await b.slice(0, 10).text();
         if (head.startsWith("{") || head.startsWith("<")) {
@@ -48,7 +52,7 @@ export function DocumentPreviewDialog({ doc, file, onClose }: DocumentPreviewDia
         } else {
           const buf = await b.slice(0, 4).arrayBuffer();
           const bytes = new Uint8Array(buf);
-          if (bytes[0] === 0x50 && bytes[1] === 0x4b) {
+          if (bytes[0] === 0x50 && bytes[1] === 0x4b && file.filename.toLowerCase().endsWith(".docx")) {
             fmt = "DOCX";
           }
         }
@@ -119,7 +123,11 @@ export function DocumentPreviewDialog({ doc, file, onClose }: DocumentPreviewDia
     // Fallback template download
     const dummyContent = `Format: ${file.format}\nDocument: ${doc.name} (${doc.code})\nFilename: ${file.filename}\nUploaded by: ${file.by}\nAt: ${file.at}\n\nThis is the blank approved master format template for ${doc.name}.`;
     const fallbackBlob = new Blob([dummyContent], {
-      type: file.format === "PDF" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      type: file.format === "PDF"
+        ? "application/pdf"
+        : file.format === "DOCX"
+          ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          : "application/octet-stream",
     });
     const url = URL.createObjectURL(fallbackBlob);
     const a = document.createElement("a");
@@ -185,6 +193,11 @@ export function DocumentPreviewDialog({ doc, file, onClose }: DocumentPreviewDia
                 load={async () => blob}
                 fileName={file.filename}
               />
+            </div>
+          ) : detectedFormat === null ? (
+            <div className="flex h-80 flex-col items-center justify-center gap-2 text-center text-small text-subdued">
+              <FileText className="size-8" aria-hidden="true" />
+              <p>Preview is unavailable for this file type. Download the file to view it.</p>
             </div>
           ) : (
             <PreviewDocumentSheet doc={doc} file={file} page={page} total={totalPages} />

@@ -1,4 +1,4 @@
-import { AlertCircle, Check, CheckCircle2, ChevronLeft, ChevronRight, Eye, Loader2, Maximize2, Minus, Plus, Search, Send, StretchHorizontal, X, XCircle } from "lucide-react";
+import { AlertCircle, Check, CheckCircle2, ChevronLeft, ChevronRight, Eye, FileText, Loader2, Maximize2, Minus, Plus, Search, Send, StretchHorizontal, X, XCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Identifier } from "../../../shared/ui/Identifier";
@@ -161,7 +161,6 @@ export function PreviewPage() {
       const othersList: MasterOtherDocStatus[] = stageOthers[stageKey] || stageOthers[sec.key] || [];
       const extraDocs: PreviewDoc[] = othersList.map((item) => {
         seenOtherIds.add(item.id);
-        const isPdf = item.file_name.toLowerCase().endsWith(".pdf");
         return {
           code: `OTHER-${item.id}`,
           name: item.label || item.file_name,
@@ -174,7 +173,7 @@ export function PreviewPage() {
             sizeKB: 24,
             by: item.uploaded_by || "Reviewer QA",
             at: item.uploaded_at ? new Date(item.uploaded_at).toLocaleDateString() : "Uploaded",
-            format: isPdf ? "PDF" : "DOCX",
+            format: getUploadedFormat(item.file_name),
             stageKey,
             otherId: item.id,
           },
@@ -202,7 +201,6 @@ export function PreviewPage() {
 
     const remainingBatchOthers = (batchOthers || []).filter((item) => !seenOtherIds.has(item.id));
     const batchExtraDocs: PreviewDoc[] = remainingBatchOthers.map((item) => {
-      const isPdf = item.file_name.toLowerCase().endsWith(".pdf");
       return {
         code: `OTHER-${item.id}`,
         name: item.label || item.file_name,
@@ -215,7 +213,7 @@ export function PreviewPage() {
           sizeKB: 24,
           by: item.uploaded_by || "Reviewer QA",
           at: item.uploaded_at ? new Date(item.uploaded_at).toLocaleDateString() : "Uploaded",
-          format: isPdf ? "PDF" : "DOCX",
+          format: getUploadedFormat(item.file_name),
           stageKey: "batch_yield_reconciliation",
           otherId: item.id,
         },
@@ -280,8 +278,8 @@ export function PreviewPage() {
         if (targetDoc.file.rawFile) {
           if (isMounted) {
             setPreviewBlob(targetDoc.file.rawFile);
-            const isDoc = targetDoc.file.rawFile.name.toLowerCase().endsWith(".docx");
-            setDetectedFormat(isDoc ? "DOCX" : "PDF");
+            const lowerName = targetDoc.file.rawFile.name.toLowerCase();
+            setDetectedFormat(lowerName.endsWith(".docx") ? "DOCX" : lowerName.endsWith(".pdf") ? "PDF" : null);
             setIsLoadingPreview(false);
           }
           return;
@@ -309,10 +307,11 @@ export function PreviewPage() {
         if (isMounted) {
           if (blob) {
             setPreviewBlob(blob);
-            let fmt: "PDF" | "DOCX" =
-              targetDoc.file.format === "DOCX" || targetDoc.file.filename.toLowerCase().endsWith(".docx")
+            let fmt: "PDF" | "DOCX" | null = targetDoc.file.filename.toLowerCase().endsWith(".pdf")
+              ? "PDF"
+              : targetDoc.file.filename.toLowerCase().endsWith(".docx")
                 ? "DOCX"
-                : "PDF";
+                : null;
             try {
               const header = await blob.slice(0, 5).text();
               if (header.startsWith("%PDF")) {
@@ -320,7 +319,7 @@ export function PreviewPage() {
               } else {
                 const buf = await blob.slice(0, 4).arrayBuffer();
                 const bytes = new Uint8Array(buf);
-                if (bytes[0] === 0x50 && bytes[1] === 0x4b) {
+                if (bytes[0] === 0x50 && bytes[1] === 0x4b && targetDoc.file.filename.toLowerCase().endsWith(".docx")) {
                   fmt = "DOCX";
                 }
               }
@@ -593,6 +592,11 @@ export function PreviewPage() {
                       fileName={currentDoc.file.filename}
                     />
                   </div>
+                ) : previewBlob && detectedFormat === null ? (
+                  <div className="flex h-96 flex-col items-center justify-center gap-2 text-center text-small text-subdued">
+                    <FileText className="size-8" aria-hidden="true" />
+                    <p>Preview is unavailable for this file type. Use the document row to download it.</p>
+                  </div>
                 ) : (
                   <div className="h-[760px] w-full overflow-auto py-4 flex justify-center">
                     <MockPage doc={currentDoc} page={page} total={TOTAL_PAGES} />
@@ -735,6 +739,13 @@ export function PreviewPage() {
       ) : null}
     </SetupShell>
   );
+}
+
+function getUploadedFormat(fileName: string): "PDF" | "DOCX" | "FILE" {
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith(".pdf")) return "PDF";
+  if (lower.endsWith(".docx")) return "DOCX";
+  return "FILE";
 }
 
 /** Prev / page x-of-n / next controls for the preview pane. */
@@ -944,6 +955,11 @@ function FullScreenPreview({
               load={async () => previewBlob}
               fileName={doc.file.filename}
             />
+          </div>
+        ) : previewBlob && detectedFormat === null ? (
+          <div className="flex h-96 flex-col items-center justify-center gap-2 text-center text-small text-white/70">
+            <FileText className="size-8" aria-hidden="true" />
+            <p>Preview is unavailable for this file type. Close full screen and download it from the document row.</p>
           </div>
         ) : (
           <div className="w-[210mm] max-w-full">

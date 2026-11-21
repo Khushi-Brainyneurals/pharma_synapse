@@ -37,6 +37,7 @@ export function SetupShell({
   const activeGroup = STEP_GROUPS.find((g) => g.steps.includes(step));
   const dosageFormId = useSetupStore((s) => s.dosageFormId);
   const documentTypeId = useSetupStore((s) => s.documentTypeId);
+  const pvpSourceKey = useSetupStore((s) => s.pvpSourceKey);
   const setStageChecklistData = useSetupStore((s) => s.setStageChecklistData);
   const setOtherChecklistData = useSetupStore((s) => s.setOtherChecklistData);
   const typeMeta = getSelectedTypeMeta(dosageFormId, documentTypeId);
@@ -57,7 +58,7 @@ export function SetupShell({
     return () => {
       cancelled = true;
     };
-  }, [access.canView, typeMeta.dosageBackend, typeMeta.docBackend, setStageChecklistData, setOtherChecklistData]);
+  }, [access.canView, typeMeta.dosageBackend, typeMeta.docBackend, pvpSourceKey, setStageChecklistData, setOtherChecklistData]);
 
   // Prepared-by has read-only rights to ALL of master data (spec §Master Data): they can
   // open every page and navigate the same two-group stepper, but every control is disabled.
@@ -73,12 +74,15 @@ export function SetupShell({
           ) : (
             <div className="mx-auto space-y-5">
               {/* eyebrow + title */}
-              <header>
-                <p className="text-micro font-semibold uppercase tracking-overline text-primary">
-                  Master data · {activeGroup?.label ?? "Setup"}
-                </p>
-                <h1 className="mt-1 text-h1 font-semibold">{title}</h1>
-                <p className="mt-1 max-w-3xl text-small text-subdued">{description}</p>
+              <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-micro font-semibold uppercase tracking-overline text-primary">
+                    Master data · {activeGroup?.label ?? "Setup"}
+                  </p>
+                  <h1 className="mt-1 text-h1 font-semibold">{title}</h1>
+                  <p className="mt-1 max-w-3xl text-small text-subdued">{description}</p>
+                </div>
+                <MasterDataZipButton />
               </header>
 
               {/* The two-group (Static / Dependent) navigator — shown for editors and the
@@ -130,7 +134,6 @@ function Stepper({ current }: { current: StepKey }) {
             <p className="text-micro font-bold uppercase tracking-overline text-subdued">
               {group.label}
             </p>
-            {group.key === "static" ? <MasterDataZipButton /> : null}
           </div>
           <ol className="flex flex-wrap items-center gap-1">
             {group.steps.map((key, i) => {

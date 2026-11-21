@@ -545,15 +545,15 @@ export function DocumentsPage() {
                         aria-label={`${column.label}, ${columnItems.length} documents`}
                         className="flex h-full min-h-[320px] w-[min(82vw,320px)] shrink-0 flex-col overflow-hidden rounded-card border border-border bg-sunken/50"
                       >
-                        <header className="flex min-h-14 items-center justify-between gap-3 border-b border-border bg-surface px-4 py-3">
-                          <h2 className="min-w-0 truncate text-small font-semibold text-text" title={column.label}>
+                        <header className="flex min-h-14 items-center justify-between gap-3 p-4 bg-[#DFE5EB]">
+                          <h2 className="min-w-0 truncate text-[13px] font-semibold text-text" title={column.label}>
                             {column.label}
                           </h2>
                           <span className="inline-flex min-w-7 items-center justify-center rounded-pill bg-muted px-2 py-0.5 text-micro font-semibold tabular-nums text-subdued">
                             {columnItems.length}
                           </span>
                         </header>
-                        <div className="kanban-column-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+                        <div className="kanban-column-scrollbar bg-[#DFE5EB] min-h-0 flex-1 space-y-3 overflow-y-auto px-3 pb-3">
                           {columnItems.length ? (
                             columnItems.map((item, index) => (
                               <DocumentCard

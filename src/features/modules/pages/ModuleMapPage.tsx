@@ -41,7 +41,7 @@ export function ModuleMapPage() {
   };
   const renderSection = (section: (typeof groups)[number], compact = false) => (
     <section key={section.group} className="flex flex-col gap-3">
-      <h2 className="m-0 text-base font-medium leading-[22px] tracking-[-0.015em] text-text">{section.group}</h2>
+      <h2 className="m-0 text-base font-medium leading-[22px] tracking-[-0.015em] text-text text-[17px]">{section.group}</h2>
       <div className={compact ? "grid flex-1 auto-rows-fr grid-cols-1 gap-3" : "grid auto-rows-fr grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-3"}>
         {section.modules.map((module) => (
           <ModuleCard key={module.key} module={module} onOpen={openModule} />
@@ -58,7 +58,7 @@ export function ModuleMapPage() {
         <ThemeToggle />
       </header>
 
-      <main className="mx-auto box-border flex w-full max-w-[1180px] flex-auto flex-col gap-5 px-6 pb-5 pt-4">
+      <main className="mx-auto box-border flex w-full max-w-[1180px] flex-auto flex-col gap-5 pb-5 pt-4">
         {loading ? (
           <div className="flex items-center justify-center gap-3 py-12 text-small text-text-2" role="status">
             <span className="size-5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" aria-hidden="true" />

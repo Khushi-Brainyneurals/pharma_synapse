@@ -9,6 +9,7 @@ export interface DocDef {
   code: string; // DSP-01, GRN-03 …
   name: string;
   required: boolean;
+  acceptedFileTypes?: string[];
 }
 
 export interface StageSection {
@@ -24,7 +25,7 @@ export interface UploadedFile {
   sizeKB: number;
   by: string;
   at: string;
-  format: "PDF" | "DOCX";
+  format: "PDF" | "DOCX" | "FILE";
   blobUrl?: string;
   stageKey?: string;
   otherId?: number;
