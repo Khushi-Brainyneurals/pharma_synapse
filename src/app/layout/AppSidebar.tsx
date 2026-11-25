@@ -7,7 +7,6 @@ import {
   History,
   BookText,
   LayoutDashboard,
-  Loader2,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
@@ -19,7 +18,7 @@ import { canManageEmployees } from "../../features/employees/access";
 import { dashboardAccess } from "../../features/dashboard/access";
 import { useState } from "react";
 import { useSidebarCollapsed } from "./useSidebarCollapsed";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { ROUTES } from "../routing/routes";
 
 /** Sidebar item id → route. Items with no route here are not built yet. */
@@ -30,10 +29,9 @@ const SIDEBAR_ROUTES: Record<string, string | undefined> = {
   "audit-trail": ROUTES.auditTrail,
   "master-data": ROUTES.masterDataSetup,
 };
-import { logout } from "../../features/auth/api/auth.api";
 import type { AuthenticatedUser } from "../../features/auth/api/auth.types";
-import { getStoredRefreshToken } from "../../features/auth/storage/auth.storage";
-import { useAuthStore } from "../../features/auth/state/auth.store";
+import { useLogout } from "../../features/auth/hooks/useLogout";
+import { LogoutConfirmationDialog } from "../../features/auth/components/LogoutConfirmationDialog";
 import { DOCUMENT_SIDEBAR_ITEMS } from "../../features/document-workflows/selection/model/documentSelector.config";
 
 interface AppSidebarProps {
@@ -49,10 +47,9 @@ const iconMap = {
 };
 
 export function AppSidebar({ user }: AppSidebarProps) {
-  const navigate = useNavigate();
   const location = useLocation();
-  const clearSession = useAuthStore((state) => state.clearSession);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const { logout, isLoggingOut } = useLogout();
+  const [isConfirmingLogout, setIsConfirmingLogout] = useState(false);
   const [isCollapsed, toggleCollapsed] = useSidebarCollapsed();
   const mdAccess = masterDataAccess(user?.role);
   // Read-only participants open Preview directly: Prepared-by inspects it, while Approver
@@ -60,25 +57,8 @@ export function AppSidebar({ user }: AppSidebarProps) {
   // equipment and instrument approval pages.
   const opensMasterPreview = mdAccess.canView && !mdAccess.canEdit;
 
-  function handleLogout() {
-    if (isLoggingOut) {
-      return;
-    }
-
-    setIsLoggingOut(true);
-
-    const refreshToken = getStoredRefreshToken();
-    clearSession();
-    navigate(ROUTES.modules, { replace: true });
-
-    if (refreshToken) {
-      void logout({ refresh_token: refreshToken }).catch(() => {
-        // Server-side revocation is best-effort; the browser session is already gone.
-      });
-    }
-  }
-
   return (
+    <>
     <aside
       onMouseLeave={() => document.documentElement.classList.remove("ps-rail-hold")}
       className="ps-sidebar hidden shrink-0 border-r border-border bg-surface lg:flex lg:h-full lg:w-sidebar-w lg:flex-col">
@@ -225,16 +205,16 @@ export function AppSidebar({ user }: AppSidebarProps) {
             title="Log out"
             disabled={isLoggingOut}
             className="inline-flex size-9 shrink-0 items-center justify-center rounded-control border border-border text-subdued transition hover:bg-muted hover:text-text disabled:cursor-not-allowed disabled:opacity-60"
-            onClick={handleLogout}
+            onClick={() => setIsConfirmingLogout(true)}
           >
-            {isLoggingOut ? (
-              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <LogOut className="size-4" aria-hidden="true" />
-            )}
+            <LogOut className="size-4" aria-hidden="true" />
           </button>
         </div>
       </div>
     </aside>
+    {isConfirmingLogout ? (
+      <LogoutConfirmationDialog onClose={() => setIsConfirmingLogout(false)} onConfirm={logout} />
+    ) : null}
+    </>
   );
 }

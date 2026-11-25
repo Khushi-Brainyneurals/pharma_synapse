@@ -36,6 +36,18 @@ export const httpClient = axios.create({
   },
 });
 
+export function postWithBearer<T = unknown>(
+  url: string,
+  data: unknown,
+  accessToken?: string | null,
+) {
+  const config: AxiosRequestConfig = {};
+  if (accessToken) {
+    setAuthorizationHeader(config, accessToken);
+  }
+  return httpClient.post<T>(url, data, config);
+}
+
 // Refresh calls deliberately use a client without the auth response interceptor. A
 // rejected /refresh request must never recursively attempt another refresh.
 const refreshClient = axios.create({

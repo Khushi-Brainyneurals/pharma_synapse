@@ -391,50 +391,39 @@ export function PvpProcedureSamplingPage() {
                                 {activeStage ? (
                                   <>
                                     {content}
-                                    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-card">
-                                      <div className="text-small text-subdued">
-                                        {saveMessage ||
-                                          (dirty
-                                            ? "Unsaved changes"
-                                            : "All changes saved")}
-                                      </div>
-                                      <div className="flex flex-wrap gap-2">
-                                        {!isPackingReadOnly ? <button
-                                          type="button"
-                                          disabled={
-                                            !dirty ||
-                                            isSaving ||
-                                            hasDuplicateParameters
-                                          }
-                                          onClick={() => void saveStage()}
-                                          className="rounded-control border border-border px-4 py-2 text-small font-semibold disabled:opacity-50"
-                                        >
-                                          {isSaving
-                                            ? "Saving…"
-                                            : "Save changes"}
-                                        </button> : null}
-                                        {!isDispensing && !isPacking ? (
+
+                                    {!isDispensing && !isPacking ? (
+                                      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-card">
+                                        <div className="text-small text-subdued">
+                                          {saveMessage ||
+                                            (dirty ? "Unsaved changes" : "All changes saved")}
+                                        </div>
+
+                                        <div className="flex flex-wrap gap-2">
                                           <button
                                             type="button"
-                                            disabled={
-                                              hasDuplicateParameters
-                                            }
+                                            disabled={!dirty || isSaving || hasDuplicateParameters}
+                                            onClick={() => void saveStage()}
+                                            className="rounded-control border border-border px-4 py-2 text-small font-semibold disabled:opacity-50"
+                                          >
+                                            {isSaving ? "Saving…" : "Save changes"}
+                                          </button>
+
+                                          <button
+                                            type="button"
+                                            disabled={hasDuplicateParameters}
                                             onClick={() =>
-                                              void generate(
-                                                Boolean(stage.procedure_current),
-                                              )
+                                              void generate(Boolean(stage.procedure_current))
                                             }
                                             className="inline-flex items-center gap-2 rounded-control bg-primary px-4 py-2 text-small font-semibold text-white disabled:opacity-50"
                                           >
-                                            {stage.procedure_current ? (
-                                              "Regenerate procedure"
-                                            ) : (
-                                              "Generate procedure"
-                                            )}
+                                            {stage.procedure_current
+                                              ? "Regenerate procedure"
+                                              : "Generate procedure"}
                                           </button>
-                                        ) : null}
+                                        </div>
                                       </div>
-                                    </div>
+                                    ) : null}
                                   </>
                                 ) : null}
                               </div>

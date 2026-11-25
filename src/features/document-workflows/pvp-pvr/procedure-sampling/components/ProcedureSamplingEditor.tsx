@@ -65,25 +65,29 @@ export function ProcedureSamplingEditor({
     <div className="grid gap-4">
       <InfoSection title="Equipment" rows={stage.equipment_details} />
       <InfoSection title="Instruments" rows={stage.instruments} />
-      <ParameterSection
-        title="Critical Process Parameters"
-        sourceRows={stage.critical_process_parameters}
-        rows={draft.additional_cpp_rows ?? []}
-        onChange={(rows) => onFieldChange("additional_cpp_rows", rows)}
-        disabled={false}
-      />
-      <ParameterSection
-        title="Critical Quality Attributes"
-        sourceRows={stage.critical_quality_attributes}
-        rows={draft.additional_cqa_rows ?? []}
-        onChange={(rows) => onFieldChange("additional_cqa_rows", rows)}
-        disabled={false}
-      />
-      <AnalyticalSection
-        rows={draft.analytical_methodology ?? []}
-        onChange={(rows) => onFieldChange("analytical_methodology", rows)}
-        disabled={false}
-      />
+      {!isDispensing ? (
+        <>
+          <ParameterSection
+            title="Critical Process Parameters"
+            sourceRows={stage.critical_process_parameters}
+            rows={draft.additional_cpp_rows ?? []}
+            onChange={(rows) => onFieldChange("additional_cpp_rows", rows)}
+            disabled={false}
+          />
+          <ParameterSection
+            title="Critical Quality Attributes"
+            sourceRows={stage.critical_quality_attributes}
+            rows={draft.additional_cqa_rows ?? []}
+            onChange={(rows) => onFieldChange("additional_cqa_rows", rows)}
+            disabled={false}
+          />
+          <AnalyticalSection
+            rows={draft.analytical_methodology ?? []}
+            onChange={(rows) => onFieldChange("analytical_methodology", rows)}
+            disabled={false}
+          />
+        </>
+      ) : null}
       {isDispensing ? null : stageKind === "compression" ? (
         <CompressionSection
           plan={compressionPlan}

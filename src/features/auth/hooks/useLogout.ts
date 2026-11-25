@@ -14,6 +14,7 @@ import { useAuthStore } from "../state/auth.store";
 export function useLogout() {
   const navigate = useNavigate();
   const refreshToken = useAuthStore((state) => state.refreshToken);
+  const accessToken = useAuthStore((state) => state.accessToken);
   const clearSession = useAuthStore((state) => state.clearSession);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -26,11 +27,11 @@ export function useLogout() {
     navigate(ROUTES.modules, { replace: true });
 
     if (refreshToken) {
-      void logoutRequest({ refresh_token: refreshToken }).catch(() => {
+      void logoutRequest({ refresh_token: refreshToken }, accessToken).catch(() => {
         // Server-side revocation is best-effort; the browser session is already gone.
       });
     }
-  }, [clearSession, navigate, refreshToken]);
+  }, [accessToken, clearSession, navigate, refreshToken]);
 
   return { logout, isLoggingOut };
 }

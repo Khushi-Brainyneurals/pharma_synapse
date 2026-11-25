@@ -4,12 +4,13 @@ import { useEffect, useId, useRef, type ReactNode } from "react";
 interface DialogProps {
   title: string;
   busy?: boolean;
-  size?: "md" | "lg" | "xl";
+  size?:"sm" | "md" | "lg" | "xl";
   onClose: () => void;
   children: ReactNode;
 }
 
 const sizes = {
+  sm: "max-w-sm",
   md: "max-w-lg",
   lg: "max-w-2xl",
   xl: "max-w-5xl",

@@ -1,4 +1,4 @@
-import { httpClient } from "../../../shared/api/httpClient";
+import { httpClient, postWithBearer } from "../../../shared/api/httpClient";
 import { env } from "../../../shared/config/env";
 import { USER_ROLE_LABELS, USER_ROLES, type UserRole } from "../model/roles";
 import type {
@@ -34,13 +34,13 @@ export async function login(request: LoginRequest): Promise<AuthSession> {
   return transformLoginResponse(response.data, request);
 }
 
-export async function logout(request: LogoutRequest): Promise<void> {
+export async function logout(request: LogoutRequest, accessToken?: string | null): Promise<void> {
   if (env.useMockApi) {
     await new Promise((resolve) => window.setTimeout(resolve, 350));
     return;
   }
 
-  await httpClient.post("/logout", request);
+  await postWithBearer("/logout", request, accessToken);
 }
 
 function transformLoginResponse(

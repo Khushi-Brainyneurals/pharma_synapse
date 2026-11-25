@@ -21,12 +21,10 @@ import type {
   SourceSlot,
   SourceSlotsResponse,
 } from "../../../selection/api/documents.types";
-import { DocumentStepper } from "../../../selection/components/DocumentStepper";
-import { SelectionStrip } from "../../../selection/components/SelectionStrip";
+import { WizardHeader } from "../../../selection/components/WizardHeader";
 import { useDocument } from "../../../selection/hooks/useDocument";
 import { useDocumentSelectorData } from "../../../selection/hooks/useDocumentSelectorData";
 import { useStepNavigation } from "../../../selection/hooks/useStepNavigation";
-import { PVP_PVR_DOCUMENT_STEPS } from "../../../selection/model/documentSelector.config";
 
 type UploadSlot = {
   field: string;
@@ -216,18 +214,19 @@ export function SelectDocumentPage() {
       <AppHeader user={user} unit={context?.unit ?? null} isLoadingUnit={isLoadingContext} />
       <div className="grid min-h-0 grid-cols-1 lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)]">
         <AppSidebar user={user} />
-        <main className="min-h-0 min-w-0 overflow-y-auto overscroll-contain px-4 py-6 sm:px-6">
-          <section className="mx-auto rounded-panel border border-border bg-surface shadow-sm">
-            <div className="px-4 py-4 sm:px-6 lg:px-8">
-              <DocumentStepper steps={PVP_PVR_DOCUMENT_STEPS} activeStepId="select-document" onStepClick={goToStep} />
-            </div>
-            <SelectionStrip dosageForm={document?.dosage_form} docType={document?.doc_type} identifier={document?.bmr_number ?? document?.draft_id} />
-            <div className="flex flex-col items-start justify-between border-b border-border p-5 pb-5">
-              <p className="text-micro font-semibold uppercase tracking-overline text-primary">Step 2 of 7</p>
-              <h1 className="mt-1 text-h1 font-semibold">Select Source Document</h1>
-              <p className="mt-1.5 text-small text-subdued">Choose the source document for your PVP/PVR request.</p>
-            </div>
-            <div className="space-y-6 p-5 sm:p-6">
+        <main className="min-h-0 min-w-0 overflow-y-auto overscroll-contain">
+          <section className="mx-auto bg-surface/60 shadow-sm">
+            <WizardHeader
+              activeStepId="select-document"
+              completedStepIds={document?.completed_steps ?? []}
+              onStepClick={goToStep}
+              title="Select Source Document"
+              description="Choose the source document for your PVP/PVR request."
+              status="DRAFT"
+              dosageForm={document?.dosage_form}
+              docType={document?.doc_type ?? "pvp"}
+            />
+            <div className="space-y-6 p-5 sm:p-6 bg">
               {error ? <div className="rounded-control border border-danger/20 bg-danger-soft px-4 py-3 text-small text-danger-ink" role="alert">{error}</div> : null}
               {!pvpMode && !isLoading && !isLoadingDocument ? <div className="rounded-control border border-danger/20 bg-danger-soft px-4 py-3 text-small text-danger-ink" role="alert">The PVP mode is missing, so source documents cannot be loaded. Return to the type step and select manufacturing or packing.</div> : null}
 

@@ -34,12 +34,10 @@ import type {
 } from "../../../selection/api/documents.types";
 import { AppHeader } from "../../../../../app/layout/AppHeader";
 import { AppSidebar } from "../../../../../app/layout/AppSidebar";
-import { DocumentStepper } from "../../../selection/components/DocumentStepper";
-import { SelectionStrip } from "../../../selection/components/SelectionStrip";
+import { WizardHeader } from "../../../selection/components/WizardHeader";
 import { useDocument } from "../../../selection/hooks/useDocument";
 import { useDocumentSelectorData } from "../../../selection/hooks/useDocumentSelectorData";
 import { useStepNavigation } from "../../../selection/hooks/useStepNavigation";
-import { DOCUMENT_SELECTOR_STEPS } from "../../../selection/model/documentSelector.config";
 import { FileUploadCard, type FileUploadStatus } from "../../../shared/components/FileUploadCard";
 import {
   clearCoreInputsDraft,
@@ -456,21 +454,16 @@ export function CoreInputsPage() {
       <AppHeader user={user} unit={context?.unit ?? null} isLoadingUnit={isLoadingContext} />
       <div className="flex min-h-0 flex-1 overflow-hidden lg:grid lg:grid-rows-[minmax(0,1fr)] lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] lg:overflow-hidden">
         <AppSidebar user={user} />
-        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 sm:px-6 lg:h-full">
-          <section className="mx-auto rounded-panel border border-border bg-surface shadow-sm">
-            <div className="px-4 py-4 sm:px-6 lg:px-8">
-              <DocumentStepper
-                steps={DOCUMENT_SELECTOR_STEPS}
-                activeStepId="inputs"
-                completedStepIds={saved?.completed_steps ?? []}
-                onStepClick={goToStep}
-              />
-            </div>
-
-            <SelectionStrip
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
+          <section className="mx-auto bg-surface/50 shadow-sm">
+            <WizardHeader
+              activeStepId="inputs"
+              completedStepIds={saved?.completed_steps ?? []}
+              onStepClick={goToStep}
+              title="Core Inputs"
+              status="DRAFT"
               dosageForm={saved?.dosage_form}
               docType={saved?.doc_type}
-              identifier={saved?.bmr_number ?? saved?.draft_id}
             />
 
             <form onSubmit={handleSubmit} noValidate>

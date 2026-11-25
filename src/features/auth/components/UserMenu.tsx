@@ -4,6 +4,7 @@ import type { AuthenticatedUser } from "../api/auth.types";
 import { USER_ROLE_LABELS } from "../model/roles";
 import { useLogout } from "../hooks/useLogout";
 import { ChangePasswordDialog } from "../../employees/components/ChangePasswordDialog";
+import { LogoutConfirmationDialog } from "./LogoutConfirmationDialog";
 
 interface UserMenuProps {
   user: AuthenticatedUser | null;
@@ -12,6 +13,7 @@ interface UserMenuProps {
 export function UserMenu({ user }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isConfirmingLogout, setIsConfirmingLogout] = useState(false);
   const [passwordChanged, setPasswordChanged] = useState(false);
   const { logout, isLoggingOut } = useLogout();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -96,7 +98,10 @@ export function UserMenu({ user }: UserMenuProps) {
           <button
             type="button"
             role="menuitem"
-            onClick={logout}
+            onClick={() => {
+              setIsOpen(false);
+              setIsConfirmingLogout(true);
+            }}
             disabled={isLoggingOut}
             className="flex w-full items-center gap-2 px-4 py-3 text-left text-small text-text transition hover:bg-muted focus:bg-muted focus:outline-none disabled:opacity-60"
           >
@@ -106,6 +111,9 @@ export function UserMenu({ user }: UserMenuProps) {
         </div>
       ) : null}
     </div>
+      {isConfirmingLogout ? (
+        <LogoutConfirmationDialog onClose={() => setIsConfirmingLogout(false)} onConfirm={logout} />
+      ) : null}
       {isChangingPassword && user ? (
         <ChangePasswordDialog
           employeeId={user.username}

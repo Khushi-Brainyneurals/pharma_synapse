@@ -2,10 +2,13 @@ import { LogOut } from "lucide-react";
 import { useLogout } from "../features/auth/hooks/useLogout";
 import { USER_ROLE_LABELS } from "../features/auth/model/roles";
 import { useAuthStore } from "../features/auth/state/auth.store";
+import { useState } from "react";
+import { LogoutConfirmationDialog } from "../features/auth/components/LogoutConfirmationDialog";
 
 export function ProtectedPlaceholderPage() {
   const user = useAuthStore((state) => state.user);
   const { logout, isLoggingOut } = useLogout();
+  const [isConfirmingLogout, setIsConfirmingLogout] = useState(false);
 
   return (
     <main className="min-h-screen bg-background px-6 py-10 text-text">
@@ -22,7 +25,7 @@ export function ProtectedPlaceholderPage() {
 
           <button
             type="button"
-            onClick={logout}
+            onClick={() => setIsConfirmingLogout(true)}
             disabled={isLoggingOut}
             className="inline-flex shrink-0 items-center gap-2 rounded-control border border-border px-3 py-2 text-sm font-semibold transition hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-60"
           >
@@ -51,6 +54,9 @@ export function ProtectedPlaceholderPage() {
           </dl>
         ) : null}
       </section>
+      {isConfirmingLogout ? (
+        <LogoutConfirmationDialog onClose={() => setIsConfirmingLogout(false)} onConfirm={logout} />
+      ) : null}
     </main>
   );
 }
